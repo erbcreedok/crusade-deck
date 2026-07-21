@@ -15,12 +15,26 @@ interface JoinOptions {
   isPrivate?: boolean;
 }
 
+const SUITS = ["♠", "♥", "♦", "♣"];
+const RANKS_36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+const RANKS_52 = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+
+function buildDeck(deckType: "36" | "52"): string[] {
+  const ranks = deckType === "52" ? RANKS_52 : RANKS_36;
+  const deck: string[] = [];
+  for (const suit of SUITS) {
+    for (const rank of ranks) deck.push(rank + suit);
+  }
+  return deck;
+}
+
 export class CardRoom extends Room<GameState> {
   maxClients = 32;
 
   onCreate(options: JoinOptions) {
     this.setState(new GameState());
     this.state.deckType = options.deckType === "52" ? "52" : "36";
+    buildDeck(this.state.deckType).forEach((card) => this.state.deck.push(card));
 
     if (options.isPrivate) {
       this.state.inviteCode = registerInviteCode(this.roomId);
@@ -31,11 +45,17 @@ export class CardRoom extends Room<GameState> {
       if (player) player.isReady = !player.isReady;
     });
 
+    this.onMessage("shuffle_deck", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      this.shuffleDeck();
+    });
+
     this.onMessage("start_game", (client) => {
       const player = this.state.players.get(client.sessionId);
       if (player?.isDealer && this.state.phase === "lobby") {
+        this.dealCards();
         this.state.phase = "playing";
-        // TODO: тут будет вызов GameEngine, когда появятся правила игры
       }
     });
 
@@ -128,6 +148,28 @@ export class CardRoom extends Room<GameState> {
   onDispose() {
     if (this.state.inviteCode) releaseInviteCode(this.state.inviteCode);
     removePublicRoom(this.roomId);
+  }
+
+  private shuffleDeck() {
+    const deck = this.state.deck;
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const a = deck.at(i)!;
+      const b = deck.at(j)!;
+      deck.setAt(i, b);
+      deck.setAt(j, a);
+    }
+  }
+
+  private dealCards() {
+    const connected = [...this.state.players.values()].filter((p) => p.connected);
+    if (connected.length === 0) return;
+    let i = 0;
+    while (this.state.deck.length > 0) {
+      const card = this.state.deck.pop();
+      if (card) connected[i % connected.length].hand.push(card);
+      i++;
+    }
   }
 
   private startProposal(kind: "dealer" | "kick", proposerId: string, targetId: string) {

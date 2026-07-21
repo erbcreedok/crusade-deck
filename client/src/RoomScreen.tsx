@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { Table, TablePlayer } from "./Table";
 import { ProposalBanner } from "./ProposalBanner";
-
-const DECK_SIZE = { "36": 36, "52": 52 } as const;
+import { Hand } from "./Hand";
 
 interface ActiveProposal {
   kind: "dealer" | "kick";
@@ -15,9 +14,14 @@ interface ActiveProposal {
 export function RoomScreen({ room }: { room: Room }) {
   const [players, setPlayers] = useState<TablePlayer[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
-  const [deckType, setDeckType] = useState<"36" | "52">("36");
   const [isPublic, setIsPublic] = useState(false);
+  const [phase, setPhase] = useState<"lobby" | "playing" | "finished">("lobby");
+  const [deckCount, setDeckCount] = useState(0);
+  const [shuffleTick, setShuffleTick] = useState(0);
+  const [myHand, setMyHand] = useState<string[]>([]);
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
+  const prevDeckSig = useRef("");
+  const prevDeckLength = useRef(-1);
 
   useEffect(() => {
     const sync = () => {
@@ -29,12 +33,28 @@ export function RoomScreen({ room }: { room: Room }) {
           isDealer: p.isDealer,
           isReady: p.isReady,
           connected: p.connected,
+          handCount: p.hand.length,
         });
       });
       setPlayers(list);
       setInviteCode(room.state.inviteCode);
-      setDeckType(room.state.deckType);
       setIsPublic(room.state.isPublic);
+      setPhase(room.state.phase);
+
+      const deckArr: string[] = [...room.state.deck];
+      setDeckCount(deckArr.length);
+      const deckSig = deckArr.join(",");
+      if (deckSig !== prevDeckSig.current) {
+        if (deckArr.length === prevDeckLength.current) {
+          // длина колоды не поменялась, но порядок другой — значит, тасовка
+          setShuffleTick((t) => t + 1);
+        }
+        prevDeckSig.current = deckSig;
+        prevDeckLength.current = deckArr.length;
+      }
+
+      const me = room.state.players.get(room.sessionId);
+      setMyHand(me ? [...me.hand] : []);
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -72,6 +92,7 @@ export function RoomScreen({ room }: { room: Room }) {
   const proposerName = players.find((p) => p.id === proposal?.proposerId)?.name || "?";
   const targetName = players.find((p) => p.id === proposal?.targetId)?.name || "?";
   const myVote = proposal ? proposal.votes[room.sessionId] : undefined;
+  const amIDealer = players.find((p) => p.id === room.sessionId)?.isDealer ?? false;
 
   return (
     <div className="table-screen">
@@ -100,19 +121,33 @@ export function RoomScreen({ room }: { room: Room }) {
       <Table
         players={players}
         mySessionId={room.sessionId}
-        deckCount={DECK_SIZE[deckType]}
+        deckCount={deckCount}
+        shuffleTick={shuffleTick}
         hasActiveProposal={!!proposal}
         onProposeDealer={() => room.send("propose_dealer")}
         onProposeKick={(targetSessionId) => room.send("propose_kick", { targetSessionId })}
       />
 
+      {phase === "playing" && myHand.length > 0 && <Hand cards={myHand} />}
+
       <div className="table-bottombar">
-        <button className="pixel-btn" onClick={() => room.send("ready")}>
-          Готов
-        </button>
-        <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("start_game")}>
-          Начать игру
-        </button>
+        {phase === "lobby" && (
+          <>
+            <button className="pixel-btn" onClick={() => room.send("ready")}>
+              Готов
+            </button>
+            {amIDealer && (
+              <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("shuffle_deck")}>
+                Растасовать
+              </button>
+            )}
+            {amIDealer && (
+              <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("start_game")}>
+                Раздать
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -445,10 +445,18 @@ textarea {
   display: flex;
   gap: 10px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .table-bottombar .pixel-btn {
   flex: 0 1 220px;
+}
+
+.seat-hand-count {
+  font-family: "VT323", monospace;
+  font-size: 1rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
 }
 
 @media (max-width: 480px) {
@@ -626,4 +634,59 @@ textarea {
   gap: 10px;
   padding: 6px 0;
   font-size: 1.05rem;
+}
+
+/* --- Playing cards + hand --- */
+
+.playing-card {
+  position: relative;
+  width: 64px;
+  height: 92px;
+  background: #f0e6cf;
+  border: 3px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--accent-gold);
+  image-rendering: pixelated;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playing-card-red {
+  color: var(--accent-red);
+}
+
+.playing-card-black {
+  color: #2b1810;
+}
+
+.playing-card-corner {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  font-family: "VT323", monospace;
+  font-size: 1.05rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.playing-card-suit-big {
+  font-family: "VT323", monospace;
+  font-size: 2rem;
+}
+
+.hand {
+  position: relative;
+  height: 110px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.hand-card-slot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  margin-left: -32px; /* половина ширины .playing-card, центрируем якорь */
+  transform-origin: bottom center;
 }

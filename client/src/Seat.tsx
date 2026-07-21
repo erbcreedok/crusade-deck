@@ -5,6 +5,7 @@ interface SeatProps {
   isDealer: boolean;
   isReady: boolean;
   connected: boolean;
+  handCount: number;
   isMe: boolean;
   style: React.CSSProperties;
   menuOpen: boolean;
@@ -25,6 +26,7 @@ export function Seat({
   isDealer,
   isReady,
   connected,
+  handCount,
   isMe,
   style,
   menuOpen,
@@ -58,6 +60,7 @@ export function Seat({
         {isMe ? " (ты)" : ""}
       </div>
       {!connected && <div className="seat-offline">офлайн</div>}
+      {!isMe && handCount > 0 && <div className="seat-hand-count">🂠 {handCount}</div>}
 
       {menuOpen && (
         <div className="seat-menu" onClick={(e) => e.stopPropagation()}>

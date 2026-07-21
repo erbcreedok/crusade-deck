@@ -8,6 +8,7 @@ export interface TablePlayer {
   isDealer: boolean;
   isReady: boolean;
   connected: boolean;
+  handCount: number;
 }
 
 // Виртуальный круглый стол: места распределены по эллипсу, свое место —
@@ -17,6 +18,7 @@ export function Table({
   players,
   mySessionId,
   deckCount,
+  shuffleTick,
   hasActiveProposal,
   onProposeDealer,
   onProposeKick,
@@ -24,6 +26,7 @@ export function Table({
   players: TablePlayer[];
   mySessionId: string;
   deckCount: number;
+  shuffleTick: number;
   hasActiveProposal: boolean;
   onProposeDealer: () => void;
   onProposeKick: (targetSessionId: string) => void;
@@ -43,7 +46,7 @@ export function Table({
   return (
     <div className="table-oval" onClick={() => setOpenSeatId(null)}>
       <div className="table-center">
-        <DeckStack count={deckCount} />
+        <DeckStack count={deckCount} shuffleTick={shuffleTick} />
       </div>
       {ordered.map((p, i) => {
         const angle = ((180 + (i * 360) / total) * Math.PI) / 180;
@@ -56,6 +59,7 @@ export function Table({
             isDealer={p.isDealer}
             isReady={p.isReady}
             connected={p.connected}
+            handCount={p.handCount}
             isMe={p.id === mySessionId}
             style={{ left: `${left}%`, top: `${top}%` }}
             menuOpen={openSeatId === p.id}

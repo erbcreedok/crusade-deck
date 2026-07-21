@@ -1,4 +1,4 @@
-import { Schema, type, MapSchema } from "@colyseus/schema";
+import { Schema, type, MapSchema, ArraySchema } from "@colyseus/schema";
 
 export class Player extends Schema {
   @type("string") id: string = "";
@@ -6,6 +6,10 @@ export class Player extends Schema {
   @type("boolean") isDealer: boolean = false;
   @type("boolean") isReady: boolean = false;
   @type("boolean") connected: boolean = true;
+  // Карты в руке, напр. "10♠", "A♥". Синкается всем игрокам (см. заметку
+  // про упрощение видимости в project_accounts_dealer_voting.md) — клиент
+  // сам решает, чью руку рисовать в открытую, а чью рубашкой вниз.
+  @type({ array: "string" }) hand = new ArraySchema<string>();
 }
 
 // Голосование: предложить себя/другого в дилеры, или предложить кого-то кикнуть.
@@ -24,4 +28,5 @@ export class GameState extends Schema {
   @type("string") inviteCode: string = "";
   @type("boolean") isPublic: boolean = false;
   @type(Proposal) activeProposal?: Proposal;
+  @type({ array: "string" }) deck = new ArraySchema<string>();
 }
