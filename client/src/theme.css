@@ -108,16 +108,19 @@ textarea {
 }
 
 .pixel-screen {
-  min-height: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow-y: auto;
 }
 
 .pixel-panel {
   width: 100%;
   max-width: 380px;
+  max-height: 100%;
+  overflow-y: auto;
   background: var(--panel-bg);
   border: 4px solid var(--shadow-black);
   box-shadow:
