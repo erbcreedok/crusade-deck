@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+
+# Локальные данные и настройки — не для коммита
+server/data/
+client/.env.local
+.claude/settings.local.json
+
+# ОС/редакторы
+.DS_Store
+*.log
