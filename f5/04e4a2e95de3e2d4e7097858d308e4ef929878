@@ -1,0 +1,99 @@
+client/public/bg-clubs.svg
+  s_d29b4e6b2d477c::t_2c62c4b708cac0 1-43
+client/public/bg-diamonds.svg
+  s_d29b4e6b2d477c::t_e8bc9f336a8073 1-138
+client/src/App.tsx
+  s_513739db13ef31::t_851c055e027b63 1-107
+client/src/main.tsx
+  s_513739db13ef31::t_b69614f1b5af5b 1-12
+.claude/launch.json
+  s_d29b4e6b2d477c::t_3b7fa666f202d5 1-17
+.gitignore
+  s_d29b4e6b2d477c::t_6e74f4ec10e669 1-12
+CLAUDE.md
+  s_d29b4e6b2d477c::t_f3abed1c3b407c 1-62
+client/index.html
+  s_d29b4e6b2d477c::t_904ae88d150c24 1-25
+client/package-lock.json
+  s_d29b4e6b2d477c::t_b7a064aaf448a3 1-2842
+client/package.json
+  s_d29b4e6b2d477c::t_e869df64ca545b 1-25
+client/src/DeckStack.tsx
+  s_d29b4e6b2d477c::t_f4f098f27067f0 1-25
+client/src/Lobby.tsx
+  s_d29b4e6b2d477c::t_9e013c4e8dfe38 1-132
+client/src/PixelBackground.tsx
+  s_d29b4e6b2d477c::t_cda269973afd60 1-8
+client/src/ProfilePanel.tsx
+  s_d29b4e6b2d477c::t_7a05baa18be7e4 1-56
+client/src/ProposalBanner.tsx
+  s_d29b4e6b2d477c::t_3b997fae399fd1 1-48
+client/src/RoomScreen.tsx
+  s_d29b4e6b2d477c::t_62e3e8afecefcf 1-132
+client/src/Seat.tsx
+  s_d29b4e6b2d477c::t_47074d8c377ca0 1-83
+client/src/Table.tsx
+  s_d29b4e6b2d477c::t_741a3a64bd87ec 1-77
+client/src/account.ts
+  s_d29b4e6b2d477c::t_6a712b4ee3771e 1-96
+client/src/colyseus.ts
+  s_d29b4e6b2d477c::t_4eb2348a243f2a 1-42
+client/src/firebase.ts
+  s_d29b4e6b2d477c::t_101194e45d107d 1-17
+client/src/theme.css
+  s_d29b4e6b2d477c::t_2960a660dfbb93 1-610
+client/src/useAuth.ts
+  s_d29b4e6b2d477c::t_fc17216cd82cce 1-87
+client/src/useMotionPreference.ts
+  s_d29b4e6b2d477c::t_5e0149d4e614b9 1-21
+client/src/vite-env.d.ts
+  s_d29b4e6b2d477c::t_ca585025fcc1f5 1
+client/tsconfig.json
+  s_d29b4e6b2d477c::t_9462c9c957f166 1-14
+client/vite.config.ts
+  s_d29b4e6b2d477c::t_0ffeaa99cc6ff6 1-7
+server/package-lock.json
+  s_d29b4e6b2d477c::t_7e3e94e3329098 1-3913
+server/package.json
+  s_d29b4e6b2d477c::t_36db2bdfa41e5f 1-24
+server/src/CardRoom.ts
+  s_d29b4e6b2d477c::t_98b5071c9ab18c 1-199
+server/src/GameState.ts
+  s_d29b4e6b2d477c::t_20c068e176245e 1-27
+server/src/accounts.ts
+  s_d29b4e6b2d477c::t_0ae5c3cc2035d9 1-86
+server/src/auth.ts
+  s_d29b4e6b2d477c::t_dd9575960fec53 1-19
+server/src/index.ts
+  s_d29b4e6b2d477c::t_2cb58c41a0a671 1-71
+server/src/inviteCodes.ts
+  s_d29b4e6b2d477c::t_fbdda04bf52849 1-20
+server/src/publicRooms.ts
+  s_d29b4e6b2d477c::t_7a97a2592c8243 1-24
+server/tsconfig.json
+  s_d29b4e6b2d477c::t_09b6ccf0935e41 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f504e4a2e95de3e2d4e7097858d308e4ef929878",
+  "prompts": {},
+  "sessions": {
+    "s_513739db13ef31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6f100c7-1131-4acc-9d4d-08f9a8905dfb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d29b4e6b2d477c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdaef523-b69f-4fa8-8413-f36c7fd21421",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
