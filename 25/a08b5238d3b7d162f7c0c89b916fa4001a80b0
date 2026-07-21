@@ -1,0 +1,19 @@
+client/src/Hand.tsx
+  s_37db134cacf0e4::t_3614e38ec88b59 1,5,8-12,15-17,20-32,34-35,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "25a08b5238d3b7d162f7c0c89b916fa4001a80b0",
+  "prompts": {},
+  "sessions": {
+    "s_37db134cacf0e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03b1f681-cda9-4fe8-a514-164c453fec68",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
