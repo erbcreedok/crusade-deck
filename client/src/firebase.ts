@@ -13,5 +13,5 @@ const firebaseConfig = {
 // useAuth.ts в этом случае переключается на локальный dev-режим гостевого входа.
 export const isFirebaseConfigured = firebaseConfig.apiKey !== "REPLACE_ME";
 
-export const firebaseApp = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
+const firebaseApp = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const auth: Auth | null = isFirebaseConfigured ? getAuth(firebaseApp!) : null;

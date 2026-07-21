@@ -28,7 +28,13 @@ function buildDeck(deckType: "36" | "52"): string[] {
   return deck;
 }
 
-const VOTE_TIMEOUT_MS = 10_000;
+// Читаем при каждом обращении (а не один раз при загрузке модуля), чтобы
+// тесты могли подставить короткий таймаут через process.env без реального
+// ожидания 10 секунд.
+function getVoteTimeoutMs(): number {
+  const fromEnv = Number(process.env.VOTE_TIMEOUT_MS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 10_000;
+}
 
 export class CardRoom extends Room<GameState> {
   maxClients = 32;
@@ -180,12 +186,13 @@ export class CardRoom extends Room<GameState> {
     proposal.kind = kind;
     proposal.proposerId = proposerId;
     proposal.targetId = targetId;
-    proposal.deadline = Date.now() + VOTE_TIMEOUT_MS;
+    const timeoutMs = getVoteTimeoutMs();
+    proposal.deadline = Date.now() + timeoutMs;
     proposal.votes.set(proposerId, true);
     this.state.activeProposal = proposal;
 
     this.proposalTimeout?.clear();
-    this.proposalTimeout = this.clock.setTimeout(() => this.forceResolveOnTimeout(), VOTE_TIMEOUT_MS);
+    this.proposalTimeout = this.clock.setTimeout(() => this.forceResolveOnTimeout(), timeoutMs);
 
     this.tallyAndResolve();
   }
