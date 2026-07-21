@@ -23,11 +23,6 @@ function saveLocal(account: Account) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
 }
 
-// Формат для отображения/копирования: "A1B2-C3D4-E5F6-A7B8-C9D0".
-export function formatRecoveryHash(hash: string): string {
-  return hash.match(/.{1,4}/g)?.join("-") ?? hash;
-}
-
 export function useAccount() {
   const [account, setAccount] = useState<Account | null>(() => loadLocal());
   const [loading, setLoading] = useState(false);
@@ -92,5 +87,22 @@ export function useAccount() {
     [account]
   );
 
-  return { account, loading, createNew, restore, rename };
+  // Не трогает общий `loading` — это флаг для начального экрана входа,
+  // а не для фоновых операций уже вошедшего пользователя (иначе всё
+  // приложение на миг размонтируется в "Загрузка..." и меню теряет state).
+  const regenerateCode = useCallback(async () => {
+    if (!account) return;
+    const res = await fetch(`${SERVER_URL}/accounts/${account.id}/regenerate-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recoveryHash: account.recoveryHash }),
+    });
+    if (!res.ok) throw new Error("Не удалось обновить код");
+    const updated: Account = await res.json();
+    saveLocal(updated);
+    setAccount(updated);
+    return updated;
+  }, [account]);
+
+  return { account, loading, createNew, restore, rename, regenerateCode };
 }

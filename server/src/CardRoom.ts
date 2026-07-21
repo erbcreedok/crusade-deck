@@ -40,8 +40,8 @@ export class CardRoom extends Room<GameState> {
     });
 
     this.onMessage("toggle_public", (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player?.isDealer) return;
+      // Паблик/приват может переключить любой игрок в комнате.
+      if (!this.state.players.has(client.sessionId)) return;
       this.state.isPublic = !this.state.isPublic;
       if (this.state.isPublic) {
         setPublicRoom(this.roomId, {

@@ -1,4 +1,4 @@
-import { randomUUID, randomBytes } from "crypto";
+import { randomUUID, randomInt } from "crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -44,8 +44,17 @@ function scheduleSave() {
   }, 200);
 }
 
+// Короткий код вида "согласная-гласная-согласная-согласная-гласная-согласная"
+// (напр. "BOVAKI") — короче hex-строки и легче произносится/вводится вручную.
+const CONSONANTS = "BCDFGHJKLMNPRSTVWZ";
+const VOWELS = "AEIOU";
+const PATTERN = ["C", "V", "C", "C", "V", "C"] as const;
+
 function generateRecoveryHash(): string {
-  return randomBytes(10).toString("hex").toUpperCase();
+  return PATTERN.map((kind) => {
+    const set = kind === "C" ? CONSONANTS : VOWELS;
+    return set[randomInt(set.length)];
+  }).join("");
 }
 
 export function createAccount(name?: string): Account {
@@ -79,6 +88,20 @@ export function renameAccount(id: string, recoveryHash: string, name: string): A
   if (!account || account.recoveryHash !== normalizeHash(recoveryHash)) return undefined;
   const trimmed = name.trim().slice(0, 24);
   if (trimmed) account.name = trimmed;
+  scheduleSave();
+  return account;
+}
+
+export function regenerateRecoveryHash(id: string, recoveryHash: string): Account | undefined {
+  const account = accounts.get(id);
+  if (!account || account.recoveryHash !== normalizeHash(recoveryHash)) return undefined;
+
+  byHash.delete(account.recoveryHash);
+  let next = generateRecoveryHash();
+  while (byHash.has(next)) next = generateRecoveryHash();
+
+  account.recoveryHash = next;
+  byHash.set(next, id);
   scheduleSave();
   return account;
 }

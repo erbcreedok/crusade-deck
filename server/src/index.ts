@@ -6,7 +6,7 @@ import colyseusPkg from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { CardRoom } from "./CardRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
-import { createAccount, findAccountByRecoveryHash, renameAccount } from "./accounts.js";
+import { createAccount, findAccountByRecoveryHash, renameAccount, regenerateRecoveryHash } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
 
 const { Server } = colyseusPkg;
@@ -57,6 +57,14 @@ app.patch("/accounts/:id", (req, res) => {
     return res.status(400).json({ error: "bad_request" });
   }
   const account = renameAccount(req.params.id, recoveryHash, name);
+  if (!account) return res.status(403).json({ error: "forbidden" });
+  res.json(account);
+});
+
+app.post("/accounts/:id/regenerate-code", (req, res) => {
+  const { recoveryHash } = req.body || {};
+  if (typeof recoveryHash !== "string") return res.status(400).json({ error: "bad_request" });
+  const account = regenerateRecoveryHash(req.params.id, recoveryHash);
   if (!account) return res.status(403).json({ error: "forbidden" });
   res.json(account);
 });

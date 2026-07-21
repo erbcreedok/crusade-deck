@@ -22,7 +22,7 @@ interface AccountUser {
 // клиент хранит их локально. Совпадает с CardRoom.onAuth на сервере, который
 // принимает accountId напрямую. См. [[feedback-no-firebase-for-local-dev]].
 function useAccountAuth() {
-  const { account, loading, createNew, restore, rename } = useAccount();
+  const { account, loading, createNew, restore, rename, regenerateCode } = useAccount();
 
   const user: AccountUser | null = account
     ? {
@@ -41,6 +41,7 @@ function useAccountAuth() {
     createAccount: createNew,
     restoreAccount: restore,
     renameAccount: rename,
+    regenerateCode,
     signInGuest: () => createNew(),
     signInEmail: async () => {
       throw new Error("Email/password вход недоступен без настроенного Firebase (client/src/firebase.ts)");
@@ -72,6 +73,7 @@ function useFirebaseAuth() {
     createAccount: async (_name?: string) => undefined,
     restoreAccount: async (_recoveryHash: string) => undefined,
     renameAccount: async (_name: string) => undefined,
+    regenerateCode: async () => undefined,
     signInGuest: () => signInAnonymously(auth!),
     signInEmail: (email: string, password: string) => signInWithEmailAndPassword(auth!, email, password),
     signUpEmail: (email: string, password: string) => createUserWithEmailAndPassword(auth!, email, password),

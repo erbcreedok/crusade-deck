@@ -102,6 +102,11 @@ textarea {
   }
 }
 
+.pixel-bg-clubs.motion-paused,
+.pixel-bg-diamonds.motion-paused {
+  animation: none;
+}
+
 .pixel-screen {
   min-height: 100%;
   display: flex;
@@ -304,10 +309,12 @@ textarea {
 
 .table-topbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  /* оставляем место справа под фиксированную кнопку меню (.menu-fab) */
+  padding-right: 56px;
 }
 
 .table-badge {
@@ -317,17 +324,6 @@ textarea {
   border: 2px solid var(--shadow-black);
   box-shadow: 0 0 0 2px var(--panel-border);
   padding: 4px 10px;
-}
-
-.table-motion-toggle {
-  font-family: "VT323", monospace;
-  font-size: 1rem;
-  background: var(--panel-bg-light);
-  color: var(--ink);
-  border: 2px solid var(--shadow-black);
-  box-shadow: 0 0 0 2px var(--panel-border);
-  padding: 6px 10px;
-  cursor: pointer;
 }
 
 .table-oval {
@@ -468,8 +464,7 @@ textarea {
     max-width: 64px;
   }
 
-  .table-badge,
-  .table-motion-toggle {
+  .table-badge {
     font-size: 0.85rem;
   }
 }
@@ -487,19 +482,40 @@ textarea {
   padding: 24px;
 }
 
-.profile-fab {
+.menu-fab {
   position: fixed;
   top: max(10px, env(safe-area-inset-top));
   right: max(10px, env(safe-area-inset-right));
   z-index: 50;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--panel-bg-light);
+  color: var(--ink);
   border: 2px solid var(--shadow-black);
   box-shadow: 0 0 0 2px var(--accent-gold);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   cursor: pointer;
+}
+
+.menu-toggle-row {
+  display: block;
+  width: 100%;
+  font-family: "VT323", monospace;
+  font-size: 1.15rem;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pixel-btn-danger {
+  background: var(--accent-red);
+  color: #2b0d0a;
 }
 
 .recovery-code {
