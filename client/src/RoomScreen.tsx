@@ -8,6 +8,7 @@ interface ActiveProposal {
   kind: "dealer" | "kick";
   proposerId: string;
   targetId: string;
+  deadline: number;
   votes: Record<string, boolean>;
 }
 
@@ -67,7 +68,7 @@ export function RoomScreen({ room }: { room: Room }) {
         ap.votes.forEach((value: boolean, sessionId: string) => {
           votes[sessionId] = value;
         });
-        setProposal({ kind: ap.kind, proposerId: ap.proposerId, targetId: ap.targetId, votes });
+        setProposal({ kind: ap.kind, proposerId: ap.proposerId, targetId: ap.targetId, deadline: ap.deadline, votes });
       }
     };
 
@@ -113,6 +114,7 @@ export function RoomScreen({ room }: { room: Room }) {
           yesWeight={yesWeight}
           noWeight={noWeight}
           totalWeight={totalWeight}
+          deadline={proposal.deadline}
           myVote={myVote}
           onVote={(value) => room.send("vote", { value })}
         />

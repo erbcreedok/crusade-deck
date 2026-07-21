@@ -18,6 +18,9 @@ export class Proposal extends Schema {
   @type("string") kind: "dealer" | "kick" = "dealer";
   @type("string") proposerId: string = ""; // sessionId
   @type("string") targetId: string = ""; // sessionId
+  // Unix-время (мс), когда голосование форсированно закроется — см. VOTE_TIMEOUT_MS
+  // в CardRoom.ts. Кто не успел проголосовать, просто не учитывается в подсчёте.
+  @type("number") deadline: number = 0;
   @type({ map: "boolean" }) votes = new MapSchema<boolean>();
 }
 

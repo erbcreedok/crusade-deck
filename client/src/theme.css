@@ -604,6 +604,11 @@ textarea {
   text-align: center;
 }
 
+.proposal-countdown {
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
 .proposal-tally {
   font-family: "VT323", monospace;
   font-size: 1rem;

@@ -1,6 +1,6 @@
 // Room/Client берём из @colyseus/core напрямую — именованные экспорты
 // из "colyseus" не работают под нативным Node ESM (см. index.ts).
-import { Room, Client } from "@colyseus/core";
+import { Room, Client, Delayed } from "@colyseus/core";
 import { GameState, Player, Proposal } from "./GameState.js";
 import { verifyFirebaseToken } from "./auth.js";
 import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
@@ -28,8 +28,11 @@ function buildDeck(deckType: "36" | "52"): string[] {
   return deck;
 }
 
+const VOTE_TIMEOUT_MS = 10_000;
+
 export class CardRoom extends Room<GameState> {
   maxClients = 32;
+  private proposalTimeout: Delayed | null = null;
 
   onCreate(options: JoinOptions) {
     this.setState(new GameState());
@@ -177,16 +180,40 @@ export class CardRoom extends Room<GameState> {
     proposal.kind = kind;
     proposal.proposerId = proposerId;
     proposal.targetId = targetId;
+    proposal.deadline = Date.now() + VOTE_TIMEOUT_MS;
     proposal.votes.set(proposerId, true);
     this.state.activeProposal = proposal;
+
+    this.proposalTimeout?.clear();
+    this.proposalTimeout = this.clock.setTimeout(() => this.forceResolveOnTimeout(), VOTE_TIMEOUT_MS);
+
     this.tallyAndResolve();
   }
 
   private cancelProposalInvolving(sessionId: string) {
     const proposal = this.state.activeProposal;
     if (proposal && (proposal.proposerId === sessionId || proposal.targetId === sessionId)) {
+      this.proposalTimeout?.clear();
+      this.proposalTimeout = null;
       this.state.activeProposal = undefined;
     }
+  }
+
+  // Кто не успел проголосовать за отведённое время — просто не учитывается
+  // (ни за, ни против), как в голосованиях в большинстве онлайн-игр.
+  private forceResolveOnTimeout() {
+    const proposal = this.state.activeProposal;
+    if (!proposal || !proposal.proposerId) return;
+
+    let yes = 0;
+    let no = 0;
+    proposal.votes.forEach((value, sessionId) => {
+      const weight = this.weightOf(sessionId);
+      if (value) yes += weight;
+      else no += weight;
+    });
+
+    this.resolveProposal(proposal, yes > no);
   }
 
   private totalWeight(): number {
@@ -224,6 +251,9 @@ export class CardRoom extends Room<GameState> {
   }
 
   private resolveProposal(proposal: Proposal, passed: boolean) {
+    this.proposalTimeout?.clear();
+    this.proposalTimeout = null;
+
     if (passed) {
       if (proposal.kind === "dealer") {
         this.state.players.forEach((p) => (p.isDealer = false));

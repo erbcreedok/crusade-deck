@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 interface Props {
   kind: "dealer" | "kick";
   proposerName: string;
@@ -5,8 +7,22 @@ interface Props {
   yesWeight: number;
   noWeight: number;
   totalWeight: number;
+  deadline: number;
   myVote: boolean | undefined;
   onVote: (value: boolean) => void;
+}
+
+function useCountdown(deadline: number) {
+  const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+
+  useEffect(() => {
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [deadline]);
+
+  return secondsLeft;
 }
 
 export function ProposalBanner({
@@ -16,16 +32,20 @@ export function ProposalBanner({
   yesWeight,
   noWeight,
   totalWeight,
+  deadline,
   myVote,
   onVote,
 }: Props) {
   const pct = totalWeight > 0 ? Math.round((yesWeight / totalWeight) * 100) : 0;
+  const secondsLeft = useCountdown(deadline);
   const text =
     kind === "kick" ? `Кикнуть игрока ${targetName}?` : `${proposerName} хочет стать дилером`;
 
   return (
     <div className="proposal-banner">
-      <p className="proposal-text">{text}</p>
+      <p className="proposal-text">
+        {text} <span className="proposal-countdown">{secondsLeft}с</span>
+      </p>
       <p className="proposal-tally">
         За: {yesWeight} ({pct}%) · Против: {noWeight}
       </p>
