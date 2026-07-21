@@ -1,0 +1,47 @@
+client/src/useAuth.ts
+  s_d29b4e6b2d477c::t_5e2bfa92f50e3b 44
+  s_d29b4e6b2d477c::t_7716c7c36fe16a 25
+  s_d29b4e6b2d477c::t_c299701d2c926f 76
+client/src/App.tsx
+  s_d29b4e6b2d477c::t_93bac3bb53b5a3 3,7-9,12-20,25,27-32,34-40,43-50,53-65,67-70,72-77,79-99,101-102,104-130
+client/src/RoomScreen.tsx
+  s_d29b4e6b2d477c::t_4359f3cb55a7b1 77-82,84-85,87-96,98-107,109-115,117
+client/src/AppMenu.tsx
+  s_d29b4e6b2d477c::t_a00b60b66a0c7a 1-120
+server/src/accounts.ts
+  s_d29b4e6b2d477c::t_89e9e3760550e4 47-52,54-57
+  s_d29b4e6b2d477c::t_0fddd466ecbc88 1
+  s_d29b4e6b2d477c::t_4354fae0839007 95-108
+server/src/CardRoom.ts
+  s_d29b4e6b2d477c::t_7ebf1c6f538f82 43-44
+client/src/account.ts
+  s_d29b4e6b2d477c::t_59918bd337739c 90-92,95-104
+  s_d29b4e6b2d477c::t_912196aa33841c 93-94,105-107
+client/src/theme.css
+  s_d29b4e6b2d477c::t_601eb536babc15 467
+  s_d29b4e6b2d477c::t_a879dbd2c0107c 312,316-317
+  s_d29b4e6b2d477c::t_906c9f61cf5dcc 485,490-491,494,497,501-519
+  s_d29b4e6b2d477c::t_ad46846d54c166 105-109
+  s_d29b4e6b2d477c::t_612edfd0d4958b 520
+server/src/index.ts
+  s_d29b4e6b2d477c::t_c2d264b3c853e5 9
+  s_d29b4e6b2d477c::t_a329beb3f620d3 64-71
+client/src/PixelBackground.tsx
+  s_d29b4e6b2d477c::t_45e3067c1ecba3 1-2,5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1489f8aed64cca69cc7f480fb2554b8971e47cc2",
+  "prompts": {},
+  "sessions": {
+    "s_d29b4e6b2d477c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdaef523-b69f-4fa8-8413-f36c7fd21421",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
