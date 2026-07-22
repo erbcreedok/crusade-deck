@@ -1,0 +1,32 @@
+server/src/messages/roomMessages.ts
+  s_7d9a23fba6e8e1::t_9364339c0afe57 1-76
+server/src/stateWrite.test.ts
+  s_7d9a23fba6e8e1::t_d165f9c82741e1 1-111
+server/src/messages/host.ts
+  s_7d9a23fba6e8e1::t_4ea3cb7424d21a 1-28
+server/src/stateWrite.ts
+  s_7d9a23fba6e8e1::t_fba7d9edb96309 1-64
+server/src/CardRoom.ts
+  s_7d9a23fba6e8e1::t_9a6d61f88141cb 15-19,29,43-44,50-53,155,184,194-196,201,206,212-213,227,264
+  s_7d9a23fba6e8e1::t_b71f2824a770f8 10
+server/src/messages/handMessages.ts
+  s_7d9a23fba6e8e1::t_8531555c05e812 1-90
+server/src/messages/deckMessages.ts
+  s_7d9a23fba6e8e1::t_bba93d386dda73 1-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2c2eb2640bb81fd35442f44c4b063a50ed903a1e",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
