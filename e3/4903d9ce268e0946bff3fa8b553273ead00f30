@@ -1,0 +1,30 @@
+server/src/CardRoom.test.ts
+  s_3b000dfed76439::t_15356a3ae58e0c 623-626,628,635,650-651,686
+  s_3b000dfed76439::t_965a872dc9e2c9 30-37,627,643,675,720
+client/src/game/rejections.test.ts
+  s_3b000dfed76439::t_4d866b1bf57185 6,16
+server/src/rejections.ts
+  s_3b000dfed76439::t_ce91ab6caaba95 5,8-10,16,20
+client/src/game/rejections.ts
+  s_3b000dfed76439::t_4d866b1bf57185 5,11
+server/src/rejections.test.ts
+  s_3b000dfed76439::t_6f8fcf412e382b 12-16,40-43
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_ce91ab6caaba95 122,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e34903d9ce268e0946bff3fa8b553273ead00f30",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
