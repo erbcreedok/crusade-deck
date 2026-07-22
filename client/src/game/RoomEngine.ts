@@ -25,6 +25,7 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
+import { stackOffset, lightShadowOffset } from "./deckStack";
 import { parseCard, isCourt, suitColor } from "./card";
 import {
   cardBackSkin,
@@ -65,6 +66,9 @@ const TEX_W = 160;
 const TEX_H = 228;
 
 const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
+
+// Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
+const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 };
 
 const DRAG_SCALE = 1.18; // карты «приподнимаются» при захвате (визуальный акцент)
 const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-клик), больше — реальный драг
@@ -703,7 +707,8 @@ export class RoomEngine {
     this.reject = { t: 0, dur: 0.5, dirX: dx, dirY: dy };
     // Держим колоду у точки удара на время отскока (не улетает домой сразу).
     for (let i = 0; i < this.cards.length; i++) {
-      this.cards[i].body.setTarget({ x: px, y: py - i * anim.deck.stackDy, scale: DRAG_SCALE, rot: this.restJitter[i] ?? 0 });
+      const so = stackOffset(i);
+      this.cards[i].body.setTarget({ x: px + so.dx, y: py + so.dy, scale: DRAG_SCALE, rot: this.restJitter[i] ?? 0 });
     }
   }
 
@@ -711,9 +716,10 @@ export class RoomEngine {
     if (!this.press) return;
     const { x, y } = this.press;
     for (let i = 0; i < this.cards.length; i++) {
+      const so = stackOffset(i);
       this.cards[i].body.setTarget({
-        x,
-        y: y - i * anim.deck.stackDy,
+        x: x + so.dx,
+        y: y + so.dy,
         scale: DRAG_SCALE,
         rot: this.restJitter[i] ?? 0,
       });
@@ -1179,9 +1185,9 @@ export class RoomEngine {
     }
     s.visible = true;
     const elev = Math.max(0, base.body.scaleVal - 1); // 0 в покое, ~0.18 при захвате
-    const off = this.layout.cardH;
-    s.x = base.body.px + this.shake.dx + off * (0.04 + elev * 0.5);
-    s.y = base.body.py + this.shake.dy + off * (0.06 + elev * 0.75);
+    const off = lightShadowOffset(this.layout.cardH, elev);
+    s.x = base.body.px + this.shake.dx + off.dx;
+    s.y = base.body.py + this.shake.dy + off.dy;
     s.rotation = base.body.rotation + this.shake.rot;
     s.scale.set(this.baseScale * base.body.scaleVal * 1.05);
     s.alpha = 0.5 + elev * 0.4;
@@ -1198,9 +1204,9 @@ export class RoomEngine {
     }
     s.visible = true;
     const elev = Math.max(0, v.body.scaleVal - 1);
-    const off = this.layout.cardH;
-    s.x = v.sprite.x + off * (0.04 + elev * 0.5);
-    s.y = v.sprite.y + off * (0.06 + elev * 0.75);
+    const off = lightShadowOffset(this.layout.cardH, elev);
+    s.x = v.sprite.x + off.dx;
+    s.y = v.sprite.y + off.dy;
     s.rotation = v.sprite.rotation;
     s.scale.set(this.baseScale * v.body.scaleVal * 1.05);
     s.alpha = 0.5 + elev * 0.4;
@@ -1259,6 +1265,20 @@ export class RoomEngine {
     return tex;
   }
 
+  // «Бумажная» кромка карты: низ — серый, бока — темнее серым. В стопке карты сдвинуты
+  // вниз-влево, поэтому видно именно нижний и левый срезы соседней карты — они и создают
+  // ощущение толщины бумаги при свете сверху справа.
+  private drawCardEdges(g: Graphics): void {
+    const e = CARD_EDGE;
+    const r = 16;
+    // бока (весь контур) — тёмно-серый
+    g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, r).stroke({ width: e.width, color: e.side });
+    // низ — светлее: прямая по нижнему срезу, между скруглениями углов
+    g.moveTo(2 + r, TEX_H - 2 - e.width / 2)
+      .lineTo(TEX_W - 2 - r, TEX_H - 2 - e.width / 2)
+      .stroke({ width: e.width, color: e.bottom });
+  }
+
   // Лицевая текстура: кремовый фон, ранг+масть по углам и крупный символ по центру
   // (для J/Q/K — буква-заглушка, картинки добавим позже), цвет по масти (четырёхцв./классика).
   private makeCardFaceTexture(card: string): Texture {
@@ -1268,7 +1288,8 @@ export class RoomEngine {
     const root = new Container();
 
     const bg = new Graphics();
-    bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xf4ecd8 }).stroke({ width: 4, color: 0x14281c });
+    bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xf4ecd8 });
+    this.drawCardEdges(bg);
     root.addChild(bg);
 
     const cornerStyle = { fontFamily: "VT323, monospace", fontSize: 40, fill: color, align: "center" as const, lineHeight: 34 };
@@ -1299,7 +1320,8 @@ export class RoomEngine {
   private restTarget(i: number): CardTargets {
     if (this.deckZone === "safe" && this.deckFanned) return this.fanTarget(i);
     const a = this.activeAnchor();
-    return { x: a.x, y: a.y - i * anim.deck.stackDy, rot: this.restJitter[i] ?? 0, scale: 1 };
+    const so = stackOffset(i);
+    return { x: a.x + so.dx, y: a.y + so.dy, rot: this.restJitter[i] ?? 0, scale: 1 };
   }
 
   // Веер-дуга в сейф-зоне (чистая математика — см. fan.ts). i может быть дробным
@@ -1484,6 +1506,7 @@ export class RoomEngine {
     }
 
     g.roundRect(16, 16, TEX_W - 32, TEX_H - 32, 10).stroke({ width: 3, color: skin.inner });
+    this.drawCardEdges(g);
     const tex = app.renderer.generateTexture({ target: g, resolution: 2 });
     g.destroy();
     return tex;
