@@ -10,15 +10,16 @@ export interface DeckSwipe {
   angle: number; // угол самого жеста (рад) — по нему идёт анимация
 }
 
-// Что делает свайп по СТОПКЕ. Вниз, вбок и по диагоналям — переворот колоды; строго вверх
-// переворота не даёт (специально усложняем), там только резиновая тянучка.
+// Что делает свайп по СТОПКЕ. Переворот дают только движения вниз и вбок; ЛЮБОЙ увод
+// вверх — включая пологие диагонали — переворота не даёт, там лишь резиновая тянучка
+// (переворот колоды специально сделан «неудобным»). Небольшой допуск upTolerance нужен,
+// чтобы дрожание руки на горизонтальном свайпе не читалось как жест вверх.
 export function classifyDeckSwipe(vx: number, vy: number): DeckSwipe {
   const speed = Math.hypot(vx, vy);
   const angle = Math.atan2(vy, vx);
   if (speed < anim.flip.minSwipeSpeed) return { action: "none", angle };
-  // «Вверх» — это узкий сектор вокруг вертикали вверх: диагональ вверх-вбок уже переворот.
-  const upness = -vy / speed; // 1 — строго вверх
-  if (upness > anim.flip.upSectorCos) return { action: "stretch", angle };
+  const upness = -vy / speed; // >0 — есть составляющая вверх
+  if (upness > anim.flip.upTolerance) return { action: "stretch", angle };
   return { action: "flip", angle };
 }
 

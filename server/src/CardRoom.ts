@@ -20,6 +20,10 @@ interface JoinOptions {
   isPrivate?: boolean;
 }
 
+// Код закрытия для соединения, которое перехватил новый вход тем же аккаунтом.
+// 4000+ — свободный диапазон WebSocket-кодов для приложения.
+const TAKEOVER_CODE = 4001;
+
 const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS_36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const RANKS_52 = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
@@ -260,6 +264,11 @@ export class CardRoom extends Room<GameState> {
       player.isReady = old.isReady;
       if (this.state.deckLocation === oldSid) this.state.deckLocation = client.sessionId;
       this.state.players.delete(oldSid);
+      // Старое соединение могло быть ещё ЖИВЫМ (перезагрузка страницы успела открыть
+      // новый сокет раньше, чем закрылся прежний). Игрока у него уже нет — оставить его
+      // висеть значит показать клиенту комнату, в которой его самого нет (и он «не дилер»).
+      // Закрываем явно: клиент увидит onLeave и переподключится штатным путём.
+      this.clients.find((c) => c.sessionId === oldSid)?.leave(TAKEOVER_CODE);
     } else {
       player.isDealer = wasEmpty;
     }

@@ -4,21 +4,24 @@ import { classifyDeckSwipe, isSwipeDown, flipFactor, flipShowsOther, flipTransfo
 describe("classifyDeckSwipe", () => {
   const dir = (vx: number, vy: number) => classifyDeckSwipe(vx, vy);
 
-  it("вниз, вбок и по диагонали — переворот; ось совпадает с направлением свайпа", () => {
+  it("вниз, вбок и диагонали ВНИЗ — переворот", () => {
     expect(dir(0, 1500).action).toBe("flip");
     expect(dir(1500, 0).action).toBe("flip");
     expect(dir(-1500, 0).action).toBe("flip");
-    expect(dir(1200, 1200).action).toBe("flip"); // диагональ
+    expect(dir(1200, 1200).action).toBe("flip");
     expect(dir(-1200, 1200).action).toBe("flip");
   });
 
-  it("вверх — переворота нет, только тянучка", () => {
+  it("ЛЮБОЙ свайп с уходом вверх — только тянучка, включая диагонали", () => {
     expect(dir(0, -1500).action).toBe("stretch");
-    expect(dir(300, -1500).action).toBe("stretch"); // почти вверх — тоже тянучка
+    expect(dir(300, -1500).action).toBe("stretch");
+    expect(dir(1500, -900).action).toBe("stretch"); // пологая диагональ вверх
+    expect(dir(-1500, -900).action).toBe("stretch");
+    expect(dir(1200, -1200).action).toBe("stretch"); // ровно 45° вверх
   });
 
-  it("диагональ вверх-вбок считается боковым переворотом, а не тянучкой", () => {
-    expect(dir(1500, -900).action).toBe("flip");
+  it("лёгкий увод вверх у горизонтального свайпа не мешает перевороту", () => {
+    expect(dir(1500, -60).action).toBe("flip"); // ~2° — это дрожание руки, а не жест вверх
   });
 
   it("угол эффекта — это угол самого свайпа (анимация идёт по направлению)", () => {

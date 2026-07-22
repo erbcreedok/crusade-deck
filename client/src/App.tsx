@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { MotionConfig } from "framer-motion";
 import { useAuth } from "./useAuth";
 import { Lobby } from "./Lobby";
 import { RoomScreen } from "./RoomScreen";
 import { AppMenu } from "./AppMenu";
-import { PixelBackground } from "./PixelBackground";
+import { PixelBackground, type BackgroundVariant } from "./PixelBackground";
+import { applyThemeColor } from "./themeColor";
 import { useAnimationSettings } from "./useAnimationSettings";
 import { useFourColor } from "./useFourColor";
 import { useCardBack } from "./useCardBack";
@@ -79,24 +80,33 @@ export default function App() {
   }, [room]);
 
   // Бесшовное подключение к targetCode (первый вход по URL, персист, реконнект после обрыва).
+  // ВАЖНО: ровно одно соединение на один targetCode. Раньше здесь стоял флаг cancelled, и
+  // двойной прогон эффекта (StrictMode в деве, быстрый ре-рендер) открывал ДВА сокета одним
+  // аккаунтом. Сервер держит одного игрока на аккаунт, поэтому тот вход, что доехал вторым,
+  // забирал запись себе — и выжившее соединение оставалось без игрока: «я не дилер».
+  // Порядок прибытия недетерминирован, отсюда и «то так, то эдак» после перезагрузок.
+  const joiningRef = useRef<string | null>(null);
+  const wantedRef = useRef<string | null>(targetCode);
+  wantedRef.current = targetCode;
   useEffect(() => {
     if (!accountId || !accountName || room || !targetCode) return;
-    let cancelled = false;
+    if (joiningRef.current === targetCode) return; // уже подключаемся к этой комнате
+    joiningRef.current = targetCode;
     joinByInviteCode(targetCode, { accountId, name: accountName })
       .then((r) => {
-        if (cancelled) return void r.leave();
+        joiningRef.current = null;
+        // Пока подключались, цель могла смениться (вышли/ушли в другую комнату).
+        if (wantedRef.current !== targetCode) return void r.leave();
         handleJoined(r);
       })
       .catch(() => {
-        if (cancelled) return;
+        joiningRef.current = null;
+        if (wantedRef.current !== targetCode) return;
         // Комнаты уже нет (или код неверный) — уходим на начальный экран.
         clearActiveRoom();
         pushLobbyUrl();
         setTargetCode(null);
       });
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId, accountName, targetCode, room]);
 
@@ -119,9 +129,15 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, [room]);
 
+  // Фон комнаты и цвет строки состояния переключаются вместе — это один визуальный слой.
+  const bgVariant: BackgroundVariant = room ? "game" : "menu";
+  useEffect(() => {
+    applyThemeColor(bgVariant);
+  }, [bgVariant]);
+
   return (
     <MotionConfig reducedMotion={fullMotion ? "never" : "always"}>
-      <PixelBackground enabled={fullMotion} variant={room ? "game" : "menu"} />
+      <PixelBackground enabled={fullMotion} variant={bgVariant} />
       {renderContent()}
     </MotionConfig>
   );

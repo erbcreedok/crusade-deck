@@ -295,6 +295,25 @@ describe("CardRoom", () => {
     expect([...room.state.players.values()].filter((p) => p.id === "acc-ret-a").length).toBe(1);
   });
 
+  // Перезагрузка страницы (и StrictMode в дев-режиме) умеет открыть второе соединение
+  // ДО того, как отвалилось первое. Перехват «один игрок на аккаунт» отдаёт запись
+  // новому sessionId — старое соединение обязано закрыться, иначе оно висит живым, но
+  // БЕЗ игрока в state: клиент видит себя не-дилером и вообще не в списке.
+  it("closes the displaced connection when the same account joins twice", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const first = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-dup" });
+    expect(room.state.players.get(first.sessionId)?.isDealer).toBe(true);
+
+    const second = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-dup" });
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Живой игрок — только новый, и он унаследовал дилерство.
+    expect(room.state.players.get(second.sessionId)?.isDealer).toBe(true);
+    expect([...room.state.players.values()].filter((p) => p.id === "acc-dup").length).toBe(1);
+    // Осиротевшее соединение закрыто, а не брошено висеть.
+    expect(room.clients.some((c) => c.sessionId === first.sessionId)).toBe(false);
+  });
+
   it("keeps an emptied room alive until TTL, then disposes and forgets it", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const a = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-empty" });

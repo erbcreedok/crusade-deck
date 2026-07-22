@@ -386,6 +386,12 @@ export class RoomEngine {
     app.stage.on("pointerup", (e: FederatedPointerEvent) => this.onPointerUp(e));
     app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
 
+    // Состояние комнаты могло приехать РАНЬШЕ, чем поднялся Pixi (вход в живую комнату,
+    // перезагрузка страницы): setDeck тогда только запомнил порядок и вышел на «ещё не
+    // смонтированы», а повторно его никто не звал — deckKey в RoomCanvas не менялся.
+    // Итог: карт не видно, пока не нажмёшь «Растасовать». Доигрываем отложенный порядок.
+    if (this.deckCards.length > 0) this.setDeck(this.deckCards);
+
     app.ticker.add(this.tick);
     this.applyProfile(); // применить текущий профиль (FPS-кап, tilt) к свежему тикеру/картам
     this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
