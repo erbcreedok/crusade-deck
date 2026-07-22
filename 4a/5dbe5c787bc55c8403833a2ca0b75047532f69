@@ -1,0 +1,63 @@
+client/src/game/anim/animationSettings.ts
+  s_ec6e8b45d5a2ab::t_de11d872d118fe 1-57
+client/src/useAnimationSettings.test.ts
+  s_ec6e8b45d5a2ab::t_e36982ff18dc2d 1-64
+client/src/game/choreo/shuffle.ts
+  s_ec6e8b45d5a2ab::t_e829738f0c179d 116
+  s_ec6e8b45d5a2ab::t_e86578b7e02571 8-11
+  s_ec6e8b45d5a2ab::t_a2d04a298fa2ed 40,46-49,54-57
+  s_ec6e8b45d5a2ab::t_041b53786c2418 74,77-80
+client/src/game/CardBody.ts
+  s_ec6e8b45d5a2ab::t_b8ed760dc64d98 25-27
+  s_ec6e8b45d5a2ab::t_20c1aae9e95da0 79
+client/src/game/CardBody.test.ts
+  s_ec6e8b45d5a2ab::t_51b47665413447 63-71
+client/src/RoomScreen.tsx
+  s_ec6e8b45d5a2ab::t_4c819b7f880b18 5
+  s_ec6e8b45d5a2ab::t_becfd2a7554993 24
+  s_ec6e8b45d5a2ab::t_221776a42da1cf 113
+client/src/App.tsx
+  s_ec6e8b45d5a2ab::t_da5d155d0966c9 122
+  s_ec6e8b45d5a2ab::t_5d0e6d7dcea69d 114-116
+  s_ec6e8b45d5a2ab::t_f9d8b1ee0571a4 9
+  s_ec6e8b45d5a2ab::t_3973ddf5210661 25
+client/src/AppMenu.tsx
+  s_ec6e8b45d5a2ab::t_5ed62408da07b8 103-130
+  s_ec6e8b45d5a2ab::t_e7469da41e9290 4-15,21-23,30-32
+client/src/theme.css
+  s_ec6e8b45d5a2ab::t_8f3ba6189223ef 514-546
+client/src/game/RoomEngine.ts
+  s_ec6e8b45d5a2ab::t_1ba87feb7f7949 142-146,150-154
+  s_ec6e8b45d5a2ab::t_1dc8dfe436a3dc 39
+  s_ec6e8b45d5a2ab::t_084f98a403054a 88
+  s_ec6e8b45d5a2ab::t_ca841dcc881cfd 241
+  s_ec6e8b45d5a2ab::t_16f7eeeda44ed7 5-10
+  s_ec6e8b45d5a2ab::t_141c0c720ee492 119-120,126-132
+  s_ec6e8b45d5a2ab::t_0ead4da77d6323 193-211,214-217
+  s_ec6e8b45d5a2ab::t_66d5a8651e7667 155-156
+client/src/useAnimationSettings.ts
+  s_ec6e8b45d5a2ab::t_55fbd9cd95215f 1-44
+client/src/game/RoomCanvas.tsx
+  s_ec6e8b45d5a2ab::t_dc9dfe04021cbe 3,11,16,18
+  s_ec6e8b45d5a2ab::t_44092f8881b326 55-56
+client/src/game/anim/animationSettings.test.ts
+  s_ec6e8b45d5a2ab::t_67960ac65358f0 1-56
+client/src/game/choreo/shuffle.test.ts
+  s_ec6e8b45d5a2ab::t_c20c537ff0ad60 106-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4a5dbe5c787bc55c8403833a2ca0b75047532f69",
+  "prompts": {},
+  "sessions": {
+    "s_ec6e8b45d5a2ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1cea3f64-56d6-401e-b236-6542679f0d74",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
