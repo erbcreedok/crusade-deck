@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard } from "./fan";
+import { fanCard, fanCrowd } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина сейф-зоны
@@ -50,5 +50,30 @@ describe("fanCard", () => {
     const only = fanCard(0, 1, anchor, W, MAX, WF);
     expect(only.rot).toBe(0);
     expect(only.x).toBeCloseTo(anchor.x, 5);
+  });
+});
+
+describe("fanCrowd", () => {
+  const cardW = 45;
+  const gap = 0.18;
+  const ramp = 0.5;
+
+  it("просторный веер (мало карт) → 0", () => {
+    expect(fanCrowd(10, W, cardW, WF, gap, ramp)).toBe(0);
+  });
+
+  it("тесный веер → больше нуля и не превышает 1", () => {
+    const c = fanCrowd(52, W, cardW, WF, gap, ramp);
+    expect(c).toBeGreaterThan(0);
+    expect(c).toBeLessThanOrEqual(1);
+  });
+
+  it("чем больше карт (теснее) — тем сильнее (монотонность)", () => {
+    expect(fanCrowd(52, W, cardW, WF, gap, ramp)).toBeGreaterThan(fanCrowd(40, W, cardW, WF, gap, ramp));
+  });
+
+  it("вырожденные входы безопасны", () => {
+    expect(fanCrowd(1, W, cardW, WF, gap, ramp)).toBe(0);
+    expect(fanCrowd(52, W, 0, WF, gap, ramp)).toBe(0);
   });
 });

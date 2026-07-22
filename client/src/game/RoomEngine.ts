@@ -13,7 +13,7 @@ import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
-import { fanCard } from "./fan";
+import { fanCard, fanCrowd } from "./fan";
 import { parseCard, isCourt, suitColor } from "./card";
 import { anim } from "./anim/config";
 import {
@@ -107,6 +107,9 @@ export class RoomEngine {
   private profile: AnimationProfile = resolveProfile(DEFAULT_ANIMATION_SETTINGS);
   private idleEnabled = true; // лёгкая idle-анимация карт (гасится на умеренной)
   private idleT = 0; // накопленное время для фазы idle-колебаний
+  private fanT = 0; // время для «червячка» тесного веера
+  private fanWiggling = false; // сейчас активна волна/дрожание тесного веера
+  private fanCrowdNow = 0; // текущая теснота (0..1) — сила эффекта
   private destroyed = false;
   private mounted = false;
   private awake = false;
@@ -756,6 +759,20 @@ export class RoomEngine {
 
     const frameDt = Math.min(ticker.deltaMS / 1000, 0.05);
     if (this.idleRunning()) this.idleT += frameDt;
+
+    // «Червячок» тесного веера: гоним карты по бегущей волне, пока тесно.
+    const wiggle = this.fanWiggleActive();
+    if (wiggle) {
+      this.fanT += frameDt;
+      this.fanCrowdNow = this.fanCrowd();
+      this.applyFanWave();
+    } else if (this.fanWiggling) {
+      // тесно перестало быть / веер собрали — вернуть карты в ровный веер
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      this.fanCrowdNow = 0;
+    }
+    this.fanWiggling = wiggle;
+
     if (this.reject) {
       this.reject.t += frameDt;
       if (this.reject.t >= this.reject.dur) {
@@ -778,6 +795,7 @@ export class RoomEngine {
       !this.press &&
       !this.reject &&
       !this.idleRunning() &&
+      !this.fanWiggling &&
       this.cards.every((c) => c.body.isResting())
     ) {
       this.sleep();
@@ -809,6 +827,13 @@ export class RoomEngine {
     if (this.idleEnabled && !this.shuffleAnim && !this.scrambleAnim && !this.press && !this.reject && this.deckZone !== "away" && c.body.isResting()) {
       rot += anim.idle.rotAmp * Math.sin(this.idleT * anim.idle.rotFreq + c.phase);
       scale *= 1 + anim.idle.scaleAmp * Math.sin(this.idleT * anim.idle.scaleFreq + c.phase);
+    }
+
+    // Дрожание тесного веера — только на полной анимации (умеренная = лишь волна),
+    // амплитуда ×crowd (чем теснее, тем сильнее). Поверх пружинного состояния.
+    if (this.fanWiggling && this.profile.tilt) {
+      const w = anim.fan.wiggle;
+      rot += this.fanCrowdNow * w.jitterRotAmp * Math.sin(this.fanT * w.jitterFreq + c.phase);
     }
 
     c.sprite.x = c.body.px + this.shake.dx;
@@ -933,7 +958,8 @@ export class RoomEngine {
     return { x: a.x, y: a.y - i * anim.deck.stackDy, rot: this.restJitter[i] ?? 0, scale: 1 };
   }
 
-  // Веер-дуга в сейф-зоне (чистая математика — см. fan.ts).
+  // Веер-дуга в сейф-зоне (чистая математика — см. fan.ts). i может быть дробным
+  // (для волны «червячка», где карта плавно ездит между слотами).
   private fanTarget(i: number): CardTargets {
     const c = fanCard(
       i,
@@ -944,6 +970,41 @@ export class RoomEngine {
       anim.fan.widthFactor,
     );
     return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
+  }
+
+  // Теснота текущего веера (0..1) — по ней включается/масштабируется «червячок».
+  private fanCrowd(): number {
+    const w = anim.fan.wiggle;
+    return fanCrowd(this.deckCount, this.layout.safeZone.w, this.layout.cardW, anim.fan.widthFactor, w.gap, w.ramp);
+  }
+
+  // Активен ли «червячок»: раскрытый веер в сейф-зоне И тесно, и не идёт другая анимация.
+  private fanWiggleActive(): boolean {
+    return (
+      this.deckZone === "safe" &&
+      this.deckFanned &&
+      this.deckCount > 1 &&
+      !this.shuffleAnim &&
+      !this.scrambleAnim &&
+      !this.press &&
+      this.fanCrowd() > 0
+    );
+  }
+
+  // Бегущая волна: каждая карта ездит вдоль веера по синусу (фаза от её позиции, бег от
+  // времени) — соседи сближаются/раздвигаются, зазор бежит «червячком». Амплитуда ×crowd.
+  // На умеренной волна медленнее; дрожание (в syncVisual) — только на полной.
+  private applyFanWave(): void {
+    const n = Math.max(2, this.deckCount);
+    const w = anim.fan.wiggle;
+    const crowd = this.fanCrowdNow;
+    const freq = this.profile.tilt ? w.freq : w.moderateFreq; // полная быстрее, умеренная медленнее
+    for (let i = 0; i < this.cards.length; i++) {
+      const off = Math.sin(w.cycles * Math.PI * 2 * (i / (n - 1)) - freq * this.fanT);
+      const vi = Math.max(0, Math.min(n - 1, i + crowd * w.amp * off));
+      const t = this.fanTarget(vi);
+      this.cards[i].body.setTarget({ x: t.x, y: t.y, rot: t.rot });
+    }
   }
 
   private ensureJitter(n: number): void {

@@ -15,6 +15,24 @@ export interface FanCard {
 // Позиция карты i из count в веере. Наклон линейно от -max (левая) до +max (правая),
 // крайние ровно ±maxAngleDeg (не круче). Центры лежат на окружности радиуса r (выведен
 // из ширины веера и угла): середина выше, края ниже — «почти арка».
+// Насколько тесен веер (0 — просторно, 1 — максимально тесно). Горизонтальный шаг между
+// картами = ширина веера / (count-1); если он меньше нужного (cardW*gap) — «тесно», и тем
+// сильнее, чем меньше. По этой величине включается и масштабируется «червячок».
+export function fanCrowd(
+  count: number,
+  zoneWidth: number,
+  cardW: number,
+  widthFactor: number,
+  gap: number,
+  ramp: number,
+): number {
+  if (count < 2 || cardW <= 0) return 0;
+  const step = (zoneWidth * widthFactor) / (count - 1);
+  const needed = cardW * gap;
+  if (step >= needed) return 0;
+  return Math.min(1, (needed - step) / (needed * ramp));
+}
+
 export function fanCard(
   i: number,
   count: number,
