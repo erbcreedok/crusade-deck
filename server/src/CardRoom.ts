@@ -24,9 +24,6 @@ interface JoinOptions {
 // 4000+ — свободный диапазон WebSocket-кодов для приложения.
 const TAKEOVER_CODE = 4001;
 
-// Слотов в сейфе игрока (см. клиентский layout.ts — там та же тройка визуально).
-const SAFE_SLOTS = 3;
-
 const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS_36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const RANKS_52 = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
@@ -183,7 +180,7 @@ export class CardRoom extends Room<GameState> {
     // Карты не раздаются — колода целиком меняет зону, рубашкой вверх.
     this.onMessage(
       "move_deck",
-      (client, message: { zone?: "center" | "hand" | "safe" | "player"; slot?: number; targetId?: string }) => {
+      (client, message: { zone?: "center" | "hand" | "safe" | "player"; targetId?: string }) => {
         const player = this.state.players.get(client.sessionId);
         if (!player?.isDealer || this.state.phase !== "lobby") return;
         const zone = message?.zone;
@@ -195,17 +192,15 @@ export class CardRoom extends Room<GameState> {
           this.state.deckLocation = client.sessionId;
           this.state.deckSlot = "hand";
         } else if (zone === "safe") {
-          // Сейф — до трёх отдельных колод, поэтому слот обязателен и проверяется.
-          const slot = message?.slot;
-          if (typeof slot !== "number" || !Number.isInteger(slot) || slot < 0 || slot >= SAFE_SLOTS) return;
+          // Сейф — одна зона: колоды раскладываются внутри сами, выбирать место не надо.
           this.state.deckLocation = client.sessionId;
-          this.state.deckSlot = `safe${slot}`;
+          this.state.deckSlot = "safe";
         } else if (zone === "player") {
           // Колоду бросили на место другого игрока: она ложится ему в сейф, закрытой.
           const targetId = message?.targetId;
           if (typeof targetId !== "string" || !this.state.players.has(targetId)) return;
           this.state.deckLocation = targetId;
-          this.state.deckSlot = "safe0";
+          this.state.deckSlot = "safe";
         }
       },
     );

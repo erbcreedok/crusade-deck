@@ -17,16 +17,14 @@ export interface RoomLayout {
   // раскрывается веером; сейф — визуальный «сейф» под личные колоды, там карты
   // всегда рубашкой вверх и веера не бывает.
   handZone: RoundedRect;
+  // Сейф — ОДНА зона. Колоды внутри раскладываются сами (см. safeStacks.ts): фиксиро-
+  // ванных полок нет, сколько влезет — столько и будет.
   safeZone: RoundedRect;
-  safeSlots: RoundedRect[]; // три слота сейфа — до трёх отдельных колод
   deckAnchor: { x: number; y: number }; // покой колоды в центре = центр centerZone
   handAnchor: { x: number; y: number }; // покой колоды в руке = центр handZone
-  safeAnchors: { x: number; y: number }[]; // покой колоды в каждом слоте сейфа
   cardW: number;
   cardH: number;
 }
-
-export const SAFE_SLOTS = 3;
 
 const CARD_RATIO = 0.7; // ширина / высота игральной карты (~2.5" x 3.5")
 const CARD_MIN_H = 48;
@@ -112,29 +110,15 @@ export function computeLayout(
   const centerCy = centerTop + Math.max(centerH / 2, (centerBottom - centerTop) / 2);
   const centerZone: RoundedRect = { cx: centerCx, cy: centerCy, w: centerW, h: centerH, r };
 
-  // Слоты сейфа — три равные полки сверху вниз: до трёх отдельных колод.
-  const slotGap = 6;
-  const slotH = (bandH - slotGap * (SAFE_SLOTS + 1)) / SAFE_SLOTS;
-  const safeSlots: RoundedRect[] = Array.from({ length: SAFE_SLOTS }, (_, i) => ({
-    cx: safeZone.cx,
-    cy: safeZone.cy - bandH / 2 + slotGap * (i + 1) + slotH * (i + 0.5),
-    w: Math.max(1, safeW - slotGap * 2),
-    h: Math.max(1, slotH),
-    r: 8,
-  }));
-
   const deckAnchor = { x: centerZone.cx, y: centerZone.cy };
   const handAnchor = { x: handZone.cx, y: handZone.cy };
-  const safeAnchors = safeSlots.map((s) => ({ x: s.cx, y: s.cy }));
 
   return {
     centerZone,
     handZone,
     safeZone,
-    safeSlots,
     deckAnchor,
     handAnchor,
-    safeAnchors,
     cardW,
     cardH,
   };

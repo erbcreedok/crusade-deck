@@ -37,23 +37,11 @@ describe("computeLayout", () => {
     expect(l.centerZone.cy + l.centerZone.h / 2).toBeLessThan(l.handZone.cy - l.handZone.h / 2);
   });
 
-  it("в сейфе ровно три слота — до трёх отдельных колод", () => {
-    const l = computeLayout(800, 600);
-    expect(l.safeSlots.length).toBe(3);
-    // слоты идут сверху вниз внутри сейфа и не вылезают из него
-    const ys = l.safeSlots.map((s) => s.cy);
-    expect([...ys].sort((a, b) => a - b)).toEqual(ys);
-    for (const slot of l.safeSlots) {
-      expect(slot.cy - slot.h / 2).toBeGreaterThanOrEqual(l.safeZone.cy - l.safeZone.h / 2 - 1);
-      expect(slot.cy + slot.h / 2).toBeLessThanOrEqual(l.safeZone.cy + l.safeZone.h / 2 + 1);
-    }
-  });
 
   it("якоря колоды совпадают с центрами своих зон", () => {
     const l = computeLayout(800, 600);
     expect(l.deckAnchor).toEqual({ x: l.centerZone.cx, y: l.centerZone.cy });
     expect(l.handAnchor).toEqual({ x: l.handZone.cx, y: l.handZone.cy });
-    expect(l.safeAnchors[0]).toEqual({ x: l.safeSlots[0].cx, y: l.safeSlots[0].cy });
   });
 
   it("карта имеет пропорции игральной (узкая по ширине)", () => {
@@ -183,14 +171,6 @@ describe("computeLayout — фокус на руке", () => {
     expect(focused.safeZone.cx).toBeGreaterThan(W / 2);
   });
 
-  it("слоты сейфа переезжают вместе с ним и остаются внутри", () => {
-    const focused = computeLayout(W, H, undefined, { handFocused: true });
-    expect(focused.safeSlots.length).toBe(3);
-    for (const slot of focused.safeSlots) {
-      expect(slot.cx).toBeCloseTo(focused.safeZone.cx, 0);
-      expect(slot.w).toBeLessThanOrEqual(focused.safeZone.w);
-    }
-  });
 
   it("фокус не трогает ни центр, ни высоту полосы — двигается только дележ по ширине", () => {
     const idle = computeLayout(W, H);

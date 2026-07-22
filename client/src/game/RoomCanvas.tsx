@@ -17,7 +17,6 @@ interface Props {
   topInset: number; // высота топбара комнаты: места садятся под ним, а не под бейджами
   bottomInset: number; // высота панели действий: игровые зоны заканчиваются над ней
   deckZone: DeckZone;
-  deckSlot: number; // слот сейфа (0..2), если колода лежит в сейфе
   deckDraggable: boolean;
   fourColor: boolean;
   cardBack: CardBackId; // скин рубашки (меню → Графика)
@@ -26,7 +25,7 @@ interface Props {
   flipSignal: number; // растёт при нажатии «Перевернуть колоду»
   incomingFx: DeckFxIncoming | null; // чужой эффект с сервера — проиграть как есть
   rejectedFlip: { cards: string[]; text: string; seq: number } | null; // сервер не подтвердил переворот
-  onDeckDrop: (zone: "center" | "hand" | "safe", slot: number) => void;
+  onDeckDrop: (zone: "center" | "hand" | "safe") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
   onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
   onFanChange: (fanned: boolean) => void; // веер раскрылся/собрался (от этого зависят кнопки)
@@ -52,7 +51,6 @@ export function RoomCanvas({
   topInset,
   bottomInset,
   deckZone,
-  deckSlot,
   deckDraggable,
   fourColor,
   cardBack,
@@ -80,7 +78,7 @@ export function RoomCanvas({
   // в неизменном виде (зона колоды, держатель, места, скины), в него никогда не попадёт.
   // Поэтому держим актуальные пропсы в ref и разом заливаем их сразу после mount.
   const latest = useRef({
-    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, selectedDecks, fourColor, cardBack,
+    deck, seats, deckHolder, deckZone, deckDraggable, selectedDecks, fourColor, cardBack,
     facing, topInset, bottomInset, animation,
     // Колбэки тоже: пересозданный движок (ремоунт, HMR) иначе остаётся немым —
     // тап по колоде никуда не сообщает, и выделение «не работает».
@@ -89,7 +87,7 @@ export function RoomCanvas({
     onFlipCards, onDeckFx, onDragChange,
   });
   latest.current = {
-    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, selectedDecks, fourColor, cardBack,
+    deck, seats, deckHolder, deckZone, deckDraggable, selectedDecks, fourColor, cardBack,
     facing, topInset, bottomInset, animation,
     onDeckTap, onEmptyTap,
     onDeckDrop, onDeckDropToSeat, onCardReorder, onShuffleChange, onFanChange, onFlipDeck,
@@ -119,7 +117,7 @@ export function RoomCanvas({
       engine.setDeck(p.deck);
       engine.setCardFacing(p.facing);
       engine.setDeckHolder(p.deckHolder);
-      engine.setDeckZone(p.deckZone, p.deckSlot);
+      engine.setDeckZone(p.deckZone);
       engine.setSelectedDecks(p.selectedDecks);
       engine.setOnDeckTap(p.onDeckTap);
       engine.setOnEmptyTap(p.onEmptyTap);
@@ -154,8 +152,8 @@ export function RoomCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckKey]);
   useEffect(() => {
-    engineRef.current?.setDeckZone(deckZone, deckSlot);
-  }, [deckZone, deckSlot]);
+    engineRef.current?.setDeckZone(deckZone);
+  }, [deckZone]);
   // Посадка меняется редко (вход/выход, готовность, раздача) — сигнатурой гасим лишние
   // пересчёты: каждый sync пересоздаёт массив, а перерисовка мест не бесплатна.
   const seatsKey = seats.map((s) => `${s.id}:${s.name}:${s.handCount}:${+s.isReady}:${+s.isDealer}:${+s.connected}`).join("|");

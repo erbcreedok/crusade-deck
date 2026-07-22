@@ -198,9 +198,7 @@ export function RoomScreen({
   // низ экрана — мои сейф-зона и рука.
   const seats: SeatView[] = players.filter((p) => p.id !== room.sessionId);
   const seatedIds = new Set(seats.map((s) => s.id));
-  const place = deckPlaceFor(deckLocation, deckSlot, room.sessionId, (id: string) => seatedIds.has(id));
-  const deckZone = place.zone;
-  const deckSlotIndex = place.slot;
+  const deckZone = deckPlaceFor(deckLocation, deckSlot, room.sessionId, (id: string) => seatedIds.has(id)).zone;
   // Держатель колоды — только если это чужое место; своё — это рука или сейф.
   const deckHolder = deckZone === "seat" ? deckLocation : null;
   // Режим МОЕЙ руки: открытая — остальные видят её так же, как я; закрытая — оборотку.
@@ -211,10 +209,10 @@ export function RoomScreen({
 
   // Драг-н-дроп: колода брошена в дроп-зону — шлём её на сервер (там валидируется).
   const onDeckDrop = useCallback(
-    (zone: "center" | "hand" | "safe", slot: number) => {
+    (zone: "center" | "hand" | "safe") => {
       if (!canMoveDeck) return;
-      // Слот важен только для сейфа: туда влезает до трёх отдельных колод.
-      room.send("move_deck", zone === "safe" ? { zone, slot } : { zone });
+      // Целиться в конкретное место сейфа не нужно: колоды раскладываются там сами.
+      room.send("move_deck", { zone });
     },
     [canMoveDeck, room],
   );
@@ -331,7 +329,7 @@ export function RoomScreen({
   const runAction = useCallback(
     (id: BarActionId) => {
       if (id === "deck_to_hand") room.send("move_deck", { zone: "hand" });
-      else if (id === "deck_to_safe") room.send("move_deck", { zone: "safe", slot: 0 });
+      else if (id === "deck_to_safe") room.send("move_deck", { zone: "safe" });
       else if (id === "deck_to_center") room.send("move_deck", { zone: "center" });
     },
     [room],
@@ -408,7 +406,6 @@ export function RoomScreen({
         topInset={topInset}
         bottomInset={bottomInset}
         deckZone={deckZone}
-        deckSlot={deckSlotIndex}
         deckDraggable={canMoveDeck}
         fourColor={fourColor}
         cardBack={cardBack}

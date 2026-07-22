@@ -15,6 +15,7 @@ import { computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropTarget, pickSeat, type DropZone, type DropTarget } from "./dropZones";
 import { layoutSeats, type SeatBox } from "./seatLayout";
+import { canFitAnother, safeStackAnchors } from "./safeStacks";
 import { dragModeFor } from "./dragMode";
 import type { SeatView } from "./seats";
 import {
@@ -97,6 +98,7 @@ const TEX_H = 228;
 const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
 
 const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» при запрещённом дропе колоды
+const SAFE_FULL_TEXT = "не влезет!"; // в сейфе не осталось места под ещё одну колоду
 
 // Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
 const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 };
@@ -169,7 +171,10 @@ export class RoomEngine {
   private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
   private deckCount = 0;
   private deckZone: DeckZone = "center";
-  private deckSlot = 0; // слот сейфа, если колода лежит в сейфе (0..2)
+  private deckSlot = 0; // какое по счёту место в сейфе занимает эта колода
+  // Сколько колод сейчас в сейфе. Пока она может быть только одна, но вместимость
+  // считается по геометрии — когда колод станет больше, менять здесь нечего.
+  private safeStackCount = 1;
   // Сторона КАЖДОЙ карты (карта → лицом ли вверх) — приходит из состояния сервера.
   // Единого «колода лицом вверх» больше нет: карты переворачиваются по одной.
   private facing: Record<string, boolean> = {};
@@ -207,7 +212,7 @@ export class RoomEngine {
   private press: { id: number; startX: number; startY: number; x: number; y: number; samples: SwipeSample[] } | null = null;
   private dragging = false;
   private hoverZone: DropTarget | null = null;
-  private onDeckDrop: ((zone: DropZone, slot: number) => void) | null = null;
+  private onDeckDrop: ((zone: DropZone) => void) | null = null;
   private onDragChange: ((active: boolean) => void) | null = null;
   // Драг ОДНОЙ карты из раскрытого веера. Жест — длинное нажатие (holdMs): коротким
   // тапом «ковыряют» веер (poke), поэтому хватать карту сразу нельзя. Пока веер раскрыт,
@@ -763,10 +768,9 @@ export class RoomEngine {
 
   // Зона колоды с точки зрения локального игрока (см. deckZone.ts). "center"/"safe"
   // — рисуем у соответствующего якоря; "away" (чужая сейф-зона) — колода прячется.
-  setDeckZone(zone: DeckZone, slot = 0): void {
-    if (zone === this.deckZone && slot === this.deckSlot) return;
+  setDeckZone(zone: DeckZone): void {
+    if (zone === this.deckZone) return;
     this.deckZone = zone;
-    this.deckSlot = slot;
     const away = zone === "away";
     this.updateVisibility();
     if (this.deckHit) this.deckHit.eventMode = away ? "none" : "static";
@@ -861,7 +865,7 @@ export class RoomEngine {
 
 
   // Колбэк на дроп колоды в разрешённую зону (React шлёт move_deck на сервер).
-  setOnDeckDrop(fn: ((zone: DropZone, slot: number) => void) | null): void {
+  setOnDeckDrop(fn: ((zone: DropZone) => void) | null): void {
     this.onDeckDrop = fn;
   }
 
@@ -874,7 +878,9 @@ export class RoomEngine {
   private activeAnchor(): { x: number; y: number } {
     if (this.deckZone === "hand") return this.layout.handAnchor;
     if (this.deckZone === "safe") {
-      return this.layout.safeAnchors[this.deckSlot] ?? this.layout.safeAnchors[0];
+      // Колоды в сейфе раскладываются сами; пока колода одна — она и стоит первой.
+      const anchors = safeStackAnchors(Math.max(1, this.safeStackCount), this.layout.safeZone, this.layout.cardH);
+      return anchors[Math.min(this.deckSlot, anchors.length - 1)] ?? { x: this.layout.safeZone.cx, y: this.layout.safeZone.cy };
     }
     // Колода лежит на месте другого игрока — её якорь и есть центр его прямоугольника.
     if (this.deckZone === "seat") {
@@ -1024,13 +1030,20 @@ export class RoomEngine {
     }
 
     const drop = pickDropTarget(px, py, this.layout);
+    // В сейф целиться в конкретное место не надо — разложится само. Но если мест
+    // больше нет, колода туда не поедет: тряска и «не влезет!».
+    if (drop?.zone === "safe" && this.deckZone !== "safe" && !this.safeHasRoom()) {
+      this.showNotice(SAFE_FULL_TEXT);
+      this.startReject(px, py);
+      this.positionDeckHit();
+      this.wake();
+      return;
+    }
     {
-      // Запретных зон больше нет: центр, рука и слоты сейфа — всё законные цели.
-      if (drop && (drop.zone !== this.deckZone || (drop.zone === "safe" && drop.slot !== this.deckSlot))) {
+      if (drop && drop.zone !== this.deckZone) {
         this.deckZone = drop.zone; // оптимистично двигаем локально, сервер подтвердит эхом
-        this.deckSlot = drop.slot ?? 0;
         this.onFanChange?.(this.fanned()); // веер есть только в руке — кнопки об этом знают
-        this.onDeckDrop?.(drop.zone, drop.slot ?? 0);
+        this.onDeckDrop?.(drop.zone);
       }
       // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
       // промахе/дропе в ту же зону). Иначе карты остались бы в точке отпускания — врозь
@@ -1192,6 +1205,12 @@ export class RoomEngine {
   // сложена, и любой жест по ней относится к колоде целиком (см. dragMode.ts).
   private fanOpen(): boolean {
     return this.fanned() && this.handFocused && this.cards.length > 0;
+  }
+
+  // Есть ли в сейфе место под ещё одну колоду.
+  private safeHasRoom(): boolean {
+    // Колода, которую сейчас тащим, места не занимает — считаем только оставшиеся.
+    return canFitAnother(this.safeStackCount - 1, this.layout.safeZone, this.layout.cardH);
   }
 
   private dragMode(): "deck" | "card" | "none" {
@@ -1396,21 +1415,6 @@ export class RoomEngine {
         color: active ? hot : base,
         alpha: active ? 0.95 : 0.4,
       });
-      // Сейф показывает свои полки: в него кладут ДО ТРЁХ отдельных колод, и целиться
-      // надо в конкретную. Подсвечивается та, над которой сейчас палец.
-      if (z === "safe") {
-        this.layout.safeSlots.forEach((slot, i) => {
-          const hotSlot = active && this.hoverZone?.slot === i;
-          const sx = slot.cx - slot.w / 2;
-          const sy = slot.cy - slot.h / 2;
-          if (hotSlot) g.roundRect(sx, sy, slot.w, slot.h, slot.r).fill({ color: 0xffe08a, alpha: 0.16 });
-          g.roundRect(sx, sy, slot.w, slot.h, slot.r).stroke({
-            width: hotSlot ? 3 : 1.5,
-            color: hotSlot ? hot : base,
-            alpha: hotSlot ? 0.9 : 0.3,
-          });
-        });
-      }
       if (label) {
         label.x = rect.cx;
         label.y = rect.cy;

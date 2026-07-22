@@ -9,7 +9,6 @@ export type DeckZone = "center" | "hand" | "safe" | "seat" | "away";
 
 export interface DeckPlace {
   zone: DeckZone;
-  slot: number; // только для сейфа: 0..2
 }
 
 export function deckPlaceFor(
@@ -18,13 +17,11 @@ export function deckPlaceFor(
   mySessionId: string,
   isSeated: (id: string) => boolean = () => false,
 ): DeckPlace {
-  if (!deckLocation || deckLocation === "center") return { zone: "center", slot: 0 };
+  if (!deckLocation || deckLocation === "center") return { zone: "center" };
   if (deckLocation === mySessionId) {
-    if (deckSlot === "hand") return { zone: "hand", slot: 0 };
-    const m = /^safe([0-9]+)$/.exec(deckSlot ?? "");
-    // Неизвестный/пустой слот у меня трактуем как первый сейф: колода не должна
-    // «пропасть» из-за рассинхрона — пусть лучше лежит на видном месте закрытой.
-    return { zone: "safe", slot: m ? Number(m[1]) : 0 };
+    // Всё, что не рука, — сейф: колода не должна «пропасть» из-за рассинхрона,
+    // пусть лучше лежит на видном месте закрытой.
+    return { zone: deckSlot === "hand" ? "hand" : "safe" };
   }
-  return isSeated(deckLocation) ? { zone: "seat", slot: 0 } : { zone: "away", slot: 0 };
+  return isSeated(deckLocation) ? { zone: "seat" } : { zone: "away" };
 }

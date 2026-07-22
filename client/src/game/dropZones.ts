@@ -5,12 +5,11 @@ import type { SeatBox } from "./seatLayout";
 // (слева) и сейф (справа), и то и другое — законная цель.
 //   center — общий стол,
 //   hand   — моя рука: ЕДИНСТВЕННОЕ место, где карты лежат веером и открыты,
-//   safe — сейф: до трёх отдельных колод по слотам, всегда рубашкой вверх.
+//   safe   — сейф: сколько влезет отдельных колод, всегда рубашкой вверх.
 export type DropZone = "center" | "hand" | "safe";
 
 export interface DropTarget {
   zone: DropZone;
-  slot?: number; // только для сейфа: номер слота 0..2
 }
 
 export interface ZoneDef {
@@ -49,17 +48,6 @@ export function pickDropTarget(x: number, y: number, layout: RoomLayout): DropTa
   const regions = dropZoneRegions(layout);
   const inside = (Object.keys(regions) as DropZone[]).filter((z) => inRect(regions[z].rect, x, y));
   if (inside.length === 0) return null;
-  const zone = inside.sort((a, b) => normDist(regions[a].rect, x, y) - normDist(regions[b].rect, x, y))[0];
-  if (zone !== "safe") return { zone };
-  // В сейфе важен слот: в него кладут отдельные колоды, а не «куда-нибудь».
-  let best = 0;
-  let bestDist = Infinity;
-  layout.safeSlots.forEach((slot, i) => {
-    const d = normDist(slot, x, y);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
-    }
-  });
-  return { zone: "safe", slot: best };
+  // Сейф — одна зона: целиться в конкретное место не нужно, разложится само.
+  return { zone: inside.sort((a, b) => normDist(regions[a].rect, x, y) - normDist(regions[b].rect, x, y))[0] };
 }

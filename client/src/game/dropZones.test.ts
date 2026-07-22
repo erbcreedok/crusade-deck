@@ -14,10 +14,8 @@ describe("pickDropTarget", () => {
     expect(pickDropTarget(layout.handAnchor.x, layout.handAnchor.y, layout)).toEqual({ zone: "hand" });
   });
 
-  it("сейф отдаёт КОНКРЕТНЫЙ слот — их три", () => {
-    layout.safeSlots.forEach((slot, i) => {
-      expect(pickDropTarget(slot.cx, slot.cy, layout)).toEqual({ zone: "safe", slot: i });
-    });
+  it("сейф — одна зона: слот выбирать не надо, разложится само", () => {
+    expect(pickDropTarget(layout.safeZone.cx, layout.safeZone.cy, layout)).toEqual({ zone: "safe" });
   });
 
   it("угол канваса вне всех зон → null", () => {
@@ -31,8 +29,9 @@ describe("pickDropTarget", () => {
   });
 
   it("рука и сейф не перекрываются: точка в сейфе никогда не «рука»", () => {
-    for (const slot of layout.safeSlots) {
-      expect(pickDropTarget(slot.cx, slot.cy, layout)?.zone).toBe("safe");
+    const z = layout.safeZone;
+    for (const dy of [-z.h / 3, 0, z.h / 3]) {
+      expect(pickDropTarget(z.cx, z.cy + dy, layout)?.zone).toBe("safe");
     }
   });
 });
