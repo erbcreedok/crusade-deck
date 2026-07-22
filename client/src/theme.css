@@ -343,34 +343,6 @@ textarea {
   transform: translate(-50%, -50%);
 }
 
-.deck-stack {
-  position: relative;
-  width: 54px;
-  height: 78px;
-}
-
-.card-back {
-  position: absolute;
-  inset: 0;
-  background-color: #611c1c;
-  background-image: url("/bg-diamonds.svg");
-  background-size: 160px 160px;
-  background-position: center;
-  border: 3px solid var(--shadow-black);
-  box-shadow: 0 0 0 2px var(--accent-gold);
-}
-
-.deck-count {
-  position: absolute;
-  bottom: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: "VT323", monospace;
-  font-size: 1.1rem;
-  color: var(--accent-gold);
-  white-space: nowrap;
-}
-
 .seat {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -641,57 +613,10 @@ textarea {
   font-size: 1.05rem;
 }
 
-/* --- Playing cards + hand --- */
-
-.playing-card {
-  position: relative;
-  width: 64px;
-  height: 92px;
-  background: #f0e6cf;
-  border: 3px solid var(--shadow-black);
-  box-shadow: 0 0 0 2px var(--accent-gold);
-  image-rendering: pixelated;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.playing-card-red {
-  color: var(--accent-red);
-}
-
-.playing-card-black {
-  color: #2b1810;
-}
-
-.playing-card-corner {
-  position: absolute;
-  top: 4px;
-  left: 5px;
-  font-family: "VT323", monospace;
-  font-size: 1.05rem;
-  line-height: 1;
-  text-align: center;
-}
-
-.playing-card-suit-big {
-  font-family: "VT323", monospace;
-  font-size: 2rem;
-}
+/* --- Hand (карты рендерятся на Pixi/WebGL внутри, см. Hand.tsx) --- */
 
 .hand {
-  position: relative;
-  height: 110px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  width: 100%;
   margin-bottom: 8px;
-}
-
-.hand-card-slot {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  margin-left: -32px; /* половина ширины .playing-card, центрируем якорь */
-  transform-origin: bottom center;
+  line-height: 0; /* canvas внутри не должен добавлять лишний inline-отступ */
 }
