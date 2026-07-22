@@ -14,6 +14,7 @@ import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
 import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains } from "./fan";
+import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { parseCard, isCourt, suitColor } from "./card";
 import { anim } from "./anim/config";
 import {
@@ -122,8 +123,9 @@ export class RoomEngine {
   private mounted = false;
   private awake = false;
   // Настоящая растасовка: каждая карта летит из старого положения в новый слот ПО СВОЕЙ
-  // дельте (|new-old|): близкие — коротко/низко/почти незаметно, далёкие — долго/высокой
-  // дугой. z-порядок карты меняем в её апексе (когда она приподнята, далеко от слота).
+  // дельте (|new-old|) — дальние дольше и выше, ближние с бо́льшим боковым выносом, но
+  // ЗАМЕТНО летят все (см. shuffleFlight.ts). z-порядок меняем в апексе карты, когда она
+  // приподнята и вынесена вбок — там перещёлк не читается как подмена карты на месте.
   private shuffleAnim: {
     t: number;
     totalDur: number;
@@ -131,9 +133,11 @@ export class RoomEngine {
       v: CardVisual;
       from: ShufflePose;
       to: ShufflePose;
+      delay: number; // сдвиг старта — каскад волной по колоде
       dur: number; // своя длительность (от дельты)
       lift: number; // высота дуги (от дельты)
-      lean: number; // крен в сторону движения (знак+амплитуда)
+      bulge: number; // боковой вынос на апексе (знак = сторона)
+      lean: number; // крен в сторону выноса (знак+амплитуда)
       newZ: number;
       zSwapped: boolean;
     }[];
@@ -581,35 +585,39 @@ export class RoomEngine {
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
   }
 
-  // Собрать анимацию настоящей растасовки, ПО ДЕЛЬТЕ каждой карты (|new-old|): близкие
-  // едут коротко/низко/почти незаметно, далёкие — долго высокой дугой с креном в сторону
-  // движения. this.cards уже в новом порядке; oldOrder — прежний (для дельты).
+  // Собрать анимацию настоящей растасовки, ПО ДЕЛЬТЕ каждой карты (|new-old|): дальние
+  // едут дольше и выше, ближние — с бо́льшим боковым выносом (иначе их перелёт не читается
+  // и выглядит как подмена карты на месте). Числа — в shuffleFlight.ts (чистая математика).
+  // this.cards уже в новом порядке; oldOrder — прежний (для дельты).
   private startShuffleAnim(oldOrder: string[]): void {
     const n = this.cards.length;
     if (n === 0) return;
     const oldIndex = new Map<string, number>();
     oldOrder.forEach((c, i) => oldIndex.set(c, i));
     const speed = Math.max(1, this.profile.speed);
-    const H = this.layout.cardH;
     const entries = this.cards.map((v, j) => {
       const oi = oldIndex.get(v.card) ?? j;
       const nd = n > 1 ? Math.abs(j - oi) / (n - 1) : 0; // 0..1 нормированная дельта
       const to = this.restTarget(j);
       const toPose: ShufflePose = { x: to.x ?? 0, y: to.y ?? 0, rot: to.rot ?? 0 };
       const from: ShufflePose = { x: v.body.px, y: v.body.py, rot: v.body.rotation };
-      const lean = (toPose.x >= from.x ? 1 : -1) * lerp(0.04, 0.5, nd);
+      // Каскад идёт по СТАРОМУ месту карты — волна проходит по колоде, а не вразнобой.
+      const fl = shuffleFlight(nd, oi, n, this.layout.cardH, this.layout.cardW);
+      const dir = bulgeDir(toPose.x - from.x, this.layout.cardW, j);
       return {
         v,
         from,
         to: toPose,
-        dur: lerp(0.14, 0.9, nd) / speed, // близкие быстро, далёкие долго
-        lift: lerp(H * 0.12, H * 1.4, nd), // маленькая/большая дуга
-        lean,
+        delay: fl.delay / speed,
+        dur: fl.dur / speed,
+        lift: fl.lift,
+        bulge: fl.bulge * dir,
+        lean: fl.lean * dir,
         newZ: j,
         zSwapped: false,
       };
     });
-    const totalDur = entries.reduce((m, e) => Math.max(m, e.dur), 0);
+    const totalDur = entries.reduce((m, e) => Math.max(m, e.delay + e.dur), 0);
     this.shuffleAnim = { t: 0, totalDur, entries };
   }
 
@@ -750,11 +758,16 @@ export class RoomEngine {
         const sa = this.shuffleAnim;
         sa.t += dt;
         for (const e of sa.entries) {
-          const p = Math.min(1, e.dur > 0 ? sa.t / e.dur : 1);
+          const local = sa.t - e.delay;
+          if (local < 0) {
+            e.v.body.setTarget(e.from); // ждёт своей очереди в каскаде — стоит на месте
+            continue;
+          }
+          const p = Math.min(1, e.dur > 0 ? local / e.dur : 1);
           const u = easeOutQuad(p);
           const arc = Math.sin(Math.PI * p); // 0 → 1 (апекс) → 0
           e.v.body.setTarget({
-            x: lerp(e.from.x, e.to.x, u),
+            x: lerp(e.from.x, e.to.x, u) + e.bulge * arc,
             y: lerp(e.from.y, e.to.y, u) - e.lift * arc,
             rot: lerp(e.from.rot, e.to.rot, u) + e.lean * arc,
           });
