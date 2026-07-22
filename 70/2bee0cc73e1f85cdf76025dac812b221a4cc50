@@ -1,0 +1,24 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_3ce92815cca91e 42,359,1359-1361,1366-1367,1372,1376,1381-1384,1386,1388,1390,1392,1397
+  s_3b000dfed76439::t_ccb834599c07be 357,1411-1414
+client/src/game/zoneLabels.ts
+  s_3b000dfed76439::t_eb725191e5a435 1-31
+client/src/game/zoneLabels.test.ts
+  s_3b000dfed76439::t_c3fe40eac84b7e 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "702bee0cc73e1f85cdf76025dac812b221a4cc50",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
