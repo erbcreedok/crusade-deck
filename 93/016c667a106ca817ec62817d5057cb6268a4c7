@@ -1,0 +1,32 @@
+client/src/game/anim/config.ts
+  s_4864baaac43e63::t_42e4a236b8de13 34-51
+client/src/game/fan.test.ts
+  s_4864baaac43e63::t_6e7018eb79d21c 2
+  s_4864baaac43e63::t_a83d7d4eb49321 55-79
+client/src/game/fan.ts
+  s_4864baaac43e63::t_2fac753a657167 18-35
+client/src/game/RoomEngine.ts
+  s_4864baaac43e63::t_e5a7eec2a1668a 832-838
+  s_4864baaac43e63::t_c2242f76b566be 16
+  s_4864baaac43e63::t_cc3b9d6c75e758 110-112
+  s_4864baaac43e63::t_bb89063e190688 798
+  s_4864baaac43e63::t_fc23b544809600 961-962,975-1008
+  s_4864baaac43e63::t_fe20e8793bdc40 762-775
+  s_4864baaac43e63::t_dc8dfd15d23c5c 1009
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "93016c667a106ca817ec62817d5057cb6268a4c7",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
