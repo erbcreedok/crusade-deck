@@ -1,0 +1,21 @@
+client/src/theme.css
+  s_4864baaac43e63::t_f843e1eddc1155 434-436,438-441,446-447,452
+  s_4864baaac43e63::t_bfa74369ccd227 308-309
+  s_4864baaac43e63::t_df97356f59e3ad 341-343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "fc8f0d39f5c9758420c08f8a30c21d7e1891cdae",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
