@@ -1,0 +1,25 @@
+server/src/CardRoom.test.ts
+  s_4864baaac43e63::t_0222703a3a0f46 283-324
+  s_4864baaac43e63::t_b88f2c7d87a0bf 18
+server/src/CardRoom.ts
+  s_4864baaac43e63::t_1a6cf5861933cb 152-156,158-165,169,172,183-186,193
+client/src/App.tsx
+  s_4864baaac43e63::t_a2df557a2c78e7 1
+  s_4864baaac43e63::t_f75a2d2df88e64 29-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "46346b297c4fbb0fed614af1c9dc13fe9195c2a9",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
