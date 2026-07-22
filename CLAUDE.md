@@ -25,35 +25,55 @@ rules can later be layered as configuration.
 ## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 139 tests
-cd client && npm test && npx tsc --noEmit   # 449 tests
+cd server && npm test && npx tsc --noEmit   # 182 tests
+cd client && npm test && npx tsc --noEmit   # 573 tests
 cd client && npx vite build                 # production build
 ```
 
 `server/vitest.config.ts` restricts the run to the `src/` directory — without it,
 vitest also picked up compiled `dist/*.test.js` after `npm run build`, and two copies
-of the `CardRoom` test fought over the same test port.
+of the `CardRoom` test fought over the same test port. Room tests are split by theme
+(`CardRoom.deck.test.ts`, `.hands.`, `.facing.`, `.votes.`, `.lifecycle.`, plus
+`TestRoom.test.ts`) and share `roomHarness.ts`. Each file boots on its OWN port
+(`TEST_PORTS`): vitest runs files in parallel, and `boot(server, port)` from
+`@colyseus/testing` silently ignores the port when handed a ready `Server`.
 
 The Bash tool's cwd tends to "drift" back to the repo root between calls — always `cd`
 into `client/` or `server/` explicitly before `tsc`/`vitest`/`vite`.
 
 ## Table architecture (client)
 
-`client/src/game/RoomEngine.ts` (~4000 lines) is an imperative engine: it owns a single
+`client/src/game/RoomEngine.ts` (~3500 lines) is an imperative engine: it owns a single
 Pixi `Application`, the ticker, and all visual objects (`CardVisual` — plain mutable
 structs, not React nodes). `RoomCanvas.tsx` is a thin React host: mounts the engine
-once, forwards props via `useEffect` + setters (`engine.setDeck(...)`,
-`engine.setHand(...)`, etc.). `RoomScreen.tsx` holds room state from `room.state` and
-handles network messages.
+once, then forwards each prop with `useEngineEffect` (one line per binding) and pours
+everything in at once via `applyAllToEngine` right after mount. `RoomScreen.tsx`
+composes room state (`room/useRoomState.ts`), server events (`room/useRoomSignals.ts`),
+HTML-panel insets (`room/useInsets.ts`) and auto-dealing (`room/useAutoDeal.ts`).
+
+Everything the engine does that is NOT engine state lives in `client/src/game/engine/`,
+each with tests next to it: `constants.ts` (texture size, palette, layer zIndexes),
+`cardTextures.ts` (face/back/shadow factories), `faceTextureCache.ts` (cache + warm-up
+in batches), `fanGeometry.ts`, `seatChrome.ts`/`seatPaint.ts` (rules vs. drawing for
+other players' seats), `zoneChrome.ts`/`zonePaint.ts` (same split for drop zones),
+`collapseArrow.ts`, `scramble.ts`, `idleGate.ts`.
 
 Why not `@pixi/react`: an earlier attempt on it crashed under React StrictMode (double
 mount on a canvas whose WebGL context was already destroyed → "context lost"). The
 current engine creates a fresh canvas on every `mount()` instead.
 
 The render loop sleeps when idle (`wake()`/`sleep()`) — it only draws when something is
-actually moving. The sleep condition in `onTick` lists every active animation
-explicitly; any new continuous animation must be added to that list, or it either
-won't play or will keep the engine awake and burn CPU/GPU for nothing.
+actually moving. The sleep condition is `canSleep()` in `engine/idleGate.ts`: it lists
+every active animation explicitly as a typed field. Any new continuous animation must
+be added to `EngineActivity`, or it either won't play (the loop falls asleep under it)
+or will keep the engine awake and burn CPU/GPU for nothing.
+
+The engine has a safety net: `RoomEngine.test.ts` mounts it headless against a Pixi
+fake (`src/test/pixiFake.ts`, `vi.mock("pixi.js")`) and checks structural invariants —
+one sprite per card, no duplicates, shuffle reuses sprites, the loop sleeps and wakes,
+`destroy()` leaves nothing behind. Real Pixi can't run in jsdom (no WebGL). Note the
+loop only ever sleeps on the "moderate" animation profile: on "full", idle breathing
+keeps it awake by design.
 
 Two card piles live in the engine in parallel, almost symmetrically: the deck
 (`this.cards`, `reconcileByIdentity`, `restTarget`) and your own hand (`this.hand`,
@@ -128,7 +148,9 @@ A hard split that must not blur when adding new deck-related mechanics:
   `move_deck`) is checked against this mode on the server — the UI hides unavailable
   buttons, but the server must refuse on its own rather than trust the client.
 - **Dealer vote weight** is 1.01 (`DEALER_VOTE_WEIGHT` in `handRules.ts`), not 1.5: the
-  dealer only decides tied votes, two regular players always outweigh them.
+  dealer only decides tied votes, two regular players always outweigh them. The client
+  must show the SAME weight (`client/src/game/voteWeight.ts`) — it used to display 1.5,
+  so the banner's progress bar disagreed with the actual outcome.
 - **Ready state gates dealing** — the server won't accept `deal_card` for a player with
   `isReady === false` (except the dealer, who is always ready). This is intentional,
   even though it diverges from the very first task description ("don't care if they're
@@ -139,14 +161,20 @@ A hard split that must not blur when adding new deck-related mechanics:
 
 ## Known trade-offs (deliberate, not forgotten)
 
-- `RoomEngine.ts` is nearly 4000 lines with three dozen public setters; `RoomCanvas`
-  has close to forty props, each with its own `useEffect`. It works and is covered by
-  tests at the pure-module level, but the next big feature will most likely need the
-  engine's inputs grouped into a few objects (`deckView`, `handView`, `seatsView`,
-  `callbacks`) instead of a flat list of setters.
+- `RoomEngine.ts` is still ~3500 lines across ~164 methods (average 21 lines each), and
+  that is not leftover leaf logic: what remains is stateful orchestration over ~120
+  private fields — `onTick` (228 lines, touches every animation), `mount` (221),
+  the gesture state machine (`onPointerMove`/`onDeckDown`/`onPointerUp`/`dropCard`,
+  ~410 together) and 44 setters. Shrinking it further needs design changes, not moves:
+  a shared `CardPile`, animations as objects with `step(dt)` (then `onTick` becomes a
+  loop over a list), and gestures as an explicit state machine. The safety net for that
+  work already exists (`RoomEngine.test.ts` + the Pixi fake).
 - The deck and the hand in the engine are two parallel, nearly mirrored sets of fields
   and methods (`reconcileByIdentity`/`reconcileHandByIdentity`,
   `restTarget`/`handRestTarget`). A shared "card pile" type is calling out to be made,
   but that's a dedicated rework, not a drive-by fix.
+- Server message handlers are split by theme (`server/src/messages/*`) and get what they
+  need from the room through the `RoomHost` interface; every write to the schema goes
+  through `stateWrite.ts` (that's where the `clear()+push()` rule is enforced once).
 - There are no game rules (tricks, trumps, win conditions, etc.) in the code — only the
   mechanics of owning and moving cards, on which rules can be layered later.
