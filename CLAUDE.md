@@ -1,140 +1,152 @@
 # Crusade Deck
 
-Мультиплеерная карточная игра для мобильных браузеров. 2–32 игрока в сессии, колода 36
-или 52 карты. Пиксельный кэжуал-стиль (Balatro-style) — не литеральный «стол с людьми»,
-виртуальный круглый стол, места посадкой «П».
+A multiplayer card game for mobile browsers. 2–32 players per session, 36- or 52-card
+deck. Pixel-casual style (Balatro-style) — not a literal "table with people", a virtual
+round table with a "П"-shaped seating layout.
 
-Правил конкретной карточной игры в коде нет — реализована вся физическая механика стола
-(колода, раздача, руки, голосования), поверх которой правила можно задавать конфигурацией.
+There are no rules for any specific card game in the codebase — what's implemented is
+the full physical table mechanics (deck, dealing, hands, voting), on top of which game
+rules can later be layered as configuration.
 
-## Стек
+## Stack
 
-- **Сервер**: Colyseus (Node.js, `@colyseus/schema` v2), свои аккаунты вместо Firebase.
-- **Клиент**: React + Vite. Стол рисует **Pixi.js v8** императивным движком (не
-  `@pixi/react` — см. ниже почему); меню и статичный UI — обычный React, Framer Motion
-  только там.
-- **Auth**: свои аккаунты (короткий recovery-код, без пароля). Firebase — задел на
-  будущее в коде (`client/src/firebase.ts`, `server/src/auth.ts`), не настроен и не
-  используется, пока не подставлены ключи.
-- **Тесты**: vitest в обоих пакетах (`npm test` в `server/` и `client/`).
-- **Деплой**: см. `DEPLOY.md` (Cloudflare Tunnel, без открытых портов).
+- **Server**: Colyseus (Node.js, `@colyseus/schema` v2), custom accounts instead of
+  Firebase.
+- **Client**: React + Vite. The table is rendered by an imperative **Pixi.js v8**
+  engine (not `@pixi/react` — see why below); menus and static UI are plain React,
+  Framer Motion only there.
+- **Auth**: custom accounts (short recovery code, no password). Firebase is scaffolded
+  for later (`client/src/firebase.ts`, `server/src/auth.ts`) but not configured or used
+  until keys are supplied.
+- **Tests**: vitest in both packages (`npm test` in `server/` and `client/`).
+- **Deploy**: see `DEPLOY.md` (Cloudflare Tunnel, no open ports) or `README.md` for a
+  plain Linux server / Docker.
 
-## Команды
+## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 139 тестов
-cd client && npm test && npx tsc --noEmit   # 449 тестов
-cd client && npx vite build                 # прод-сборка
+cd server && npm test && npx tsc --noEmit   # 139 tests
+cd client && npm test && npx tsc --noEmit   # 449 tests
+cd client && npx vite build                 # production build
 ```
 
-`server/vitest.config.ts` ограничивает прогон каталогом `src/` — без этого vitest
-подхватывал ещё и скомпилированные `dist/*.test.js` после `npm run build`, и два теста
-`CardRoom` дрались за один тестовый порт.
+`server/vitest.config.ts` restricts the run to the `src/` directory — without it,
+vitest also picked up compiled `dist/*.test.js` after `npm run build`, and two copies
+of the `CardRoom` test fought over the same test port.
 
-cwd в Bash-туле имеет свойство «уезжать» в корень репозитория между вызовами — перед
-`tsc`/`vitest`/`vite` всегда переходи в `client/` или `server/` явно.
+The Bash tool's cwd tends to "drift" back to the repo root between calls — always `cd`
+into `client/` or `server/` explicitly before `tsc`/`vitest`/`vite`.
 
-## Архитектура стола (клиент)
+## Table architecture (client)
 
-`client/src/game/RoomEngine.ts` (~4000 строк) — императивный движок: владеет одним Pixi
-`Application`, тикером и всеми визуальными объектами (`CardVisual` — простые мутируемые
-структуры, не React-ноды). `RoomCanvas.tsx` — тонкий React-хост: монтирует движок один раз,
-прокидывает пропы через `useEffect` + сеттеры (`engine.setDeck(...)`, `engine.setHand(...)`
-и т.д.). `RoomScreen.tsx` держит состояние комнаты из `room.state` и обрабатывает сетевые
-сообщения.
+`client/src/game/RoomEngine.ts` (~4000 lines) is an imperative engine: it owns a single
+Pixi `Application`, the ticker, and all visual objects (`CardVisual` — plain mutable
+structs, not React nodes). `RoomCanvas.tsx` is a thin React host: mounts the engine
+once, forwards props via `useEffect` + setters (`engine.setDeck(...)`,
+`engine.setHand(...)`, etc.). `RoomScreen.tsx` holds room state from `room.state` and
+handles network messages.
 
-Почему не `@pixi/react`: прошлая попытка на нём падала под React StrictMode (двойной mount
-на канвасе с уже уничтоженным WebGL-контекстом → «context lost»). Текущий движок сам создаёт
-свежий канвас на каждый `mount()`.
+Why not `@pixi/react`: an earlier attempt on it crashed under React StrictMode (double
+mount on a canvas whose WebGL context was already destroyed → "context lost"). The
+current engine creates a fresh canvas on every `mount()` instead.
 
-Рендер-цикл спит в простое (`wake()`/`sleep()`) — рисует только когда что-то движется.
-Условие сна в `onTick` перечисляет все активные анимации явным списком; любая новая
-непрерывная анимация обязана попасть в этот список, иначе она либо не проигрывается, либо
-не даёт движку уснуть и жжёт CPU/GPU вхолостую.
+The render loop sleeps when idle (`wake()`/`sleep()`) — it only draws when something is
+actually moving. The sleep condition in `onTick` lists every active animation
+explicitly; any new continuous animation must be added to that list, or it either
+won't play or will keep the engine awake and burn CPU/GPU for nothing.
 
-Две стопки карт живут в движке параллельно и почти симметрично: колода (`this.cards`,
-`reconcileByIdentity`, `restTarget`) и своя рука (`this.hand`, `reconcileHandByIdentity`,
-`handRestTarget`). Спрайты в обеих привязаны к **идентичности карты**, не к индексу массива
-— поэтому тасовку/реордер можно проиграть по-настоящему (каждая карта летит из старого
-слота в новый), а не телепортировать.
+Two card piles live in the engine in parallel, almost symmetrically: the deck
+(`this.cards`, `reconcileByIdentity`, `restTarget`) and your own hand (`this.hand`,
+`reconcileHandByIdentity`, `handRestTarget`). Sprites in both are keyed by **card
+identity**, not array index — so shuffles/reorders can be played back for real (each
+card flies from its old slot to its new one) instead of teleporting.
 
-Игровая математика вынесена из движка в маленькие чистые модули `client/src/game/*.ts`,
-каждый с параллельным `*.test.ts` — движок их только вызывает и рисует результат:
-- `fan.ts` — геометрия веера-дуги (наклон, теснота, попадание пальцем, раздвиг с прибитыми
-  краями при драге).
-- `flip.ts` — переворот карты/колоды как вращение на 180°/540° (не «схлопывание в ноль» —
-  так карта не становится зеркальной), крен во время жеста, тянучка при запрещённом свайпе.
-- `deckStack.ts` — раскладка стопки (передняя карта выше и правее, задняя ниже и левее —
-  имитация света сверху справа), тень.
-- `deckOrder.ts` — перестановки колоды: `moveCard`, `shuffleOrder`, `scatterCards`
-  (выброшенные картой врезаются обратно на случайные места, остальные не трогаются),
-  `isPermutationOf` (проверка, что клиент не подменил набор карт).
-- `swipeShuffle.ts` — распознавание жеста-свайпа по скользящему окну скоростей (не по паре
-  последних точек — иначе рывок в конце медленного драга читался бы как свайп).
-- `handRow.ts` / `handView.ts` — раскладка приватной руки «шеренгой» и правила видимости
-  чужих карт.
-- `collapseButton.ts` — вписывание круглой кнопки «свернуть» в карман под дугой веера
-  (радиус вычисляется, а не задаётся константой — иначе кнопка либо налезала на карты, либо
-  висела в воздухе на других размерах экрана).
-- `dealing.ts`, `dragMode.ts`, `dropZones.ts`, `selection.ts`, `barActions.ts` — очередь
-  автораздачи, что можно тащить в каком режиме, зоны дропа, выделение элементов стола,
-  какие две кнопки показывает нижняя панель.
+Game math is factored out of the engine into small pure modules in
+`client/src/game/*.ts`, each with a matching `*.test.ts` — the engine just calls them
+and draws the result:
+- `fan.ts` — fan-arc geometry (tilt, crowding, finger hit-testing, pinned-edge spread
+  while dragging).
+- `flip.ts` — flipping a card/deck as an actual 180°/540° rotation (not "collapse to
+  zero" — that would leave the card mirrored), tilt during the gesture, rubber-band
+  resistance on a disallowed swipe.
+- `deckStack.ts` — stack layout (the front card sits higher and to the right, the back
+  card lower and to the left — mimicking light from the upper right), shadow.
+- `deckOrder.ts` — deck permutations: `moveCard`, `shuffleOrder`, `scatterCards`
+  (discarded cards are reinserted at random positions, the rest are left untouched),
+  `isPermutationOf` (verifies the client didn't swap the card set).
+- `swipeShuffle.ts` — swipe-gesture detection via a sliding window of velocities (not
+  the last two points — otherwise a jerk at the end of a slow drag would read as a
+  swipe).
+- `handRow.ts` / `handView.ts` — laying out a private hand as a "row", and visibility
+  rules for other players' cards.
+- `collapseButton.ts` — fitting the round "collapse" button into the pocket under the
+  fan's arc (the radius is computed, not a constant — otherwise the button either
+  overlapped the cards or floated in mid-air on other screen sizes).
+- `dealing.ts`, `dragMode.ts`, `dropZones.ts`, `selection.ts`, `barActions.ts` —
+  auto-deal queue, what can be dragged in which mode, drop zones, table-element
+  selection, which two buttons the bottom bar shows.
 
-## Сеть: что правда, а что просто красиво
+## Networking: what's truth vs. just pretty
 
-Жёсткое разделение, которое нельзя размывать при добавлении новых механик с колодой:
+A hard split that must not blur when adding new deck-related mechanics:
 
-1. **Состояние — источник правды.** Порядок колоды и сторона каждой карты
-   (`GameState.deck`, `GameState.faceUp`) ходят схемой Colyseus. Тяжёлые операции (тасовка,
-   реордер) клиент считает **сам** и присылает уже готовый результат — сервер только
-   проверяет, что это действительно перестановка того же набора карт (`isPermutationOf`),
-   и не пересчитывает её заново. Это сделано ради мгновенного отклика: если бы клиент ждал
-   эха с новым порядком, анимация тормозила бы на каждый пинг.
-2. **`deck_fx` — только украшение.** Отдельная шина сообщений для эффектов (перевороты,
-   растасовка), которые НЕ меняют состояние, а лишь показываются у зрителей. Сервер её не
-   интерпретирует, только валидирует форму сообщения и ретранслирует.
-3. **Ревизии против устаревшего эха.** `GameState.deckRev` — писать может только дилер;
-   номер инкрементится на каждое действие. Клиент игнорирует входящее состояние, если его
-   ревизия старше уже показанной локально — иначе собственное запоздавшее эхо откатывало бы
-   картинку назад, и она бы «дёргалась». Тот же приём применён к своему порядку руки
-   (`set_hand_order`): пока состав руки не изменился, клиент держит свой присланный порядок
-   и не даёт чужому патчу состояния (кто-то нажал «Готов» рядом) перерисовать её заново
-   несортированной.
-4. **`ArraySchema.setAt` за пределы длины ДОПИСЫВАЕТ элемент**, а не пишет «в дырку»
-   (массив длины 3 после `setAt(5, x)` становится длиной 4). Это конкретный источник бага
-   «колода раздулась до 60 карт», который встречался дважды. Запись всей колоды всегда идёт
-   как `clear()` + цикл `push()`, никогда `setAt` по всей длине.
+1. **State is the source of truth.** Deck order and each card's facing
+   (`GameState.deck`, `GameState.faceUp`) travel over the Colyseus schema. Heavy
+   operations (shuffling, reordering) are computed by the client **itself**, which
+   sends the finished result — the server only checks it's actually a permutation of
+   the same card set (`isPermutationOf`) and does not recompute it. This is deliberate,
+   for instant feedback: if the client waited for an echo with the new order, the
+   animation would stutter on every round trip.
+2. **`deck_fx` is decoration only.** A separate message bus for effects (flips,
+   shuffling) that do NOT change state, only display for other viewers. The server
+   doesn't interpret it, just validates the message shape and relays it.
+3. **Revisions guard against stale echoes.** `GameState.deckRev` — only the dealer may
+   write it; the number is incremented on every action. The client ignores an incoming
+   state if its revision is older than what's already shown locally — otherwise its
+   own delayed echo would roll the picture back and it would visibly "jitter". The same
+   trick is applied to one's own hand order (`set_hand_order`): as long as the hand's
+   composition hasn't changed, the client keeps the order it already sent and doesn't
+   let an unrelated state patch (someone next to you hit "Ready") repaint it back to
+   the unsorted server order.
+4. **`ArraySchema.setAt` past the array's length APPENDS an element** rather than
+   writing "into a hole" (an array of length 3 becomes length 4 after `setAt(5, x)`).
+   This is the concrete source of a "deck bloated to 60 cards" bug that came up twice.
+   Writing the whole deck is always done as `clear()` + a `push()` loop, never `setAt`
+   across the full length.
 
-## Правила видимости и роли
+## Visibility rules and roles
 
-- **Открытая/закрытая рука** (`Player.handOpen`) — тумблер игрока: закрытая видна
-  владельцу лицом, всем остальным рубашкой. Открытая видна всем так же, как владельцу.
-- **Спрятанная карта** (`Player.handHidden`, императивный тумблер по конкретной карте) —
-  не видна вообще никому, кроме владельца, даже при открытой руке.
-- **Режим раздачи** (`GameState.dealMode`, включён по умолчанию с начала комнаты) — номинал
-  ни одной карты колоды не виден никому, включая дилера, пока карта не попала кому-то в
-  руку. Выход из режима раскрывает колоду и делает все руки приватными (обратный переход).
-  Все действия с колодой (переворот, `move_deck`) на сервере проверяют этот режим — UI
-  прячет недоступные кнопки, но сервер обязан отказывать сам, а не полагаться на клиента.
-- **Вес голоса дилера** — 1.01 (`DEALER_VOTE_WEIGHT` в `handRules.ts`), не 1.5: дилер решает
-  только равные голосования, двое обычных игроков его всегда перевешивают.
-- **Готовность как условие раздачи** — сервер не примет `deal_card` для игрока с
-  `isReady === false` (кроме дилера — тот всегда готов). Так и задумано, хотя расходится с
-  самой первой формулировкой задачи («пофиг готов или нет») — решение принято сознательно
-  в процессе работы.
-- Дилер имеет особые права: тасовка/переворот/раскрытие веера колоды на столе, ресет всей
-  колоды и сбор карт обратно у всех игроков (`collect_hands`, `reset_deck`), автораздача по
-  кругу от соседа (дилер получает последним).
+- **Open/closed hand** (`Player.handOpen`) — a per-player toggle: closed shows face-up
+  to the owner, face-down to everyone else. Open shows it to everyone the same way the
+  owner sees it.
+- **Hidden card** (`Player.handHidden`, an imperative per-card toggle) — invisible to
+  everyone but the owner, even when the hand is open.
+- **Deal mode** (`GameState.dealMode`, on by default from the moment the room is
+  created) — no card's rank in the deck is visible to anyone, including the dealer,
+  until that card ends up in someone's hand. Leaving the mode reveals the deck and
+  makes every hand private (the reverse transition). Every deck action (flip,
+  `move_deck`) is checked against this mode on the server — the UI hides unavailable
+  buttons, but the server must refuse on its own rather than trust the client.
+- **Dealer vote weight** is 1.01 (`DEALER_VOTE_WEIGHT` in `handRules.ts`), not 1.5: the
+  dealer only decides tied votes, two regular players always outweigh them.
+- **Ready state gates dealing** — the server won't accept `deal_card` for a player with
+  `isReady === false` (except the dealer, who is always ready). This is intentional,
+  even though it diverges from the very first task description ("don't care if they're
+  ready or not") — a decision made consciously during the work.
+- The dealer has special powers: shuffling/flipping/fanning the table deck, resetting
+  the whole deck and collecting everyone's cards back (`collect_hands`, `reset_deck`),
+  round-robin auto-dealing (dealer receives last).
 
-## Известные компромиссы (сознательно, не забыто)
+## Known trade-offs (deliberate, not forgotten)
 
-- `RoomEngine.ts` — почти 4000 строк и три десятка публичных сеттеров; `RoomCanvas` —
-  под сорок пропов, каждый со своим `useEffect`. Работает и покрыто тестами на уровне
-  чистых модулей, но следующая крупная фича, скорее всего, потребует сгруппировать входы
-  движка в несколько объектов (`deckView`, `handView`, `seatsView`, `callbacks`) вместо
-  плоского списка сеттеров.
-- Колода и рука в движке — два параллельных, почти зеркальных набора полей и методов
-  (`reconcileByIdentity`/`reconcileHandByIdentity`, `restTarget`/`handRestTarget`). Просится
-  общий тип «стопка карт», но это отдельная переработка, а не попутная правка.
-- Игровых правил (взятки, козыри, победные условия и т.п.) в коде нет — есть только
-  механика владения и перемещения карт, на которую правила можно накладывать позже.
+- `RoomEngine.ts` is nearly 4000 lines with three dozen public setters; `RoomCanvas`
+  has close to forty props, each with its own `useEffect`. It works and is covered by
+  tests at the pure-module level, but the next big feature will most likely need the
+  engine's inputs grouped into a few objects (`deckView`, `handView`, `seatsView`,
+  `callbacks`) instead of a flat list of setters.
+- The deck and the hand in the engine are two parallel, nearly mirrored sets of fields
+  and methods (`reconcileByIdentity`/`reconcileHandByIdentity`,
+  `restTarget`/`handRestTarget`). A shared "card pile" type is calling out to be made,
+  but that's a dedicated rework, not a drive-by fix.
+- There are no game rules (tricks, trumps, win conditions, etc.) in the code — only the
+  mechanics of owning and moving cards, on which rules can be layered later.

@@ -1,90 +1,92 @@
-# Деплой Crusade Deck через Cloudflare Tunnel
+# Deploying Crusade Deck via Cloudflare Tunnel
 
-Инструкция для того, кто разворачивает проект на своём сервере. Наружу ничего
-открывать не нужно: сервер держит исходящее соединение с Cloudflare, порты
-80/443 на машине можно не трогать вообще, TLS и домен — на стороне Cloudflare.
+Instructions for setting the project up on your own server. Nothing needs to be
+exposed to the outside: the server keeps an outbound connection to Cloudflare, ports
+80/443 on the machine can be left untouched, and TLS + the domain live on
+Cloudflare's side.
 
-## Что за проект
+## What the project is
 
-Монорепо из двух частей, обе на Node:
+A monorepo of two Node parts:
 
-- `server/` — игровой сервер на Colyseus (Express + WebSocket), слушает **:2567**.
-  HTTP-эндпоинты (`/accounts*`, `/rooms*`, `/health`, `/matchmake*`) и игровой
-  сокет живут на одном и том же порту.
-- `client/` — React + Vite, собирается в статику (`client/dist`), никакого SSR.
-  Адрес сервера **зашивается в бандл на этапе сборки**, поэтому клиент нужно
-  собирать уже зная итоговые домены.
+- `server/` — the game server on Colyseus (Express + WebSocket), listens on **:2567**.
+  HTTP endpoints (`/accounts*`, `/rooms*`, `/health`, `/matchmake*`) and the game
+  socket live on the same port.
+- `client/` — React + Vite, built into static files (`client/dist`), no SSR. The
+  server address is **baked into the bundle at build time**, so the client must be
+  built once the final domains are known.
 
-Требования: **Node 20+** (проверено на 22 LTS), git. Больше ничего — ни базы,
-ни Redis. Данные аккаунтов лежат в JSON-файле `server/data/accounts.json`.
+Requirements: **Node 20+** (tested on 22 LTS), git. Nothing else — no database, no
+Redis. Account data lives in the JSON file `server/data/accounts.json`.
 
-## Схема
+## Layout
 
-Два публичных хоста на один сервер — так проще всего с туннелем, потому что
-сокет Colyseus живёт в корне (`/{processId}/{roomId}`) и по пути его от статики
-не отличить:
+Two public hosts on one server — the simplest setup for a tunnel, because the
+Colyseus socket lives at the root (`/{processId}/{roomId}`) and can't be told apart
+from static assets by path alone:
 
 ```
-браузер ──https──> Cloudflare ──tunnel──> cloudflared ─┬─ 127.0.0.1:8080  статика client/dist
-             wss                                       └─ 127.0.0.1:2567  Colyseus (API + сокет)
+browser ──https──> Cloudflare ──tunnel──> cloudflared ─┬─ 127.0.0.1:8080  static client/dist
+             wss                                       └─ 127.0.0.1:2567  Colyseus (API + socket)
 ```
 
-- `crusade.ПРИМЕР.com` → статика клиента
-- `api.crusade.ПРИМЕР.com` → игровой сервер
+- `crusade.EXAMPLE.com` → client static files
+- `api.crusade.EXAMPLE.com` → game server
 
-CORS уже разрешён на сервере (`Access-Control-Allow-Origin: *`), так что
-разные хосты для клиента и API — рабочая конфигурация, править код не надо.
+CORS is already open on the server (`Access-Control-Allow-Origin: *`), so different
+hosts for the client and the API is a working configuration — no code changes needed.
 
-Имена хостов любые, ниже они встречаются в трёх местах: в `.env.production`
-клиента, в `config.yml` туннеля и в DNS-записях Cloudflare.
+Hostnames can be anything; below they show up in three places: the client's
+`.env.production`, the tunnel's `config.yml`, and Cloudflare's DNS records.
 
-## 1. Собрать проект
+## 1. Build the project
 
 ```bash
 git clone <repo-url> ~/crusade-deck
 cd ~/crusade-deck/server && npm ci && npm run build
 ```
 
-Клиент — только после того, как определились с доменами. Обязательно `wss://`
-и `https://`: страница по HTTPS не откроет незащищённый сокет.
+Build the client only after the domains are decided. Use `wss://` and `https://`
+without exception: an HTTPS page won't open an insecure socket.
 
 ```bash
 cd ~/crusade-deck/client
 cat > .env.production <<'EOF'
-VITE_SERVER_URL=wss://api.crusade.ПРИМЕР.com
-VITE_HTTP_URL=https://api.crusade.ПРИМЕР.com
+VITE_SERVER_URL=wss://api.crusade.EXAMPLE.com
+VITE_HTTP_URL=https://api.crusade.EXAMPLE.com
 EOF
 npm ci && npm run build
 ```
 
-Проверить, что домен реально уехал в бандл:
+Confirm the domain actually made it into the bundle:
 
 ```bash
-grep -c "api.crusade.ПРИМЕР.com" dist/assets/index-*.js
+grep -c "api.crusade.EXAMPLE.com" dist/assets/index-*.js
 ```
 
-> ⚠️ Если рядом окажется `client/.env.local`, он перебьёт `.env.production` даже
-> в прод-сборке. В git он не коммитится, на сервере его быть не должно.
+> ⚠️ If a `client/.env.local` happens to be sitting nearby, it overrides
+> `.env.production` even in a production build. It's not committed to git and
+> shouldn't exist on the server.
 
-## 2. Поднять два локальных процесса
+## 2. Start two local processes
 
-**Игровой сервер:**
+**Game server:**
 
 ```bash
 cd ~/crusade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
 ```
 
-**Статика клиента** (нужен SPA-фоллбэк — ссылка-приглашение имеет вид `/r/КОД`,
-без фоллбэка при перезагрузке будет 404):
+**Client static files** (needs an SPA fallback — invite links look like `/r/CODE`,
+and without a fallback a reload gives a 404):
 
 ```bash
 npx serve -s ~/crusade-deck/client/dist -l 8080
 ```
 
-Годится любой статик-сервер с фоллбэком на `index.html` — nginx, Caddy, что
-привычнее. Порт 8080 фигурирует дальше только в конфиге туннеля.
+Any static server with an `index.html` fallback works — nginx, Caddy, whatever
+you're used to. Port 8080 only matters for the tunnel config from here on.
 
-Проверка до туннеля:
+Check before wiring up the tunnel:
 
 ```bash
 curl http://127.0.0.1:2567/health   # {"status":"ok"}
@@ -96,8 +98,8 @@ curl -I http://127.0.0.1:8080/      # 200
 ```bash
 cloudflared tunnel login
 cloudflared tunnel create crusade-deck
-cloudflared tunnel route dns crusade-deck crusade.ПРИМЕР.com
-cloudflared tunnel route dns crusade-deck api.crusade.ПРИМЕР.com
+cloudflared tunnel route dns crusade-deck crusade.EXAMPLE.com
+cloudflared tunnel route dns crusade-deck api.crusade.EXAMPLE.com
 ```
 
 `~/.cloudflared/config.yml`:
@@ -107,26 +109,26 @@ tunnel: crusade-deck
 credentials-file: /root/.cloudflared/<TUNNEL-UUID>.json
 
 ingress:
-  - hostname: api.crusade.ПРИМЕР.com
+  - hostname: api.crusade.EXAMPLE.com
     service: http://127.0.0.1:2567
-  - hostname: crusade.ПРИМЕР.com
+  - hostname: crusade.EXAMPLE.com
     service: http://127.0.0.1:8080
   - service: http_status:404
 ```
 
-WebSocket через туннель работает из коробки, отдельных флагов не нужно.
-Прокси Cloudflare (оранжевое облако) на обеих записях должен быть включён —
-`tunnel route dns` так и создаёт.
+WebSocket works through the tunnel out of the box, no extra flags needed. The
+Cloudflare proxy (orange cloud) must be enabled on both records — `tunnel route dns`
+sets that up automatically.
 
 ```bash
 cloudflared tunnel run crusade-deck
 ```
 
-## 4. Автозапуск
+## 4. Auto-start on boot
 
-Три сервиса: `cloudflared`, игровой сервер, статика. Для cloudflared есть
-штатное `cloudflared service install`. Для остальных двух — обычные unit-файлы
-systemd, например `/etc/systemd/system/crusade-deck.service`:
+Three services: `cloudflared`, the game server, the static files. `cloudflared` has
+the built-in `cloudflared service install`. For the other two — plain systemd unit
+files, e.g. `/etc/systemd/system/crusade-deck.service`:
 
 ```ini
 [Unit]
@@ -135,8 +137,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=ПОЛЬЗОВАТЕЛЬ
-WorkingDirectory=/home/ПОЛЬЗОВАТЕЛЬ/crusade-deck/server
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/crusade-deck/server
 ExecStart=/usr/bin/node dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=2567
@@ -147,29 +149,31 @@ RestartSec=2
 WantedBy=multi-user.target
 ```
 
-Аналогичный unit для статики с `ExecStart=/usr/bin/npx serve -s /home/ПОЛЬЗОВАТЕЛЬ/crusade-deck/client/dist -l 8080`
-(или отдать её nginx/Caddy, если они на машине уже есть).
+A similar unit for the static files with
+`ExecStart=/usr/bin/npx serve -s /home/YOUR_USER/crusade-deck/client/dist -l 8080`
+(or hand it off to nginx/Caddy if either is already on the machine).
 
 ```bash
 systemctl daemon-reload && systemctl enable --now crusade-deck
 ```
 
-Логи: `journalctl -u crusade-deck -f`, `journalctl -u cloudflared -f`.
+Logs: `journalctl -u crusade-deck -f`, `journalctl -u cloudflared -f`.
 
-## 5. Проверка
+## 5. Verify
 
 ```bash
-curl https://api.crusade.ПРИМЕР.com/health
+curl https://api.crusade.EXAMPLE.com/health
 ```
 
-Ожидается `{"status":"ok"}`. Дальше открыть `https://crusade.ПРИМЕР.com` в
-браузере: создаётся профиль, в DevTools → Network должен быть апгрейд
-`101 Switching Protocols` на `wss://api.crusade.ПРИМЕР.com/...`.
+Expect `{"status":"ok"}`. Then open `https://crusade.EXAMPLE.com` in a browser: a
+profile gets created, and in DevTools → Network there should be a
+`101 Switching Protocols` upgrade to `wss://api.crusade.EXAMPLE.com/...`.
 
-Если страница открывается, а игра не подключается — почти всегда в бандле
-остался неверный адрес (шаг 1) или сокет упёрся в хост без прокси Cloudflare.
+If the page loads but the game won't connect — it's almost always a wrong address
+baked into the bundle (step 1), or the socket hitting a host without the Cloudflare
+proxy.
 
-## 6. Обновление версии
+## 6. Updating
 
 ```bash
 cd ~/crusade-deck && git pull
@@ -178,27 +182,27 @@ cd ../client && npm ci && npm run build
 sudo systemctl restart crusade-deck
 ```
 
-Статику перезапускать не нужно — `serve` отдаёт файлы с диска. Клиенту, скорее
-всего, понадобится hard-reload.
+No need to restart the static server — `serve` reads files straight off disk. The
+client will most likely need a hard reload.
 
-> ⚠️ Комнаты, инвайт-коды и руки игроков живут **только в памяти** — рестарт
-> сервера выкидывает всех из партии. Не обновлять посреди игры. Аккаунты
-> (`server/data/accounts.json`) на диске и рестарт переживают.
+> ⚠️ Rooms, invite codes, and player hands live **in memory only** — restarting the
+> server kicks everyone out of their game. Don't update mid-session. Accounts
+> (`server/data/accounts.json`) are on disk and survive a restart.
 
-## 7. Бэкап аккаунтов
+## 7. Backing up accounts
 
-`server/data/` в `.gitignore`, `git pull` его не трогает. Раз в сутки в `crontab -e`:
+`server/data/` is in `.gitignore`, `git pull` won't touch it. Once a day via
+`crontab -e`:
 
 ```
 0 4 * * * mkdir -p ~/backups && cp ~/crusade-deck/server/data/accounts.json ~/backups/accounts-$(date +\%F).json
 ```
 
-## Известные мелочи
+## Known quirks
 
-- Firebase в зависимостях есть, но не используется и не настроен — ключи не
-  нужны, вход работает на своих аккаунтах с recovery-кодом.
-- Никаких обязательных переменных окружения у сервера нет, кроме `PORT`
-  (по умолчанию 2567).
-- Recovery-код копируется через `navigator.clipboard` — работает только в
-  secure context, то есть по HTTPS. Через туннель это выполняется само собой,
-  а вот по «голому» IP кнопка копирования отвалится.
+- Firebase is in the dependencies but unused and unconfigured — no keys needed,
+  sign-in works through custom accounts with a recovery code.
+- The server has no required environment variables besides `PORT` (defaults to 2567).
+- The recovery code is copied via `navigator.clipboard` — works only in a secure
+  context, i.e. over HTTPS. That's automatic through the tunnel, but the copy button
+  will break over a "bare" IP.
