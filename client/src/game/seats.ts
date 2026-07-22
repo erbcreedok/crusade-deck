@@ -36,3 +36,24 @@ export function tableSummary(seats: Seat[]): TableSummary {
     bots: seated.filter((s) => s.isBot).length,
   };
 }
+
+// Подпись состава мест: по ней React решает, надо ли перерисовывать стол. Сравнивать
+// сами объекты нельзя — RoomScreen пересобирает массив мест на КАЖДЫЙ патч состояния,
+// и стол перерисовывался бы (с пересозданием текстов и стопок) по десять раз в секунду.
+export function seatsSignature(seats: readonly SeatView[]): string {
+  return seats
+    .map((s) =>
+      [
+        s.id,
+        s.name,
+        s.handCount,
+        +s.isReady,
+        +s.isDealer,
+        +s.connected,
+        +s.handOpen,
+        +s.handFanned,
+        s.hand.join(","),
+      ].join(":"),
+    )
+    .join("|");
+}
