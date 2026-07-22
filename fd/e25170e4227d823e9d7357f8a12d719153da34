@@ -1,0 +1,40 @@
+client/src/room/useAutoDeal.ts
+  s_7d9a23fba6e8e1::t_567f70d09971be 1-96
+client/src/room/readState.test.ts
+  s_7d9a23fba6e8e1::t_1fc737477cde3c 1-110
+client/src/room/readState.ts
+  s_7d9a23fba6e8e1::t_f48414007902a7 1-109
+client/src/room/roomMenu.test.ts
+  s_7d9a23fba6e8e1::t_0a58dc2a1d8dd5 1-57
+client/src/room/useInsets.ts
+  s_7d9a23fba6e8e1::t_3c25a5a122e79f 11
+  s_7d9a23fba6e8e1::t_34774705193977 1-10,12-46
+client/src/room/useRoomSignals.ts
+  s_7d9a23fba6e8e1::t_d6039b69923103 1-99
+client/src/room/roomMenu.ts
+  s_7d9a23fba6e8e1::t_56186169aeaa40 1-63
+client/src/game/voteWeight.test.ts
+  s_7d9a23fba6e8e1::t_d73af541a82c63 1-49
+client/src/room/useRoomState.ts
+  s_7d9a23fba6e8e1::t_d35ae65611d7ef 1-121
+client/src/game/voteWeight.ts
+  s_7d9a23fba6e8e1::t_1f9ad436250c4f 1-39
+client/src/RoomScreen.tsx
+  s_7d9a23fba6e8e1::t_2c3a4a8f3242de 11,13-14,17,19-28,44-63,68-71,73-74,76-97,102-139,143,151,191-199,205-207,210,219,255-256,259-260,271,282,286,291-312,334-336,385-386
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "fde25170e4227d823e9d7357f8a12d719153da34",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
