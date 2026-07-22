@@ -1,142 +1,30 @@
-import { useEffect, useRef, useState } from "react";
-import { Room } from "colyseus.js";
+import { useEffect, useState } from "react";
 import { MotionConfig } from "framer-motion";
 import { useAuth } from "./useAuth";
 import { Lobby } from "./Lobby";
 import { RoomScreen } from "./RoomScreen";
 import { AppMenu } from "./AppMenu";
+import { AuthScreen } from "./AuthScreen";
 import { PixelBackground, type BackgroundVariant } from "./PixelBackground";
 import { applyThemeColor } from "./themeColor";
 import { useAnimationSettings } from "./useAnimationSettings";
 import { useFourColor } from "./useFourColor";
 import { useCardBack } from "./useCardBack";
-import { joinByInviteCode } from "./colyseus";
-import {
-  parseRoomCode,
-  pushRoomUrl,
-  pushLobbyUrl,
-  saveActiveRoom,
-  loadActiveRoom,
-  clearActiveRoom,
-} from "./roomRoute";
+import { useRoomConnection } from "./useRoomConnection";
 
+// Корень приложения: аккаунт, настройки, соединение с комнатой — и выбор экрана.
+// Сама логика подключения и адресной строки живёт в useRoomConnection.
 export default function App() {
-  const {
-    user,
-    account,
-    loading,
-    createAccount,
-    restoreAccount,
-    renameAccount,
-    regenerateCode,
-  } = useAuth();
-  const [room, setRoom] = useState<Room | null>(null);
-  // Комната, куда мы хотим попасть: из URL (/room/<код>) или из персиста последней сессии.
-  // Пока она задана, а живого room нет — показываем лоадер и пытаемся подключиться.
-  const [targetCode, setTargetCode] = useState<string | null>(() => parseRoomCode() ?? loadActiveRoom());
-  const [authError, setAuthError] = useState<string | null>(null);
-  // Меню настроек живёт здесь: в комнате его открывает нижний веер, в лобби — своя ☰.
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [restoreCode, setRestoreCode] = useState("");
-  const [showRestore, setShowRestore] = useState(false);
+  const { user, account, loading, createAccount, restoreAccount, renameAccount, regenerateCode } = useAuth();
   const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
   const { fourColor, setFourColor } = useFourColor();
   const { cardBack, setCardBack } = useCardBack();
+  const { room, targetCode, onJoined, leaveToLobby, forget } = useRoomConnection(user?.uid, account?.name);
+  // Меню настроек живёт здесь: в комнате его открывает нижний веер, в лобби — своя ☰.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   // Фон и Framer Motion движутся только при полной анимации; в умеренной — статичны.
   const fullMotion = animation.level === "full";
-
-  const accountId = user?.uid;
-  const accountName = account?.name;
-
-  // Вошли в комнату: запоминаем её код (URL + персист) как «активную» для бесшовного
-  // возврата. Код приходит из состояния комнаты (inviteCode) — ждём первый стейт, если нужно.
-  function handleJoined(r: Room) {
-    setRoom(r);
-    const apply = () => {
-      const code = (r.state as { inviteCode?: string })?.inviteCode;
-      if (!code) return;
-      saveActiveRoom(code);
-      pushRoomUrl(code);
-      setTargetCode(code);
-    };
-    apply();
-    r.onStateChange(apply); // идемпотентно: как только придёт inviteCode — проставим
-  }
-
-  // Выход из комнаты в лобби: закрываем соединение и забываем активную комнату.
-  function leaveRoomToLobby() {
-    room?.leave();
-    forgetRoom();
-  }
-
-  // Явный выход/отмена возврата — забываем активную комнату (авто-возврата больше нет;
-  // серверная «последняя комната» для кнопки в лобби при этом сохраняется).
-  function forgetRoom() {
-    setRoom(null);
-    setTargetCode(null);
-    clearActiveRoom();
-    pushLobbyUrl();
-  }
-
-  // Обрыв связи (свернул вкладку, сон iOS, сеть) — роняем room, но НЕ забываем targetCode:
-  // авто-эффект ниже переподключится бесшовно (сервер держит игрока на паузе).
-  useEffect(() => {
-    if (!room) return;
-    const drop = () => setRoom(null);
-    room.onLeave(drop);
-    room.onError(drop);
-  }, [room]);
-
-  // Бесшовное подключение к targetCode (первый вход по URL, персист, реконнект после обрыва).
-  // ВАЖНО: ровно одно соединение на один targetCode. Раньше здесь стоял флаг cancelled, и
-  // двойной прогон эффекта (StrictMode в деве, быстрый ре-рендер) открывал ДВА сокета одним
-  // аккаунтом. Сервер держит одного игрока на аккаунт, поэтому тот вход, что доехал вторым,
-  // забирал запись себе — и выжившее соединение оставалось без игрока: «я не дилер».
-  // Порядок прибытия недетерминирован, отсюда и «то так, то эдак» после перезагрузок.
-  const joiningRef = useRef<string | null>(null);
-  const wantedRef = useRef<string | null>(targetCode);
-  wantedRef.current = targetCode;
-  useEffect(() => {
-    if (!accountId || !accountName || room || !targetCode) return;
-    if (joiningRef.current === targetCode) return; // уже подключаемся к этой комнате
-    joiningRef.current = targetCode;
-    joinByInviteCode(targetCode, { accountId, name: accountName })
-      .then((r) => {
-        joiningRef.current = null;
-        // Пока подключались, цель могла смениться (вышли/ушли в другую комнату).
-        if (wantedRef.current !== targetCode) return void r.leave();
-        handleJoined(r);
-      })
-      .catch(() => {
-        joiningRef.current = null;
-        if (wantedRef.current !== targetCode) return;
-        // Комнаты уже нет (или код неверный) — уходим на начальный экран.
-        clearActiveRoom();
-        pushLobbyUrl();
-        setTargetCode(null);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, accountName, targetCode, room]);
-
-  // Кнопки назад/вперёд браузера: синхронизируем targetCode с адресом.
-  useEffect(() => {
-    const onPop = () => {
-      const code = parseRoomCode();
-      if (code) {
-        setTargetCode(code);
-      } else {
-        setTargetCode(null);
-        clearActiveRoom();
-        if (room) {
-          room.leave();
-          setRoom(null);
-        }
-      }
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [room]);
-
   // Фон комнаты и цвет строки состояния переключаются вместе — это один визуальный слой.
   const bgVariant: BackgroundVariant = room ? "game" : "menu";
   useEffect(() => {
@@ -146,133 +34,65 @@ export default function App() {
   return (
     <MotionConfig reducedMotion={fullMotion ? "never" : "always"}>
       <PixelBackground enabled={fullMotion} variant={bgVariant} />
-      {renderContent()}
-    </MotionConfig>
-  );
-
-  function renderContent() {
-    if (loading) {
-      return (
+      {loading ? (
         <div className="pixel-screen">
           <p className="pixel-loading">Загрузка...</p>
         </div>
-      );
-    }
-
-    if (!user) {
-      async function handleNew() {
-        setAuthError(null);
-        try {
-          await createAccount();
-        } catch (e) {
-          setAuthError((e as Error).message);
-        }
-      }
-
-      async function handleRestore() {
-        setAuthError(null);
-        try {
-          await restoreAccount(restoreCode);
-        } catch (e) {
-          setAuthError((e as Error).message);
-        }
-      }
-
-      return (
-        <div className="pixel-screen">
-          <div className="pixel-panel">
-            <h2 className="pixel-title">♣ Вход ♦</h2>
-
-            {!showRestore ? (
-              <>
-                <button className="pixel-btn pixel-btn-full" onClick={handleNew}>
-                  Новый профиль
+      ) : !user ? (
+        <AuthScreen onCreate={createAccount} onRestore={restoreAccount} />
+      ) : (
+        <>
+          {account && (
+            <AppMenu
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              // В комнате верхнего гамбургера нет: настройки открываются из нижнего веера.
+              showFab={!room}
+              account={account}
+              onRename={renameAccount}
+              onRegenerateCode={regenerateCode}
+              animation={animation}
+              onSetLevel={setLevel}
+              onSetSpeed={setSpeed}
+              onSetShadows={setShadows}
+              fourColor={fourColor}
+              onSetFourColor={setFourColor}
+              cardBack={cardBack}
+              onSetCardBack={setCardBack}
+              room={room}
+              onLeaveRoom={forget}
+            />
+          )}
+          {room ? (
+            <RoomScreen
+              room={room}
+              animation={animation}
+              fourColor={fourColor}
+              cardBack={cardBack}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onLeaveRoom={leaveToLobby}
+            />
+          ) : targetCode ? (
+            // Возврат в комнату: подключение идёт в useRoomConnection, здесь — только
+            // ожидание и способ передумать.
+            <div className="pixel-screen">
+              <div className="pixel-panel" style={{ textAlign: "center" }}>
+                <p className="pixel-loading">Возвращаемся в комнату {targetCode}…</p>
+                <button className="pixel-btn pixel-btn-secondary pixel-btn-full" onClick={forget}>
+                  В лобби
                 </button>
-                <button
-                  className="pixel-btn pixel-btn-secondary pixel-btn-full"
-                  style={{ marginTop: 10 }}
-                  onClick={() => setShowRestore(true)}
-                >
-                  Восстановить по коду
-                </button>
-              </>
-            ) : (
-              <>
-                <label className="pixel-label">Код восстановления</label>
-                <input
-                  className="pixel-input"
-                  value={restoreCode}
-                  onChange={(e) => setRestoreCode(e.target.value)}
-                  placeholder="BOVAKI"
-                  maxLength={6}
-                />
-                <div className="pixel-btn-row">
-                  <button className="pixel-btn" onClick={handleRestore}>
-                    Войти
-                  </button>
-                  <button className="pixel-btn pixel-btn-secondary" onClick={() => setShowRestore(false)}>
-                    Назад
-                  </button>
-                </div>
-              </>
-            )}
-
-            {authError && <p className="pixel-error">{authError}</p>}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <>
-        {account && (
-          <AppMenu
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            // В комнате верхнего гамбургера нет: настройки открываются из нижнего веера.
-            showFab={!room}
-            account={account}
-            onRename={renameAccount}
-            onRegenerateCode={regenerateCode}
-            animation={animation}
-            onSetLevel={setLevel}
-            onSetSpeed={setSpeed}
-            onSetShadows={setShadows}
-            fourColor={fourColor}
-            onSetFourColor={setFourColor}
-            cardBack={cardBack}
-            onSetCardBack={setCardBack}
-            room={room}
-            onLeaveRoom={forgetRoom}
-          />
-        )}
-        {room ? (
-          <RoomScreen
-            room={room}
-            animation={animation}
-            fourColor={fourColor}
-            cardBack={cardBack}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onLeaveRoom={leaveRoomToLobby}
-          />
-        ) : targetCode ? (
-          <div className="pixel-screen">
-            <div className="pixel-panel" style={{ textAlign: "center" }}>
-              <p className="pixel-loading">Возвращаемся в комнату {targetCode}…</p>
-              <button className="pixel-btn pixel-btn-secondary pixel-btn-full" onClick={forgetRoom}>
-                В лобби
-              </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <Lobby
-            accountId={user.uid}
-            initialName={account?.name}
-            onRename={renameAccount}
-            onJoined={handleJoined}
-          />
-        )}
-      </>
-    );
-  }
+          ) : (
+            <Lobby
+              accountId={user.uid}
+              initialName={account?.name}
+              onRename={renameAccount}
+              onJoined={onJoined}
+            />
+          )}
+        </>
+      )}
+    </MotionConfig>
+  );
 }
