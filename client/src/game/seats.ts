@@ -9,6 +9,7 @@ export interface Seat {
   isReady: boolean;
   isDealer: boolean;
   connected: boolean;
+  handOpen: boolean; // рука открыта — её видно всем так же, как самому игроку
 }
 
 // То же место, но с тем, что нужно нарисовать в его прямоугольнике.

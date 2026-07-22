@@ -154,64 +154,88 @@ describe("CardRoom", () => {
     expect(room.state.deckLocation).toBe("center");
   });
 
-  it("move_deck 'safe' (dealer) registers the deck in the dealer's safe zone without emptying it", async () => {
+  it("move_deck 'hand' — колода уходит в мою руку (там она и раскрывается веером)", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
 
     const waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "safe" });
+    dealer.send("move_deck", { zone: "hand" });
     await waiter;
 
-    // Колода «уехала» в сейф-зону дилера — привязана к его sessionId, рубашкой вверх.
     expect(room.state.deckLocation).toBe(dealer.sessionId);
-    // Карты не раздаются и не исчезают — просто меняют зону.
-    expect(room.state.deck.length).toBe(36);
+    expect(room.state.deckSlot).toBe("hand");
+    expect(room.state.deck.length).toBe(36); // карты не раздаются, только меняют место
   });
 
-  it("move_deck 'center' returns the deck to the center", async () => {
+  it("move_deck 'pocket' кладёт колоду в КОНКРЕТНЫЙ слот кармана", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    const waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "pocket", slot: 2 });
+    await waiter;
+
+    expect(room.state.deckLocation).toBe(dealer.sessionId);
+    expect(room.state.deckSlot).toBe("pocket2");
+  });
+
+  it("слот кармана вне 0..2 не принимается", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    const waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "pocket", slot: 7 });
+    await waiter;
+
+    expect(room.state.deckLocation).toBe("center"); // осталась на месте
+    expect(room.state.deckSlot).toBe("");
+  });
+
+  it("move_deck 'center' возвращает колоду на стол и забывает слот", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
 
     let waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "safe" });
+    dealer.send("move_deck", { zone: "hand" });
     await waiter;
-    expect(room.state.deckLocation).toBe(dealer.sessionId);
 
     waiter = room.waitForMessage("move_deck");
     dealer.send("move_deck", { zone: "center" });
     await waiter;
+
     expect(room.state.deckLocation).toBe("center");
+    expect(room.state.deckSlot).toBe("");
   });
 
-  // Место игрока за столом — прямоугольная дроп-зона: бросок колоды на него отдаёт
-  // колоду ему (deckLocation = его id). Работает и для ботов — они такие же игроки.
-  it("move_deck 'player' hands the deck to that player's seat", async () => {
-    const room = await colyseus.createRoom("test_room", { deckType: "36" });
-    const dealer = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-seat-1" });
-    const botId = [...room.state.players.entries()].find(([, p]) => p.isBot)![0];
-
-    const waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "player", targetId: botId });
-    await waiter;
-
-    expect(room.state.deckLocation).toBe(botId);
-    expect(room.state.deck.length).toBe(36); // колода просто сменила место
-  });
-
-  it("ignores move_deck 'player' for an unknown target and from a non-dealer", async () => {
+  // Рука имеет два режима: открытая (все видят то же, что и я) и закрытая (всем видна
+  // только оборотка). Это состояние игрока — его видят все, поэтому оно в схеме.
+  it("toggle_hand переключает режим руки и виден всем", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
-    const dealer = await colyseus.connectTo(room, { name: "Alice" });
-    const other = await colyseus.connectTo(room, { name: "Bob" });
+    const player = await colyseus.connectTo(room, { name: "Alice" });
+    expect(room.state.players.get(player.sessionId)?.handOpen).toBe(false); // по умолчанию закрыта
 
-    let waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "player", targetId: "no-such-player" });
+    let waiter = room.waitForMessage("toggle_hand");
+    player.send("toggle_hand");
     await waiter;
-    expect(room.state.deckLocation).toBe("center");
+    expect(room.state.players.get(player.sessionId)?.handOpen).toBe(true);
 
-    waiter = room.waitForMessage("move_deck");
-    other.send("move_deck", { zone: "player", targetId: dealer.sessionId });
+    waiter = room.waitForMessage("toggle_hand");
+    player.send("toggle_hand");
     await waiter;
-    expect(room.state.deckLocation).toBe("center");
+    expect(room.state.players.get(player.sessionId)?.handOpen).toBe(false);
+  });
+
+  it("режим руки — личное дело каждого: сосед свой не трогает", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const a = await colyseus.connectTo(room, { name: "Alice" });
+    const b = await colyseus.connectTo(room, { name: "Bob" });
+
+    const waiter = room.waitForMessage("toggle_hand");
+    a.send("toggle_hand");
+    await waiter;
+
+    expect(room.state.players.get(a.sessionId)?.handOpen).toBe(true);
+    expect(room.state.players.get(b.sessionId)?.handOpen).toBe(false);
   });
 
   it("ignores move_deck from a non-dealer", async () => {
@@ -220,7 +244,7 @@ describe("CardRoom", () => {
     const second = await colyseus.connectTo(room, { name: "Bob" });
 
     const waiter = room.waitForMessage("move_deck");
-    second.send("move_deck", { zone: "safe" });
+    second.send("move_deck", { zone: "hand" });
     await waiter;
 
     expect(room.state.deckLocation).toBe("center");
@@ -237,7 +261,7 @@ describe("CardRoom", () => {
     expect(room.state.phase).toBe("playing");
 
     waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "safe" });
+    dealer.send("move_deck", { zone: "hand" });
     await waiter;
 
     expect(room.state.deckLocation).toBe("center");

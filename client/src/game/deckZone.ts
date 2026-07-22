@@ -1,16 +1,30 @@
-// Куда движок рисует колоду с точки зрения ЛОКАЛЬНОГО игрока. Сервер хранит
-// deckLocation ("center" или id держателя); здесь переводим её в мою перспективу.
-// "seat" — колода лежит на месте другого игрока за столом (места теперь нарисованы,
-// см. seatLayout.ts). "away" остаётся страховкой: держателя за столом нет (вышел из
-// комнаты, пока колода была у него) — рисовать её негде.
-export type DeckZone = "center" | "safe" | "seat" | "away";
+// Куда движок рисует колоду с точки зрения ЛОКАЛЬНОГО игрока. Сервер хранит пару
+// (deckLocation, deckSlot): чей это стол/игрок и где именно у него лежит колода.
+//   center — общий стол,
+//   hand   — МОЯ рука: единственное место, где колода раскрывается веером,
+//   pocket — МОЙ карман (слот 0..2): закрытая стопка, веера там не бывает,
+//   seat   — место другого игрока за столом,
+//   away   — держателя за столом нет (вышел): рисовать негде.
+export type DeckZone = "center" | "hand" | "pocket" | "seat" | "away";
 
-export function deckZoneFor(
+export interface DeckPlace {
+  zone: DeckZone;
+  slot: number; // только для кармана: 0..2
+}
+
+export function deckPlaceFor(
   deckLocation: string,
+  deckSlot: string,
   mySessionId: string,
   isSeated: (id: string) => boolean = () => false,
-): DeckZone {
-  if (!deckLocation || deckLocation === "center") return "center";
-  if (deckLocation === mySessionId) return "safe";
-  return isSeated(deckLocation) ? "seat" : "away";
+): DeckPlace {
+  if (!deckLocation || deckLocation === "center") return { zone: "center", slot: 0 };
+  if (deckLocation === mySessionId) {
+    if (deckSlot === "hand") return { zone: "hand", slot: 0 };
+    const m = /^pocket([0-9]+)$/.exec(deckSlot ?? "");
+    // Неизвестный/пустой слот у меня трактуем как первый карман: колода не должна
+    // «пропасть» из-за рассинхрона — пусть лучше лежит на видном месте закрытой.
+    return { zone: "pocket", slot: m ? Number(m[1]) : 0 };
+  }
+  return isSeated(deckLocation) ? { zone: "seat", slot: 0 } : { zone: "away", slot: 0 };
 }

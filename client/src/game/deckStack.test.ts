@@ -133,14 +133,16 @@ describe("stackStripeIndices", () => {
 });
 
 describe("deckZoneScale", () => {
-  it("в центре стола колода крупнее, в сейф-зоне — обычного размера", () => {
+  it("в центре стола колода крупнее, в руке — обычного размера", () => {
     expect(deckZoneScale("center")).toBeGreaterThan(1);
-    expect(deckZoneScale("safe")).toBe(1);
+    expect(deckZoneScale("hand")).toBe(1);
   });
 
-  it("на месте игрока колода мельче — она должна помещаться в его прямоугольник", () => {
-    expect(deckZoneScale("seat")).toBeLessThan(1);
-    expect(deckZoneScale("seat")).toBeGreaterThan(0);
+  it("на месте игрока и в кармане колода мельче — должна помещаться в прямоугольник", () => {
+    for (const zone of ["seat", "pocket"] as const) {
+      expect(deckZoneScale(zone)).toBeLessThan(1);
+      expect(deckZoneScale(zone)).toBeGreaterThan(0);
+    }
   });
 
   it("скрытая колода (чужая сейф-зона) масштаб не меняет", () => {

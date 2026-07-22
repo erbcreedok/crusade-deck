@@ -3,39 +3,6 @@
 
 import { anim } from "./anim/config";
 
-export type DeckSwipeAction = "flip" | "stretch" | "none";
-
-export interface DeckSwipe {
-  action: DeckSwipeAction;
-  angle: number; // угол самого жеста (рад) — по нему идёт анимация
-}
-
-// Что делает свайп по СТОПКЕ. Переворот дают только движения вниз и вбок; ЛЮБОЙ увод
-// вверх — включая пологие диагонали — переворота не даёт, там лишь резиновая тянучка
-// (переворот колоды специально сделан «неудобным»). Небольшой допуск upTolerance нужен,
-// чтобы дрожание руки на горизонтальном свайпе не читалось как жест вверх.
-export function classifyDeckSwipe(vx: number, vy: number): DeckSwipe {
-  const speed = Math.hypot(vx, vy);
-  const angle = Math.atan2(vy, vx);
-  if (speed < anim.flip.minSwipeSpeed) return { action: "none", angle };
-  const upness = -vy / speed; // >0 — есть составляющая вверх
-  if (upness > anim.flip.upTolerance) return { action: "stretch", angle };
-  return { action: "flip", angle };
-}
-
-// Свайп ВНИЗ по вееру (переворот карты). Сектор тот же, что у запретного «вверх», только
-// зеркальный: диагональ вниз-вбок тоже считается, а горизонтальное ведение — нет (это
-// глиссандо по вееру).
-export function isSwipeDown(vx: number, vy: number): boolean {
-  const speed = Math.hypot(vx, vy);
-  if (speed < anim.flip.minSwipeSpeed) return false;
-  return vy / speed > anim.flip.upSectorCos;
-}
-
-// Разворот стопки — это вращение вокруг оси, а не «схлопывание и разворачивание».
-// turns — сколько ПОЛУоборотов делает вещь: колода крутится на 3 (540°, полтора оборота
-// — видно, что её именно развернули), одиночная карта на 1 (180°). Число полуоборотов
-// нечётное, поэтому в конце наверху всегда противоположная сторона.
 export function spinAngle(p: number, halfTurns: number): number {
   return Math.max(0, Math.min(1, p)) * halfTurns * Math.PI;
 }

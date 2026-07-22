@@ -8,6 +8,7 @@ const seat = (over: Partial<Seat> = {}): Seat => ({
   isReady: false,
   isDealer: false,
   connected: true,
+  handOpen: false,
   ...over,
 });
 

@@ -1,40 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { classifyDeckSwipe, isSwipeDown, spinAngle, spinScale, spinShowsOther, flipTilt, flipTransform, stretchOffset } from "./flip";
+import { spinAngle, spinScale, spinShowsOther, flipTilt, flipTransform, stretchOffset } from "./flip";
 
-describe("classifyDeckSwipe", () => {
-  const dir = (vx: number, vy: number) => classifyDeckSwipe(vx, vy);
-
-  it("вниз, вбок и диагонали ВНИЗ — переворот", () => {
-    expect(dir(0, 1500).action).toBe("flip");
-    expect(dir(1500, 0).action).toBe("flip");
-    expect(dir(-1500, 0).action).toBe("flip");
-    expect(dir(1200, 1200).action).toBe("flip");
-    expect(dir(-1200, 1200).action).toBe("flip");
-  });
-
-  it("ЛЮБОЙ свайп с уходом вверх — только тянучка, включая диагонали", () => {
-    expect(dir(0, -1500).action).toBe("stretch");
-    expect(dir(300, -1500).action).toBe("stretch");
-    expect(dir(1500, -900).action).toBe("stretch"); // пологая диагональ вверх
-    expect(dir(-1500, -900).action).toBe("stretch");
-    expect(dir(1200, -1200).action).toBe("stretch"); // ровно 45° вверх
-  });
-
-  it("лёгкий увод вверх у горизонтального свайпа не мешает перевороту", () => {
-    expect(dir(1500, -60).action).toBe("flip"); // ~2° — это дрожание руки, а не жест вверх
-  });
-
-  it("угол эффекта — это угол самого свайпа (анимация идёт по направлению)", () => {
-    expect(dir(0, 1000).angle).toBeCloseTo(Math.PI / 2, 6);
-    expect(dir(1000, 0).angle).toBeCloseTo(0, 6);
-    expect(dir(1000, 1000).angle).toBeCloseTo(Math.PI / 4, 6);
-  });
-
-  it("вялое движение жестом не считается", () => {
-    expect(dir(10, 10).action).toBe("none");
-    expect(dir(0, 0).action).toBe("none");
-  });
-});
 
 describe("spinAngle / spinScale / spinShowsOther", () => {
   it("колода делает 1.5 оборота (540°), одиночная карта — пол-оборота", () => {
@@ -127,19 +93,6 @@ describe("stretchOffset", () => {
   });
 });
 
-describe("isSwipeDown", () => {
-  it("вниз и вниз-по-диагонали — да", () => {
-    expect(isSwipeDown(0, 1500)).toBe(true);
-    expect(isSwipeDown(500, 1500)).toBe(true);
-  });
-
-  it("вверх, вбок и вялое движение — нет", () => {
-    expect(isSwipeDown(0, -1500)).toBe(false);
-    expect(isSwipeDown(1500, 0)).toBe(false);
-    expect(isSwipeDown(1500, 300)).toBe(false); // почти горизонталь — это глиссандо
-    expect(isSwipeDown(0, 50)).toBe(false);
-  });
-});
 
 describe("flipTilt", () => {
   const AMP = 0.22;

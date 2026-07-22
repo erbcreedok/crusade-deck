@@ -24,6 +24,9 @@ interface JoinOptions {
 // 4000+ — свободный диапазон WebSocket-кодов для приложения.
 const TAKEOVER_CODE = 4001;
 
+// Слотов в кармане игрока (см. клиентский layout.ts — там та же тройка визуально).
+const POCKET_SLOTS = 3;
+
 const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS_36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const RANKS_52 = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
@@ -178,18 +181,40 @@ export class CardRoom extends Room<GameState> {
     // Дилер притягивает колоду в свою сейф-зону (zone "safe") или возвращает в
     // центр (zone "center"). Только дилер и только в лобби (во время раздачи).
     // Карты не раздаются — колода целиком меняет зону, рубашкой вверх.
-    this.onMessage("move_deck", (client, message: { zone?: "center" | "safe" | "player"; targetId?: string }) => {
+    this.onMessage(
+      "move_deck",
+      (client, message: { zone?: "center" | "hand" | "pocket" | "player"; slot?: number; targetId?: string }) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player?.isDealer || this.state.phase !== "lobby") return;
+        const zone = message?.zone;
+        if (zone === "center") {
+          this.state.deckLocation = "center";
+          this.state.deckSlot = "";
+        } else if (zone === "hand") {
+          // Рука — единственное место, где колода лежит веером и открыта.
+          this.state.deckLocation = client.sessionId;
+          this.state.deckSlot = "hand";
+        } else if (zone === "pocket") {
+          // Карман — до трёх отдельных колод, поэтому слот обязателен и проверяется.
+          const slot = message?.slot;
+          if (typeof slot !== "number" || !Number.isInteger(slot) || slot < 0 || slot >= POCKET_SLOTS) return;
+          this.state.deckLocation = client.sessionId;
+          this.state.deckSlot = `pocket${slot}`;
+        } else if (zone === "player") {
+          // Колоду бросили на место другого игрока: она ложится ему в карман, закрытой.
+          const targetId = message?.targetId;
+          if (typeof targetId !== "string" || !this.state.players.has(targetId)) return;
+          this.state.deckLocation = targetId;
+          this.state.deckSlot = "pocket0";
+        }
+      },
+    );
+
+    // Рука открыта/закрыта. Личное дело каждого игрока — дилерство тут ни при чём.
+    this.onMessage("toggle_hand", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player?.isDealer || this.state.phase !== "lobby") return;
-      if (message?.zone === "safe") this.state.deckLocation = client.sessionId;
-      else if (message?.zone === "center") this.state.deckLocation = "center";
-      // Колоду бросили на место другого игрока за столом (его зона — дроп-зона).
-      // Бот тут ничем не отличается от человека: он такой же игрок в комнате.
-      else if (message?.zone === "player") {
-        const targetId = message?.targetId;
-        if (typeof targetId !== "string" || !this.state.players.has(targetId)) return;
-        this.state.deckLocation = targetId;
-      }
+      if (!player) return;
+      player.handOpen = !player.handOpen;
     });
 
     this.onMessage("start_game", (client) => {

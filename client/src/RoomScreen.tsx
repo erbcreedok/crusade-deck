@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
+import { ActionBar, type MenuItem } from "./ActionBar";
 import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
-import { deckZoneFor, type DeckZone } from "./game/deckZone";
+import { deckPlaceFor } from "./game/deckZone";
 import { tableSummary, type SeatView } from "./game/seats";
 import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
@@ -20,6 +21,7 @@ interface RoomPlayer {
   isBot: boolean;
   connected: boolean;
   handCount: number;
+  handOpen: boolean; // рука открыта — остальные видят её так же, как сам игрок
 }
 
 interface ActiveProposal {
@@ -52,6 +54,8 @@ export function RoomScreen({
   // Где лежит колода по мнению сервера ("center" или id держателя). В зону для движка
   // переводим ниже — для этого нужно знать, кто сейчас сидит за столом.
   const [deckLocation, setDeckLocation] = useState<string>("center");
+  // Где именно у держателя: "hand" или "pocket0..2" (см. deckZone.ts).
+  const [deckSlot, setDeckSlot] = useState<string>("");
   const [draggingDeck, setDraggingDeck] = useState(false);
   // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
   const [facing, setFacing] = useState<Record<string, boolean>>({});
@@ -84,6 +88,7 @@ export function RoomScreen({
           isBot: !!p.isBot,
           connected: p.connected,
           handCount: p.hand?.length ?? 0,
+          handOpen: !!p.handOpen,
         });
       });
       setPlayers(list);
@@ -102,6 +107,7 @@ export function RoomScreen({
         setFacing(nextFacing);
       }
       setDeckLocation(room.state.deckLocation ?? "center");
+      setDeckSlot(room.state.deckSlot ?? "");
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -156,28 +162,41 @@ export function RoomScreen({
     return () => ro.disconnect();
   }, []);
 
+  // Панель действий внизу — тоже HTML поверх канваса, и её высота КОНСТАНТНА (см.
+  // --action-btn-h в theme.css). Меряем реальную высоту (плюс safe-area на iOS) и
+  // отдаём движку: игровые зоны заканчиваются над панелью, карты под кнопки не уезжают.
+  const [bottomInset, setBottomInset] = useState(0);
+  useEffect(() => {
+    const el = document.querySelector(".action-bar");
+    if (!el) return;
+    const apply = () => setBottomInset(el.getBoundingClientRect().height + 8);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Чужие игроки — те, кого рисуем за столом (посадка «П»). Своё место не рисуем:
   // низ экрана — мои сейф-зона и рука.
   const seats: SeatView[] = players.filter((p) => p.id !== room.sessionId);
   const seatedIds = new Set(seats.map((s) => s.id));
-  const deckZone = deckZoneFor(deckLocation, room.sessionId, (id) => seatedIds.has(id));
-  // Держатель колоды — только если это чужое место; своё — это уже "safe".
+  const place = deckPlaceFor(deckLocation, deckSlot, room.sessionId, (id: string) => seatedIds.has(id));
+  const deckZone = place.zone;
+  const deckSlotIndex = place.slot;
+  // Держатель колоды — только если это чужое место; своё — это рука или карман.
   const deckHolder = deckZone === "seat" ? deckLocation : null;
+  // Режим МОЕЙ руки: открытая — остальные видят её так же, как я; закрытая — оборотку.
+  const handOpen = players.find((p) => p.id === room.sessionId)?.handOpen ?? false;
 
   // Колоду двигает только дилер и только в лобби (во время раздачи).
   const canMoveDeck = amIDealer && phase === "lobby";
 
-  // Дабл-клик по колоде: быстрый тоггл центр ⇄ своя сейф-зона.
-  const onDeckDoubleClick = useCallback(() => {
-    if (!canMoveDeck) return;
-    room.send("move_deck", { zone: deckZone === "safe" ? "center" : "safe" });
-  }, [canMoveDeck, deckZone, room]);
-
   // Драг-н-дроп: колода брошена в дроп-зону — шлём её на сервер (там валидируется).
   const onDeckDrop = useCallback(
-    (zone: "center" | "safe") => {
+    (zone: "center" | "hand" | "pocket", slot: number) => {
       if (!canMoveDeck) return;
-      room.send("move_deck", { zone });
+      // Слот важен только для кармана: туда влезает до трёх отдельных колод.
+      room.send("move_deck", zone === "pocket" ? { zone, slot } : { zone });
     },
     [canMoveDeck, room],
   );
@@ -283,10 +302,33 @@ export function RoomScreen({
   const deckInCenter = deckZone === "center";
   const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
   const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
-  // Инструменты колоды (Растасовать/Перевернуть) — доступны дилеру, ПОКА ЕСТЬ КОЛОДА
-  // (центр или своя сейф-зона), не во время драга. Позже так же — для сброса/второй колоды.
-  const deckIsMine = deckZone === "center" || deckZone === "safe";
+  // Инструменты колоды (Растасовать/Перевернуть) — доступны дилеру, ПОКА КОЛОДА У МЕНЯ
+  // (стол, рука или карман), не во время драга.
+  const deckIsMine = deckZone === "center" || deckZone === "hand" || deckZone === "pocket";
   const showDeckTools = phase === "lobby" && amIDealer && !draggingDeck && deckIsMine;
+
+  // Пункты слайд-ап меню. Здесь же будут настройки и выход — пока то, что уже умеет
+  // комната. Список собирается по состоянию: недоступное просто не показываем.
+  const menuItems: MenuItem[] = [];
+  if (showCenterActions) {
+    menuItems.push({ label: "Готов", onClick: () => room.send("ready") });
+    if (amIDealer) menuItems.push({ label: "Раздать", onClick: () => room.send("start_game") });
+  }
+  if (showDeckPlaceholder && amIDealer) {
+    menuItems.push({ label: "↩ Вернуть колоду в центр", onClick: () => room.send("move_deck", { zone: "center" }) });
+  }
+  if (phase === "lobby") {
+    menuItems.push({
+      label: handOpen ? "🔓 Рука открыта" : "🔒 Рука закрыта",
+      onClick: () => room.send("toggle_hand"),
+    });
+  }
+  if (showDeckTools) {
+    menuItems.push({ label: "Растасовать", onClick: () => setShuffleSignal((v) => v + 1) });
+    if (!fanned) {
+      menuItems.push({ label: "🎴 Перевернуть колоду", onClick: () => setFlipSignal((v) => v + 1) });
+    }
+  }
 
   return (
     <div className="table-screen">
@@ -324,7 +366,9 @@ export function RoomScreen({
         deckHolder={deckHolder}
         onDeckDropToSeat={onDeckDropToSeat}
         topInset={topInset}
+        bottomInset={bottomInset}
         deckZone={deckZone}
+        deckSlot={deckSlotIndex}
         deckDraggable={canMoveDeck}
         fourColor={fourColor}
         cardBack={cardBack}
@@ -337,7 +381,6 @@ export function RoomScreen({
         flipSignal={flipSignal}
         incomingFx={incomingFx}
         rejectedFlip={rejectedFlip}
-        onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onCardReorder={onCardReorder}
         onShuffleChange={onShuffleChange}
@@ -345,47 +388,10 @@ export function RoomScreen({
         animation={animation}
       />
 
-      <div className="table-bottombar">
-        {showCenterActions && (
-          <>
-            <button className="pixel-btn" onClick={() => room.send("ready")}>
-              Готов
-            </button>
-            {amIDealer && (
-              <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("start_game")}>
-                Раздать
-              </button>
-            )}
-          </>
-        )}
-
-        {/* Колода вне центра — тут будут свои кнопки зоны; пока плейсхолдер-возврат. */}
-        {showDeckPlaceholder && amIDealer && (
-          <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("move_deck", { zone: "center" })}>
-            ↩ Вернуть колоду в центр
-          </button>
-        )}
-
-        {/* Инструменты колоды — доступны, пока есть колода (центр/сейф). */}
-        {showDeckTools && (
-          <>
-            <button
-              className="pixel-btn pixel-btn-secondary"
-              // Тасует движок (порядок + анимация), сеть узнаёт через onShuffleChange.
-              onClick={() => setShuffleSignal((s) => s + 1)}
-            >
-              Растасовать
-            </button>
-            {/* Переворот кнопкой — только пока колода НЕ раскрыта веером: в вее­ре карты
-                переворачиваются жестами, и это осознанно сложнее. */}
-            {!fanned && (
-              <button className="pixel-btn pixel-btn-secondary" onClick={() => setFlipSignal((v) => v + 1)}>
-                🎴 Перевернуть колоду
-              </button>
-            )}
-          </>
-        )}
-      </div>
+      {/* Панель действий: постоянный каркас из трёх слотов. Главный и второстепенный
+          пока НЕ назначены — что в них появится, решится позже. Всё, что уже работает,
+          живёт в слайд-ап меню гамбургера, чтобы ничего не потерять. */}
+      <ActionBar menuItems={menuItems} />
     </div>
   );
 }

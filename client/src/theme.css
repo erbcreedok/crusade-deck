@@ -450,23 +450,141 @@ textarea {
 /* Абсолютный оверлей у нижнего края — вне потока, чтобы динамическая высота набора
    кнопок не «дёргала» размер канваса/стола. Пустые области бара кликов не ловят
    (pointer-events: none), ловят только сами кнопки. */
-.table-bottombar {
+/* Панель действий: ПОСТОЯННЫЙ каркас из трёх кнопок одинакового размера. Высота
+   вынесена в переменную — её же меряет RoomScreen и отдаёт канвасу как нижний
+   отступ, чтобы игровые зоны заканчивались НАД панелью, а не под ней. */
+:root {
+  --action-btn-h: 56px;
+  --action-btn-w: clamp(96px, 30vw, 200px);
+  --action-bar-pad: 12px;
+}
+
+.action-bar {
   position: absolute;
   z-index: 5;
   left: 0;
   right: 0;
-  bottom: max(12px, env(safe-area-inset-bottom));
+  bottom: 0;
   display: flex;
   gap: 10px;
   justify-content: center;
-  flex-wrap: wrap;
-  padding: 0 12px;
+  align-items: center;
+  padding: var(--action-bar-pad);
+  padding-bottom: calc(var(--action-bar-pad) + env(safe-area-inset-bottom));
   pointer-events: none;
 }
 
-.table-bottombar .pixel-btn {
-  flex: 0 1 220px;
+.action-btn {
   pointer-events: auto;
+  /* Размер фиксирован: кнопка не растёт от длины подписи и не прыгает между кадрами. */
+  width: var(--action-btn-w);
+  height: var(--action-btn-h);
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border: 3px solid var(--shadow-black);
+  border-radius: 0;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  font-family: "Press Start 2P", monospace;
+  /* Мелкий экран не должен ломать вёрстку: шрифт сжимается по clamp, а слишком
+     длинный текст сокращается в самом компоненте (см. shortenLabel). */
+  font-size: clamp(8px, 2.6vw, 12px);
+  line-height: 1.3;
+  letter-spacing: 0.5px;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.35), inset 3px 3px 0 rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.action-btn-main {
+  background: var(--accent-gold);
+  color: #2b1c0c;
+}
+
+.action-btn-menu {
+  width: var(--action-btn-h); /* квадратный: это иконка, а не подпись */
+  font-size: clamp(14px, 4vw, 20px);
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Меню гамбургера — «веер» как у папки в доке macOS: пункты выпрыгивают вверх от
+   самой кнопки и занимают ровно столько места, сколько нужно. Экран не закрывается:
+   затемнение едва заметное, стол под ним остаётся виден. */
+.action-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.action-fan {
+  position: absolute;
+  z-index: 7;
+  /* Растёт вверх от гамбургера: тот стоит справа в панели действий. */
+  right: calc(var(--action-bar-pad) + 4px);
+  bottom: calc(var(--action-btn-h) + var(--action-bar-pad) * 2 + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(78vw, 340px);
+  pointer-events: auto;
+}
+
+.action-fan-item {
+  /* Ширина по содержимому — пункты «выпирают», а не тянутся во всю ширину. */
+  width: max-content;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border), 4px 4px 0 rgba(0, 0, 0, 0.45);
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  font-family: "VT323", monospace;
+  font-size: clamp(15px, 4vw, 20px);
+  text-align: right;
+  white-space: nowrap;
+  cursor: pointer;
+  transform-origin: bottom right;
+  animation: fan-pop 150ms ease-out backwards;
+}
+
+/* Выпрыгивание: снизу вверх, с лёгким перелётом — как раскрытие веера в доке. */
+@keyframes fan-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.action-fan-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.action-fan-empty {
+  margin: 0;
+  padding: 6px 12px;
+  background: var(--panel-bg);
+  border: 2px solid var(--shadow-black);
+  color: var(--ink-dim);
+  font-family: "VT323", monospace;
+  white-space: nowrap;
 }
 
 .seat-hand-count {

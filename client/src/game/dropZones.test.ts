@@ -1,32 +1,39 @@
 import { describe, it, expect } from "vitest";
 import { computeLayout } from "./layout";
-import { pickDropZone, dropZoneRegions, pickSeat } from "./dropZones";
+import { pickDropTarget, dropZoneRegions, pickSeat } from "./dropZones";
 import { layoutSeats } from "./seatLayout";
 
-describe("pickDropZone", () => {
+describe("pickDropTarget", () => {
   const layout = computeLayout(800, 600);
 
-  it("центр зоны игры → 'center'", () => {
-    expect(pickDropZone(layout.centerZone.cx, layout.centerZone.cy, layout)).toBe("center");
+  it("центр стола → 'center'", () => {
+    expect(pickDropTarget(layout.centerZone.cx, layout.centerZone.cy, layout)).toEqual({ zone: "center" });
   });
 
-  it("центр сейф-зоны → 'safe'", () => {
-    expect(pickDropZone(layout.safeAnchor.x, layout.safeAnchor.y, layout)).toBe("safe");
+  it("зона руки → 'hand' (единственное место, где колода раскрывается веером)", () => {
+    expect(pickDropTarget(layout.handAnchor.x, layout.handAnchor.y, layout)).toEqual({ zone: "hand" });
   });
 
-  it("зона руки у нижнего края → 'hand'", () => {
-    expect(pickDropZone(layout.handZone.cx, layout.handZone.cy, layout)).toBe("hand");
+  it("карман отдаёт КОНКРЕТНЫЙ слот — их три", () => {
+    layout.pocketSlots.forEach((slot, i) => {
+      expect(pickDropTarget(slot.cx, slot.cy, layout)).toEqual({ zone: "pocket", slot: i });
+    });
   });
 
   it("угол канваса вне всех зон → null", () => {
-    expect(pickDropZone(2, 2, layout)).toBeNull();
+    expect(pickDropTarget(2, 2, layout)).toBeNull();
   });
 
-  it("center/safe можно дропать, hand — пока нельзя", () => {
+  it("все зоны доступны для дропа — запретных больше нет", () => {
     const r = dropZoneRegions(layout);
-    expect(r.center.droppable).toBe(true);
-    expect(r.safe.droppable).toBe(true);
-    expect(r.hand.droppable).toBe(false);
+    expect(Object.values(r).every((z) => z.droppable)).toBe(true);
+    expect(Object.keys(r).sort()).toEqual(["center", "hand", "pocket"]);
+  });
+
+  it("рука и карман не перекрываются: точка в кармане никогда не «рука»", () => {
+    for (const slot of layout.pocketSlots) {
+      expect(pickDropTarget(slot.cx, slot.cy, layout)?.zone).toBe("pocket");
+    }
   });
 });
 

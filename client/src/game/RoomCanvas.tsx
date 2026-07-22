@@ -12,7 +12,9 @@ interface Props {
   deckHolder: string | null; // чьё место держит колоду (при deckZone === "seat")
   onDeckDropToSeat: (playerId: string) => void; // колоду бросили на место игрока
   topInset: number; // высота топбара комнаты: места садятся под ним, а не под бейджами
+  bottomInset: number; // высота панели действий: игровые зоны заканчиваются над ней
   deckZone: DeckZone;
+  deckSlot: number; // слот кармана (0..2), если колода лежит в кармане
   deckDraggable: boolean;
   fourColor: boolean;
   cardBack: CardBackId; // скин рубашки (меню → Графика)
@@ -21,8 +23,7 @@ interface Props {
   flipSignal: number; // растёт при нажатии «Перевернуть колоду»
   incomingFx: DeckFxIncoming | null; // чужой эффект с сервера — проиграть как есть
   rejectedFlip: { cards: string[]; text: string; seq: number } | null; // сервер не подтвердил переворот
-  onDeckDoubleClick: () => void;
-  onDeckDrop: (zone: "center" | "safe") => void;
+  onDeckDrop: (zone: "center" | "hand" | "pocket", slot: number) => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
   onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
   onFanChange: (fanned: boolean) => void; // веер раскрылся/собрался (от этого зависят кнопки)
@@ -43,7 +44,9 @@ export function RoomCanvas({
   deckHolder,
   onDeckDropToSeat,
   topInset,
+  bottomInset,
   deckZone,
+  deckSlot,
   deckDraggable,
   fourColor,
   cardBack,
@@ -52,7 +55,6 @@ export function RoomCanvas({
   flipSignal,
   incomingFx,
   rejectedFlip,
-  onDeckDoubleClick,
   onDeckDrop,
   onCardReorder,
   onShuffleChange,
@@ -72,10 +74,10 @@ export function RoomCanvas({
   // в неизменном виде (зона колоды, держатель, места, скины), в него никогда не попадёт.
   // Поэтому держим актуальные пропсы в ref и разом заливаем их сразу после mount.
   const latest = useRef({
-    deck, seats, deckHolder, deckZone, deckDraggable, fourColor, cardBack, facing, topInset, animation,
+    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, fourColor, cardBack, facing, topInset, bottomInset, animation,
   });
   latest.current = {
-    deck, seats, deckHolder, deckZone, deckDraggable, fourColor, cardBack, facing, topInset, animation,
+    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, fourColor, cardBack, facing, topInset, bottomInset, animation,
   };
 
   // Создать движок один раз. Движок сам создаёт свежий <canvas> внутри wrap.
@@ -91,6 +93,7 @@ export function RoomCanvas({
       if (engineRef.current !== engine) return; // успели размонтировать, пока поднимался Pixi
       const p = latest.current;
       engine.setTopInset(p.topInset);
+      engine.setBottomInset(p.bottomInset);
       engine.setSeats(p.seats);
       engine.setAnimationProfile(resolveProfile(p.animation));
       engine.setFourColor(p.fourColor);
@@ -100,7 +103,7 @@ export function RoomCanvas({
       engine.setDeck(p.deck);
       engine.setCardFacing(p.facing);
       engine.setDeckHolder(p.deckHolder);
-      engine.setDeckZone(p.deckZone);
+      engine.setDeckZone(p.deckZone, p.deckSlot);
     });
 
     const ro = new ResizeObserver((entries) => {
@@ -123,8 +126,8 @@ export function RoomCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckKey]);
   useEffect(() => {
-    engineRef.current?.setDeckZone(deckZone);
-  }, [deckZone]);
+    engineRef.current?.setDeckZone(deckZone, deckSlot);
+  }, [deckZone, deckSlot]);
   // Посадка меняется редко (вход/выход, готовность, раздача) — сигнатурой гасим лишние
   // пересчёты: каждый sync пересоздаёт массив, а перерисовка мест не бесплатна.
   const seatsKey = seats.map((s) => `${s.id}:${s.name}:${s.handCount}:${+s.isReady}:${+s.isDealer}:${+s.connected}`).join("|");
@@ -135,6 +138,9 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setTopInset(topInset);
   }, [topInset]);
+  useEffect(() => {
+    engineRef.current?.setBottomInset(bottomInset);
+  }, [bottomInset]);
   useEffect(() => {
     engineRef.current?.setDeckHolder(deckHolder);
   }, [deckHolder]);
@@ -175,9 +181,6 @@ export function RoomCanvas({
   useEffect(() => {
     if (incomingFx) engineRef.current?.playFx(incomingFx);
   }, [incomingFx]);
-  useEffect(() => {
-    engineRef.current?.setOnDeckDoubleClick(onDeckDoubleClick);
-  }, [onDeckDoubleClick]);
   useEffect(() => {
     engineRef.current?.setOnDeckDrop(onDeckDrop);
   }, [onDeckDrop]);
