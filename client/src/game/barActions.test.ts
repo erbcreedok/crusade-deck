@@ -54,3 +54,33 @@ describe("barActionsFor — кнопки под выделенное", () => {
     }
   });
 });
+
+describe("barActionsFor — режим раздачи", () => {
+  const deal = {
+    deckZone: "center" as const,
+    canMoveDeck: false,
+    dealMode: true,
+  };
+
+  it("дилер: Перемешать + Автораздача", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: true, autoDealing: false });
+    expect(a.main?.id).toBe("shuffle");
+    expect(a.secondary?.id).toBe("auto_deal");
+  });
+
+  it("дилер во время автораздачи: STOP", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: true, autoDealing: true });
+    expect(a.secondary?.id).toBe("auto_deal_stop");
+  });
+
+  it("игрок: Готов / Ждите…", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: false, myReady: false });
+    expect(a.main?.id).toBe("ready");
+    expect(a.secondary?.id).toBe("wait");
+  });
+
+  it("игрок готовый: Не готов", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: false, myReady: true });
+    expect(a.main?.id).toBe("unready");
+  });
+});

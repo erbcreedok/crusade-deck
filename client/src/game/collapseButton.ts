@@ -1,10 +1,8 @@
-// Куда и какого размера сажать круглую кнопку «сложить руку». Раскладка веера зависит от
-// экрана: на широком дуга пологая и карман под ней низкий, на узком — наоборот. Поэтому
-// позиция и радиус не задаются константами, а ВПИСЫВАЮТСЯ в свободное место.
+// Куда и какого размера сажать круглую кнопку «сложить» под веером.
 //
-// Правило: кнопка прижата ко дну зоны, а её зона касания ровно КАСАЕТСЯ карт, не заходя
-// на них. Видимый кружок концентричен и меньше, поэтому между ним и картами остаётся
-// зазор, равный разнице радиусов.
+// Опорная кромка = верхняя кромка карт + высота карты (фиксированный офсет). Не берём
+// провисший низ веера — иначе при 2 картах кнопка уезжает вверх, при 52 — вниз.
+// Хит-круг касается этой опоры сверху. Видимый кружок меньше хита (visualRatio).
 
 export interface Point {
   x: number;
@@ -26,21 +24,33 @@ function minDist(x: number, y: number, points: readonly Point[]): number {
   return best;
 }
 
+/** Самая нижняя точка кромки (max y). Для кнопки не используем — см. collapseAnchorBottom. */
+export function cardBottomY(obstacles: readonly Point[], fallbackY: number): number {
+  if (obstacles.length === 0) return fallbackY;
+  let max = -Infinity;
+  for (const p of obstacles) if (p.y > max) max = p.y;
+  return max;
+}
+
+/** Опора кнопки: верх карт + cardH. Не зависит от числа карт / провиса дуги. */
+export function collapseAnchorBottom(topOfCardsY: number, cardH: number): number {
+  return topOfCardsY + cardH;
+}
+
 export interface FitOptions {
-  cx: number; // по горизонтали кнопка стоит по центру зоны
-  bottomY: number; // дно зоны
-  margin: number; // отступ от дна
+  cx: number; // по горизонтали — центр зоны/колоды
+  /** Нижняя кромка карт (или верх колоды + высота карты). Хит-круг касается её сверху. */
+  cardBottomY: number;
   minR: number;
   maxR: number;
   obstacles: readonly Point[]; // точки нижней границы карт
 }
 
-// Наибольший радиус, при котором круг, прижатый ко дну зоны, ещё не залезает на карты.
-// Ищем делением пополам: радиус и центр связаны (центр = дно - отступ - радиус), поэтому
-// аналитического решения нет, а десяти итераций хватает с запасом.
-export function fitCollapseButton({ cx, bottomY, margin, minR, maxR, obstacles }: FitOptions): FittedButton {
-  const centerFor = (r: number) => bottomY - margin - r;
-  const fits = (r: number) => obstacles.length === 0 || minDist(cx, centerFor(r), obstacles) >= r;
+// Центр = кромка + r → верх хит-радиуса касается карт. При косых краях веера радиус
+// чуть сжимаем, чтобы круг не врезался в боковые карты.
+export function fitCollapseButton({ cx, cardBottomY, minR, maxR, obstacles }: FitOptions): FittedButton {
+  const centerFor = (r: number) => cardBottomY + r;
+  const fits = (r: number) => obstacles.length === 0 || minDist(cx, centerFor(r), obstacles) >= r - 1e-6;
 
   let lo = minR;
   let hi = Math.max(minR, maxR);

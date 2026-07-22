@@ -12,6 +12,11 @@ import { DECK_ID } from "./game/RoomEngine";
 import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
 import { rejectionText } from "./game/rejections";
+import { topCard } from "./game/topCard";
+import { moveCard } from "./game/deckOrder";
+import { sortBySuit, sortByRank } from "./game/sortHand";
+import { dealOrder, autoDealPlan, AUTO_DEAL_INTERVAL_MS } from "./game/dealing";
+import { seatsForViewer } from "./game/seatOrder";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
 // Игрок в списке комнаты. Совпадает по форме с Seat (game/seats.ts) — стол дальше
@@ -24,7 +29,9 @@ interface RoomPlayer {
   isBot: boolean;
   connected: boolean;
   handCount: number;
-  handOpen: boolean; // рука открыта — остальные видят её так же, как сам игрок
+  hand: string[]; // порядок карт (лица при открытой руке)
+  handOpen: boolean; // открытая — номиналы видны всем
+  handFanned: boolean; // веер на месте игрока
 }
 
 interface ActiveProposal {
@@ -53,20 +60,35 @@ export function RoomScreen({
   onLeaveRoom: () => void;
 }) {
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
+  // Серверный круг мест — один на всех; локально крутим относительно себя.
+  const [seatOrder, setSeatOrder] = useState<string[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
   const [isPublic, setIsPublic] = useState(false);
   const [phase, setPhase] = useState<"lobby" | "playing" | "finished">("lobby");
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deck, setDeck] = useState<string[]>([]);
+  const [myHand, setMyHand] = useState<string[]>([]);
+  const [dealMode, setDealMode] = useState(true);
+  const [deckFanned, setDeckFanned] = useState(false);
   // Где лежит колода по мнению сервера ("center" или id держателя). В зону для движка
   // переводим ниже — для этого нужно знать, кто сейчас сидит за столом.
   const [deckLocation, setDeckLocation] = useState<string>("center");
-  const [deckSlot, setDeckSlot] = useState<string>("");
   const [draggingDeck, setDraggingDeck] = useState(false);
   // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
   const [facing, setFacing] = useState<Record<string, boolean>>({});
-  const [fanned, setFanned] = useState(false); // веер раскрыт (кнопки переворота тогда нет)
+  const [handFanOpen, setHandFanOpen] = useState(false);
   const [shuffleSignal, setShuffleSignal] = useState(0);
+  const [autoDealing, setAutoDealing] = useState(false);
+  const autoDealRef = useRef<{ plan: string[]; i: number } | null>(null);
+  const [collectSignal, setCollectSignal] = useState<{
+    order: string[];
+    counts?: Record<string, number>;
+    seq: number;
+  } | null>(null);
+  const [cardMovedSignal, setCardMovedSignal] = useState<{
+    moves: { card: string; from: string; to: string }[];
+    seq: number;
+  } | null>(null);
   // Номер последней НАШЕЙ записи в колоду. Дилер пишет мгновенно и может успеть прислать
   // несколько изменений подряд — по номеру сервер отбрасывает устаревшие, а мы не
   // принимаем эхо, которое старше того, что уже показали.
@@ -94,10 +116,13 @@ export function RoomScreen({
           isBot: !!p.isBot,
           connected: p.connected,
           handCount: p.hand?.length ?? 0,
+          hand: p.hand ? Array.from(p.hand as Iterable<string>) : [],
           handOpen: !!p.handOpen,
+          handFanned: !!p.handFanned,
         });
       });
       setPlayers(list);
+      setSeatOrder(room.state.seatOrder ? [...room.state.seatOrder] : list.map((p) => p.id));
       setInviteCode(room.state.inviteCode);
       setIsPublic(room.state.isPublic);
       setPhase(room.state.phase);
@@ -113,6 +138,10 @@ export function RoomScreen({
         setFacing(nextFacing);
       }
       setDeckLocation(room.state.deckLocation ?? "center");
+      setDealMode(room.state.dealMode !== false);
+      setDeckFanned(!!room.state.deckFanned);
+      const me = room.state.players.get(room.sessionId);
+      setMyHand(me?.hand ? [...me.hand] : []);
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -159,12 +188,22 @@ export function RoomScreen({
   // Тап по колоде только ВЫДЕЛЯЕТ её и никогда не снимает выделение: рука в фокусе ловит
   // тык и глиссандо, и переключающий тап сворачивал её посреди работы с картами.
   // Свернуть можно явно — стрелкой под веером, свайпом вниз или тапом мимо.
+  // Тап по элементу стола. В режиме раздачи колоду в центре НЕ выделяем — только руку.
   const onDeckTap = useCallback((deckId: string) => {
+    if (deckId === DECK_ID) return;
     setSelection((sel) => selectOnly(sel, "deck", deckId));
   }, []);
   const onFanCollapse = useCallback(() => setSelection(clearSelection()), []);
   const onEmptyTap = useCallback(() => setSelection(clearSelection()), []);
   const selectedDecks = selection.type === "deck" ? selection.ids : [];
+  // Веер своей руки → на сервер: остальные рисуют веер на моём месте.
+  const onFanChange = useCallback(
+    (fanned: boolean) => {
+      setHandFanOpen(fanned);
+      room.send("set_hand_fanned", { open: fanned });
+    },
+    [room],
+  );
 
   // Топбар — HTML поверх канваса, и его высота зависит от контента (бейджи переносятся
   // на узком экране). Меряем её и отдаём движку, иначе места игроков сядут под бейджи.
@@ -196,9 +235,12 @@ export function RoomScreen({
     return () => ro.disconnect();
   }, []);
 
-  // Чужие игроки — те, кого рисуем за столом (посадка «П»). Своё место не рисуем:
-  // низ экрана — моя рука.
-  const seats: SeatView[] = players.filter((p) => p.id !== room.sessionId);
+  // Чужие за столом: круг seatOrder, начиная с соседа слева от меня. Своё место — рука снизу.
+  const tableOrder = seatOrder.length > 0 ? seatOrder : players.map((p) => p.id);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const seats: SeatView[] = seatsForViewer(tableOrder, room.sessionId)
+    .map((id) => byId.get(id))
+    .filter((p): p is RoomPlayer => !!p);
   const seatedIds = new Set(seats.map((s) => s.id));
   const deckZone = deckPlaceFor(deckLocation, room.sessionId, (id: string) => seatedIds.has(id)).zone;
   // Держатель колоды — только если это чужое место; своё — это рука.
@@ -206,10 +248,11 @@ export function RoomScreen({
   // Режим МОЕЙ руки: открытая — остальные видят её так же, как я; закрытая — оборотку.
   const handOpen = players.find((p) => p.id === room.sessionId)?.handOpen ?? false;
 
-  // Колоду двигает только дилер и только в лобби (во время раздачи).
-  const canMoveDeck = amIDealer && phase === "lobby";
+  const myReady = players.find((p) => p.id === room.sessionId)?.isReady ?? false;
+  // В режиме раздачи колоду целиком не двигаем; иначе — дилер в лобби.
+  const canMoveDeck = !dealMode && amIDealer && phase === "lobby";
+  const canDeal = dealMode && amIDealer;
 
-  // Драг-н-дроп: колода брошена в дроп-зону — шлём её на сервер (там валидируется).
   const onDeckDrop = useCallback(
     (zone: "center" | "hand") => {
       if (!canMoveDeck) return;
@@ -218,7 +261,6 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
-  // Колоду бросили на место игрока (его зона — прямоугольная дроп-зона): отдаём колоду ему.
   const onDeckDropToSeat = useCallback(
     (playerId: string) => {
       if (!canMoveDeck) return;
@@ -227,56 +269,153 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
-  // Карту перетащили внутри раскрытого веера — новый порядок колоды на сервер.
+  const onDealCard = useCallback(
+    (card: string, to: string) => {
+      if (!canDeal) return;
+      room.send("deal_card", { card, to, rev: nextRev() });
+    },
+    [canDeal, room, nextRev],
+  );
+
+  const onDeckFanChange = useCallback(
+    (open: boolean) => {
+      if (!canDeal) return; // веер колоды на столе меняет только дилер
+      setDeckFanned(open); // сразу, не ждём эхо
+      room.send("set_deck_fanned", { open });
+    },
+    [canDeal, room],
+  );
+
   const onCardReorder = useCallback(
     (card: string, to: number) => {
+      if (dealMode) {
+        // Рука: своя перестановка. Колода на столе: дилер двигает карту в веере.
+        const handFrom = myHand.indexOf(card);
+        if (handFrom >= 0) {
+          const next = moveCard(myHand, card, to);
+          room.send("set_hand_order", { order: next });
+          setMyHand(next);
+          return;
+        }
+        if (!canDeal) return;
+        const deckFrom = deck.indexOf(card);
+        if (deckFrom < 0) return;
+        const next = moveCard(deck, card, to);
+        room.send("set_deck_order", { order: next, rev: nextRev() });
+        setDeck(next);
+        return;
+      }
       if (!canMoveDeck) return;
       room.send("reorder_deck", { card, to });
     },
-    [canMoveDeck, room],
+    [dealMode, myHand, deck, canDeal, canMoveDeck, room, nextRev],
   );
 
-  // Перевороты: на сервер уходит только РЕЗУЛЬТАТ (что перевернулось), анимации живут
-  // на клиенте. Состояние вернётся схемой и перекроет любую местную оптимистичность.
   const onFlipDeck = useCallback(() => {
     if (!canMoveDeck) return;
     room.send("flip_deck", { rev: nextRev() });
-  }, [canMoveDeck, room]);
+  }, [canMoveDeck, room, nextRev]);
 
   const onFlipCards = useCallback(
     (cards: string[]) => {
       if (!canMoveDeck || cards.length === 0) return;
       room.send("flip_cards", { cards, rev: nextRev() });
     },
-    [canMoveDeck, room],
+    [canMoveDeck, room, nextRev],
   );
 
-  // Эффект для остальных игроков — украшение. Сервер раздаст его с длительностью, которую
-  // видел дилер, чтобы у всех жест выглядел одинаково независимо от пинга.
   const onDeckFx = useCallback(
     (fx: DeckFxMessage) => {
-      if (!canMoveDeck) return;
+      if (!canMoveDeck && !canDeal) return;
       room.send("deck_fx", fx);
     },
-    [canMoveDeck, room],
+    [canMoveDeck, canDeal, room],
   );
 
-  // Сетевой протокол ЛЮБОЙ тасовки (кнопка, свайп, будущие жесты). Порядок считает и
-  // анимирует клиент, а сюда он приходит готовым: открываем сессию (shuffle_start),
-  // шлём прогресс не чаще пары раз в секунду и обязательный финал по затишью — им же
-  // на сервере снимается «замок» колоды. Логика сессии — в ShuffleSession (тестируется).
   const sessionRef = useRef<ShuffleSession | null>(null);
   if (!sessionRef.current) sessionRef.current = new ShuffleSession();
 
   const onShuffleChange = useCallback(
     (order: string[]) => {
-      if (!canMoveDeck || order.length === 0) return;
+      if ((!canMoveDeck && !canDeal) || order.length === 0) return;
       const out = sessionRef.current!.push(order, Date.now());
       if (out.start) room.send("shuffle_start");
       if (out.send) room.send("set_deck_order", { order: out.send, rev: nextRev() });
     },
-    [canMoveDeck, room],
+    [canMoveDeck, canDeal, room, nextRev],
   );
+
+  // Автораздача: с соседа слева по часовой, по две карты каждому, 2 карты/сек,
+  // пока колода не пуста или STOP. Берём верх и ждём эхо колоды.
+  const pendingDealRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoDealing) {
+      autoDealRef.current = null;
+      pendingDealRef.current = null;
+      return;
+    }
+    if (!amIDealer || !dealMode) {
+      setAutoDealing(false);
+      return;
+    }
+    if (!autoDealRef.current) {
+      // Круг seatOrder, только готовые (+ дилер). Слева от дилера = следующий в круге.
+      const ids = tableOrder.filter((id) => {
+        const p = players.find((x) => x.id === id);
+        return !!p?.connected && (p.isReady || p.isDealer || id === room.sessionId);
+      });
+      const order = dealOrder(ids, room.sessionId);
+      autoDealRef.current = { plan: autoDealPlan(order, deck.length), i: 0 };
+    }
+    const id = setInterval(() => {
+      const st = autoDealRef.current;
+      if (!st) return;
+      // Ждём, пока предыдущая карта исчезнет из колоды (эхо сервера).
+      if (pendingDealRef.current) {
+        if (deck.includes(pendingDealRef.current)) return;
+        pendingDealRef.current = null;
+      }
+      if (deck.length === 0) {
+        setAutoDealing(false);
+        return;
+      }
+      // План кончился, а карты ещё есть — достраиваем ещё круг по две.
+      if (st.i >= st.plan.length) {
+        const ids = tableOrder.filter((id) => {
+          const p = players.find((x) => x.id === id);
+          return !!p?.connected && (p.isReady || p.isDealer || id === room.sessionId);
+        });
+        const order = dealOrder(ids, room.sessionId);
+        const extra = autoDealPlan(order, deck.length);
+        if (extra.length === 0) {
+          setAutoDealing(false);
+          return;
+        }
+        st.plan.push(...extra);
+      }
+      // Снял «Готов» посреди автораздачи — пропускаем.
+      while (st.i < st.plan.length) {
+        const to = st.plan[st.i]!;
+        const p = players.find((x) => x.id === to);
+        if (to === room.sessionId || p?.isReady || p?.isDealer) break;
+        st.i += 1;
+      }
+      if (st.i >= st.plan.length || deck.length === 0) {
+        setAutoDealing(false);
+        return;
+      }
+      const card = topCard(deck);
+      const to = st.plan[st.i]!;
+      if (!card) {
+        setAutoDealing(false);
+        return;
+      }
+      room.send("deal_card", { card, to, rev: nextRev() });
+      pendingDealRef.current = card;
+      st.i += 1;
+    }, AUTO_DEAL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [autoDealing, amIDealer, dealMode, players, room, deck, nextRev, tableOrder]);
 
   // Отказы сервера. Клиент показывает переворот сразу, оптимистично — значит, каждый
   // отказ обязан вернуть картинку к правде и сказать, почему так нельзя.
@@ -304,6 +443,30 @@ export function RoomScreen({
     });
   }, [room]);
 
+  useEffect(() => {
+    let seq = 0;
+    const collectPayload = (msg: { order?: string[]; counts?: Record<string, number> }) => {
+      const order = Array.isArray(msg?.order) ? msg.order : [];
+      const counts =
+        msg?.counts && typeof msg.counts === "object" ? (msg.counts as Record<string, number>) : undefined;
+      setCollectSignal({ order, counts, seq: ++seq });
+      setAutoDealing(false);
+      setSelection(clearSelection());
+    };
+    room.onMessage("hands_collected", collectPayload);
+    // Сброс колоды — тот же облёт «с мест в центр», что и сбор.
+    room.onMessage("deck_reset", collectPayload);
+    room.onMessage("card_moved", (msg: { moves?: { card?: string; from?: string; to?: string }[] }) => {
+      const raw = Array.isArray(msg?.moves) ? msg.moves : [];
+      const moves = raw.filter(
+        (m): m is { card: string; from: string; to: string } =>
+          typeof m?.card === "string" && typeof m?.from === "string" && typeof m?.to === "string",
+      );
+      if (moves.length === 0) return;
+      setCardMovedSignal({ moves, seq: ++seq });
+    });
+  }, [room]);
+
   // Тик сессии: отпускает накопленный прогресс и закрывает сессию финалом.
   useEffect(() => {
     const id = setInterval(() => {
@@ -315,36 +478,67 @@ export function RoomScreen({
 
   const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
 
-  // «Готов/Раздать» — только когда колода в центре и не идёт драг. Вне центра — плейсхолдер.
   const deckInCenter = deckZone === "center";
-  const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
-  const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
-  // Инструменты колоды (Растасовать/Перевернуть) — доступны дилеру, ПОКА КОЛОДА У МЕНЯ
-  // (стол или рука), не во время драга.
-  const deckIsMine = deckZone === "center" || deckZone === "hand";
-  const showDeckTools = phase === "lobby" && amIDealer && !draggingDeck && deckIsMine;
+  const showDeckPlaceholder = !dealMode && phase === "lobby" && !deckInCenter && !draggingDeck;
+  const showDeckTools = !dealMode && phase === "lobby" && amIDealer && !draggingDeck && (deckZone === "center" || deckZone === "hand");
 
-  // Кнопки панели перестраиваются под выделенное (см. barActions.ts). Панель ничего
-  // не знает про колоды — она показывает то, что ей дали.
-  const bar = barActionsFor(selection, { deckZone, canMoveDeck });
+  const bar = barActionsFor(selection, {
+    deckZone,
+    canMoveDeck,
+    dealMode,
+    amIDealer,
+    autoDealing,
+    myReady,
+    myFanOpen: handFanOpen,
+  });
   const runAction = useCallback(
     (id: BarActionId) => {
       if (id === "deck_to_hand") room.send("move_deck", { zone: "hand" });
       else if (id === "deck_to_center") room.send("move_deck", { zone: "center" });
+      else if (id === "ready" || id === "unready") room.send("ready");
+      else if (id === "shuffle") setShuffleSignal((v) => v + 1);
+      else if (id === "auto_deal") setAutoDealing(true);
+      else if (id === "auto_deal_stop") setAutoDealing(false);
     },
     [room],
   );
   const mainAction = bar.main ? { label: bar.main.label, onClick: () => runAction(bar.main!.id) } : undefined;
   const secondaryAction = bar.secondary
-    ? { label: bar.secondary.label, onClick: () => runAction(bar.secondary!.id) }
+    ? {
+        label: bar.secondary.label,
+        onClick: () => runAction(bar.secondary!.id),
+        disabled: bar.secondary.id === "wait",
+      }
     : undefined;
 
-  // Пункты слайд-ап меню. Здесь же будут настройки и выход — пока то, что уже умеет
-  // комната. Список собирается по состоянию: недоступное просто не показываем.
   const menuItems: MenuItem[] = [];
-  if (showCenterActions) {
-    menuItems.push({ label: "Готов", onClick: () => room.send("ready") });
-    if (amIDealer) menuItems.push({ label: "Раздать", onClick: () => room.send("start_game") });
+  if (dealMode && amIDealer) {
+    menuItems.push({ label: "Собрать все карты", onClick: () => room.send("collect_hands") });
+    menuItems.push({
+      label: "Сбросить колоду",
+      onClick: () => {
+        console.debug("[reset_deck] client request", { deck, myHand });
+        room.send("reset_deck");
+      },
+    });
+  }
+  if (handFanOpen && myHand.length > 1) {
+    menuItems.push({
+      label: "Сортировать по масти",
+      onClick: () => {
+        const order = sortBySuit(myHand);
+        room.send("set_hand_order", { order });
+        setMyHand(order);
+      },
+    });
+    menuItems.push({
+      label: "Сортировать по номиналу",
+      onClick: () => {
+        const order = sortByRank(myHand);
+        room.send("set_hand_order", { order });
+        setMyHand(order);
+      },
+    });
   }
   if (showDeckPlaceholder && amIDealer) {
     menuItems.push({ label: "↩ Вернуть колоду в центр", onClick: () => room.send("move_deck", { zone: "center" }) });
@@ -357,11 +551,10 @@ export function RoomScreen({
   }
   if (showDeckTools) {
     menuItems.push({ label: "Растасовать", onClick: () => setShuffleSignal((v) => v + 1) });
-    if (!fanned) {
+    if (!handFanOpen) {
       menuItems.push({ label: "🎴 Перевернуть колоду", onClick: () => setFlipSignal((v) => v + 1) });
     }
   }
-  // Веер растёт вверх, поэтому последние в списке — самые верхние пункты.
   menuItems.push({ label: "🚪 Выйти в меню", onClick: onLeaveRoom });
   menuItems.push({ label: "⚙ Настройки", onClick: onOpenSettings });
 
@@ -397,6 +590,7 @@ export function RoomScreen({
 
       <RoomCanvas
         deck={deck}
+        hand={myHand}
         seats={seats}
         deckHolder={deckHolder}
         onDeckDropToSeat={onDeckDropToSeat}
@@ -408,10 +602,16 @@ export function RoomScreen({
         bottomInset={bottomInset}
         deckZone={deckZone}
         deckDraggable={canMoveDeck}
+        dealMode={dealMode}
+        deckFanned={deckFanned}
+        canDeal={canDeal}
+        selfId={room.sessionId}
+        selfReady={myReady}
+        selfIsDealer={amIDealer}
         fourColor={fourColor}
         cardBack={cardBack}
         facing={facing}
-        onFanChange={setFanned}
+        onFanChange={onFanChange}
         onFlipDeck={onFlipDeck}
         onFlipCards={onFlipCards}
         onDeckFx={onDeckFx}
@@ -420,6 +620,10 @@ export function RoomScreen({
         incomingFx={incomingFx}
         rejectedFlip={rejectedFlip}
         onDeckDrop={onDeckDrop}
+        onDealCard={onDealCard}
+        onDeckFanChange={onDeckFanChange}
+        collectSignal={collectSignal}
+        cardMovedSignal={cardMovedSignal}
         onCardReorder={onCardReorder}
         onShuffleChange={onShuffleChange}
         onDragChange={onDragChange}

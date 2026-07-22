@@ -84,7 +84,9 @@ export class CardRoom extends Room<GameState> {
 
     this.onMessage("ready", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (player) player.isReady = !player.isReady;
+      // Дилер всегда готов — тумблер ему не нужен и не сбрасывает дроп-зону.
+      if (!player || player.isDealer) return;
+      player.isReady = !player.isReady;
     });
 
     // Начало СЕССИИ тасовки (любой: кнопка, свайп по вееру, будущие жесты). Порядок
@@ -107,7 +109,9 @@ export class CardRoom extends Room<GameState> {
       const to = message?.to;
       if (typeof card !== "string" || typeof to !== "number" || !Number.isFinite(to)) return;
       const next = moveCard(this.state.deck.toArray(), card, to);
-      next.forEach((c, i) => this.state.deck.setAt(i, c));
+      // clear+push, не setAt: иначе ArraySchema иногда раздувается «дырами».
+      this.state.deck.clear();
+      next.forEach((c) => this.state.deck.push(c));
     });
 
     // Переворот колоды целиком: кнопкой (когда колода НЕ в вее­ре) или свайпом по стопке.
@@ -171,7 +175,9 @@ export class CardRoom extends Room<GameState> {
       if (!Array.isArray(order) || !order.every((c) => typeof c === "string")) return;
       if (!isPermutationOf(order, this.state.deck.toArray())) return;
       if (!this.acceptRev(message?.rev)) return;
-      order.forEach((c, i) => this.state.deck.setAt(i, c));
+      // clear+push, не setAt: иначе ArraySchema иногда раздувается «дырами» → 60+ карт.
+      this.state.deck.clear();
+      order.forEach((c) => this.state.deck.push(c));
       if (message?.final) this.clearShuffleLock();
       else this.armShuffleLockTimer(); // промежуточный прогресс продлевает сессию
     });
@@ -220,7 +226,55 @@ export class CardRoom extends Room<GameState> {
       if (!player?.isDealer) return;
       this.state.dealMode = !this.state.dealMode;
       this.state.deck.forEach((card) => this.state.faceUp.set(card, !this.state.dealMode));
-      if (!this.state.dealMode) this.state.players.forEach((p) => (p.handOpen = false));
+      if (!this.state.dealMode) {
+        this.state.players.forEach((p) => {
+          p.handOpen = false;
+          p.handFanned = false;
+        });
+      }
+    });
+
+    // Сбросить колоду: уничтожить текущую (и руки), выдать новую неперемешанную.
+    this.onMessage("reset_deck", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer) return;
+      const oldDeck = this.state.deck.toArray();
+      const oldHands: Record<string, string[]> = {};
+      const counts: Record<string, number> = {};
+      this.state.players.forEach((p, sid) => {
+        const cards = p.hand.toArray();
+        oldHands[sid] = cards;
+        counts[sid] = cards.length;
+      });
+      const seatIds = this.seatIdsInOrder();
+      const next = buildDeck(this.state.deckType);
+      console.debug("[reset_deck]", { oldDeck, oldHands, newDeck: next, deckType: this.state.deckType });
+      this.state.deck.clear();
+      this.state.faceUp.clear();
+      next.forEach((card) => {
+        this.state.deck.push(card);
+        this.state.faceUp.set(card, false);
+      });
+      this.state.players.forEach((p) => {
+        p.hand.clear();
+        p.handHidden.clear();
+        p.handOpen = false;
+        p.handFanned = false;
+      });
+      this.state.deckFanned = false;
+      this.state.deckLocation = "center";
+      this.state.dealMode = true;
+      this.state.deckRev += 1;
+      this.clearShuffleLock();
+      // Анимация «карты с мест в центр», как при сборе (новая колода уже в схеме).
+      const di = seatIds.indexOf(client.sessionId);
+      const order: string[] = [];
+      if (di >= 0) {
+        for (let k = 0; k < seatIds.length; k++) order.push(seatIds[(di + k) % seatIds.length]!);
+      } else {
+        order.push(...seatIds);
+      }
+      this.broadcast("deck_reset", { order, counts });
     });
 
     // Веер колоды на столе: раскрыть/собрать может только дилер и только пока колода
@@ -231,7 +285,15 @@ export class CardRoom extends Room<GameState> {
       this.state.deckFanned = message?.open === true;
     });
 
-    // Раздача одной карты (рогатка, драг из веера, автораздача). Только дилер. Карта
+    // Веер СВОЕЙ руки: каждый раскрывает/складывает сам. Видят все за столом.
+    // handOpen тут ни при чём — веер рубашек при закрытой руке тоже ок.
+    this.onMessage("set_hand_fanned", (client, message: { open?: boolean }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.handFanned = message?.open === true;
+    });
+
+    // Раздача одной карты (DnD верхней с центра / автораздача). Только дилер. Карта
     // уходит из колоды в руку игрока; получатель сразу видит номинал (см. handView.ts —
     // свою руку владелец видит всегда).
     this.onMessage("deal_card", (client, message: { card?: string; to?: string; rev?: number }) => {
@@ -242,6 +304,8 @@ export class CardRoom extends Room<GameState> {
       if (typeof card !== "string" || typeof to !== "string") return;
       const target = this.state.players.get(to);
       if (!target) return;
+      // Дроп-зона — кнопкой «Готов»; дилер всегда готов (и себе, и как цель).
+      if (!target.isReady && !target.isDealer) return;
       const out = dealCardTo(this.state.deck.toArray(), card);
       if (!out) return;
       if (!this.acceptRev(message?.rev)) return;
@@ -250,6 +314,8 @@ export class CardRoom extends Room<GameState> {
       this.state.faceUp.delete(card);
       target.hand.push(card);
       if (this.state.deck.length === 0) this.state.deckFanned = false; // раздали всё — веера нет
+      // Всем клиентам — анимация полёта (дилер, уже летящий с пальца, пропустит дубль).
+      this.broadcast("card_moved", { moves: [{ card, from: "deck", to }] });
     });
 
     // Свой порядок руки (сортировка/перестановка на клиенте). Принимается только
@@ -263,13 +329,19 @@ export class CardRoom extends Room<GameState> {
       order.forEach((c) => player.hand.push(c));
     });
 
-    // «Ресет»: дилер забирает карты из всех рук к себе, делает их скрытыми, а руки —
-    // приватными. Колода при этом переезжает к дилеру.
+    // «Ресет»: дилер забирает карты из всех рук в колоду, руки закрывает. В режиме
+    // раздачи колода остаётся в центре; клиентам — порядок для анимации сбора.
     this.onMessage("collect_hands", (client) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer) return;
       const hands: Record<string, string[]> = {};
-      this.state.players.forEach((p, sid) => (hands[sid] = p.hand.toArray()));
+      const counts: Record<string, number> = {};
+      this.state.players.forEach((p, sid) => {
+        const cards = p.hand.toArray();
+        hands[sid] = cards;
+        counts[sid] = cards.length;
+      });
+      const seatIds = this.seatIdsInOrder();
       const out = collectHands(this.state.deck.toArray(), hands);
       this.state.deck.clear();
       out.deck.forEach((card) => this.state.deck.push(card));
@@ -278,11 +350,21 @@ export class CardRoom extends Room<GameState> {
         p.hand.clear();
         p.handHidden.clear();
         p.handOpen = false;
+        p.handFanned = false;
       });
       this.state.dealMode = true; // сбор возвращает комнату в раздачу
       this.state.deckFanned = false;
-      this.state.deckLocation = client.sessionId;
+      this.state.deckLocation = "center";
       this.state.deckRev += 1;
+      // Порядок облёта: по часовой от дилера + сколько карт с каждого места.
+      const di = seatIds.indexOf(client.sessionId);
+      const order: string[] = [];
+      if (di >= 0) {
+        for (let k = 0; k < seatIds.length; k++) order.push(seatIds[(di + k) % seatIds.length]!);
+      } else {
+        order.push(...seatIds);
+      }
+      this.broadcast("hands_collected", { order, counts });
     });
 
     // Рука открыта/закрыта. Личное дело каждого игрока — дилерство тут ни при чём.
@@ -377,6 +459,7 @@ export class CardRoom extends Room<GameState> {
       player.isReady = old.isReady;
       if (this.state.deckLocation === oldSid) this.state.deckLocation = client.sessionId;
       this.state.players.delete(oldSid);
+      this.replaceSeatOrder(oldSid, client.sessionId);
       // Старое соединение могло быть ещё ЖИВЫМ (перезагрузка страницы успела открыть
       // новый сокет раньше, чем закрылся прежний). Игрока у него уже нет — оставить его
       // висеть значит показать клиенту комнату, в которой его самого нет (и он «не дилер»).
@@ -385,9 +468,11 @@ export class CardRoom extends Room<GameState> {
     } else {
       player.isDealer = noHumansYet;
     }
+    if (player.isDealer) player.isReady = true; // дилер всегда готов
     player.connected = true;
 
     this.state.players.set(client.sessionId, player);
+    if (!existing) this.addToSeatOrder(client.sessionId, player.isDealer);
     this.cancelDisposeTimer(); // комната снова активна
     setLastRoom(accountId, {
       roomId: this.roomId,
@@ -420,6 +505,39 @@ export class CardRoom extends Room<GameState> {
     clearLastRoomByRoomId(this.roomId);
     if (this.state.inviteCode) releaseInviteCode(this.state.inviteCode);
     removePublicRoom(this.roomId);
+  }
+
+  /** Круг мест: дилер в голову, остальные — в хвост. */
+  private addToSeatOrder(sessionId: string, asDealer: boolean): void {
+    const cur = this.state.seatOrder.toArray();
+    if (cur.includes(sessionId)) return;
+    const next = asDealer ? [sessionId, ...cur] : [...cur, sessionId];
+    this.state.seatOrder.clear();
+    next.forEach((id) => this.state.seatOrder.push(id));
+  }
+
+  private replaceSeatOrder(oldSid: string, newSid: string): void {
+    const cur = this.state.seatOrder.toArray();
+    const i = cur.indexOf(oldSid);
+    if (i >= 0) cur[i] = newSid;
+    else if (!cur.includes(newSid)) cur.push(newSid);
+    this.state.seatOrder.clear();
+    cur.forEach((id) => this.state.seatOrder.push(id));
+  }
+
+  private removeFromSeatOrder(sessionId: string): void {
+    const next = this.state.seatOrder.toArray().filter((id) => id !== sessionId);
+    this.state.seatOrder.clear();
+    next.forEach((id) => this.state.seatOrder.push(id));
+  }
+
+  private seatIdsInOrder(): string[] {
+    const ordered = this.state.seatOrder.toArray().filter((id) => this.state.players.has(id));
+    // На всякий: кто есть в players, но выпал из seatOrder — в хвост.
+    this.state.players.forEach((_, sid) => {
+      if (!ordered.includes(sid)) ordered.push(sid);
+    });
+    return ordered;
   }
 
   // Считаем только живых: боты «подключены» всегда, и если их учитывать, опустевшая
@@ -574,10 +692,14 @@ export class CardRoom extends Room<GameState> {
       if (proposal.kind === "dealer") {
         this.state.players.forEach((p) => (p.isDealer = false));
         const target = this.state.players.get(proposal.targetId);
-        if (target) target.isDealer = true;
+        if (target) {
+          target.isDealer = true;
+          target.isReady = true; // новый дилер сразу готов
+        }
       } else if (proposal.kind === "kick") {
         const targetClient = this.clients.getById(proposal.targetId);
         this.state.players.delete(proposal.targetId);
+        this.removeFromSeatOrder(proposal.targetId);
         if (this.state.isPublic) updatePublicRoomCount(this.roomId, this.state.players.size);
         targetClient?.leave(4000, "kicked");
       }

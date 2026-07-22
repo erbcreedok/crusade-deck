@@ -25,4 +25,35 @@ describe("dragModeFor — что берёт палец на этой зоне", 
   it("колоды нет на столе (away) — тащить нечего", () => {
     expect(dragModeFor({ zone: "away", handFocused: false, draggable: true })).toBe("none");
   });
+
+  it("режим раздачи в центре: дилер тащит верхнюю карту, не всю колоду", () => {
+    expect(
+      dragModeFor({ zone: "center", handFocused: false, draggable: false, dealMode: true, canDeal: true }),
+    ).toBe("topCard");
+  });
+
+  it("режим раздачи: не-дилер на закрытой колоде — ничего", () => {
+    expect(
+      dragModeFor({ zone: "center", handFocused: false, draggable: false, dealMode: true, canDeal: false }),
+    ).toBe("none");
+  });
+
+  it("режим раздачи: не-дилер на открытом веере — только peek (глиссандо/ховер)", () => {
+    expect(
+      dragModeFor({
+        zone: "center",
+        handFocused: false,
+        draggable: false,
+        dealMode: true,
+        canDeal: false,
+        deckFanned: true,
+      }),
+    ).toBe("peek");
+  });
+
+  it("режим раздачи: даже если draggable, в центре всё равно topCard", () => {
+    expect(
+      dragModeFor({ zone: "center", handFocused: false, draggable: true, dealMode: true, canDeal: true }),
+    ).toBe("topCard");
+  });
 });

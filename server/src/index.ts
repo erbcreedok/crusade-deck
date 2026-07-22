@@ -30,7 +30,7 @@ gameServer.define("card_room", CardRoom);
 // Тестовая комната с ботами за столом — площадка для посадки/вёрстки/дроп-зон.
 gameServer.define("test_room", TestRoom);
 
-// Найти roomId по 6-значному коду — используется клиентом для join по коду
+// Найти roomId по 4-значному коду — используется клиентом для join по коду
 app.get("/rooms/by-code/:code", (req, res) => {
   const roomId = resolveInviteCode(req.params.code);
   if (!roomId) return res.status(404).json({ error: "not_found" });

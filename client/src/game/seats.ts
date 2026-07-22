@@ -9,12 +9,15 @@ export interface Seat {
   isReady: boolean;
   isDealer: boolean;
   connected: boolean;
-  handOpen: boolean; // рука открыта — её видно всем так же, как самому игроку
+  handOpen: boolean; // открытая — номиналы видны всем; закрытая — рубашки
+  handFanned: boolean; // веер на месте (независимо от handOpen)
 }
 
 // То же место, но с тем, что нужно нарисовать в его прямоугольнике.
 export interface SeatView extends Seat {
   handCount: number;
+  /** Порядок карт: нужен для лиц при handOpen (веер или верх стопки). */
+  hand: string[];
 }
 
 export interface TableSummary {

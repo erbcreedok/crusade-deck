@@ -7,42 +7,50 @@ import type { CardBackId } from "./cardBack";
 import type { DeckFxMessage, DeckFxIncoming } from "./deckFxClient";
 
 interface Props {
-  deck: string[]; // порядок колоды ["10♠",…] — для лицевых текстур
-  seats: SeatView[]; // чужие игроки за столом (посадка «П»), каждый — своя дроп-зона
-  deckHolder: string | null; // чьё место держит колоду (при deckZone === "seat")
-  onDeckDropToSeat: (playerId: string) => void; // колоду бросили на место игрока
-  selectedDecks: readonly string[]; // выделенные колоды — вокруг них рамка фокуса
-  onDeckTap: (deckId: string) => void; // тап по колоде — выделить её
-  onEmptyTap: () => void; // тап мимо всего — снять выделение
-  topInset: number; // высота топбара комнаты: места садятся под ним, а не под бейджами
-  bottomInset: number; // высота панели действий: игровые зоны заканчиваются над ней
+  deck: string[];
+  hand: string[]; // моя рука (Player.hand)
+  seats: SeatView[];
+  deckHolder: string | null;
+  onDeckDropToSeat: (playerId: string) => void;
+  selectedDecks: readonly string[];
+  onDeckTap: (deckId: string) => void;
+  onEmptyTap: () => void;
+  topInset: number;
+  bottomInset: number;
   deckZone: DeckZone;
   deckDraggable: boolean;
+  dealMode: boolean;
+  deckFanned: boolean;
+  canDeal: boolean;
+  selfId: string; // sessionId — дроп раздачи в полосу руки = себе
+  selfReady: boolean;
+  selfIsDealer: boolean;
   fourColor: boolean;
-  cardBack: CardBackId; // скин рубашки (меню → Графика)
-  facing: Record<string, boolean>; // сторона каждой карты из состояния сервера
-  shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает тасовку в движке
-  flipSignal: number; // растёт при нажатии «Перевернуть колоду»
-  incomingFx: DeckFxIncoming | null; // чужой эффект с сервера — проиграть как есть
-  rejectedFlip: { cards: string[]; text: string; seq: number } | null; // сервер не подтвердил переворот
+  cardBack: CardBackId;
+  facing: Record<string, boolean>;
+  shuffleSignal: number;
+  flipSignal: number;
+  incomingFx: DeckFxIncoming | null;
+  rejectedFlip: { cards: string[]; text: string; seq: number } | null;
   onDeckDrop: (zone: "center" | "hand") => void;
-  onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
-  onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
+  onDealCard: (card: string, to: string) => void;
+  onDeckFanChange: (open: boolean) => void;
+  collectSignal: { order: string[]; counts?: Record<string, number>; seq: number } | null;
+  cardMovedSignal: { moves: { card: string; from: string; to: string }[]; seq: number } | null;
+  onCardReorder: (card: string, to: number) => void;
+  onShuffleChange: (order: string[]) => void;
   onFanChange: (fanned: boolean) => void;
-  onFanCollapse: () => void; // рука свёрнута: стрелка под веером или свайп вниз // веер раскрылся/собрался (от этого зависят кнопки)
-  onFlipDeck: () => void; // жест перевернул колоду целиком
-  onFlipCards: (cards: string[]) => void; // жест перевернул отдельные карты
-  onDeckFx: (fx: DeckFxMessage) => void; // эффект для остальных игроков (украшение)
+  onFanCollapse: () => void;
+  onFlipDeck: () => void;
+  onFlipCards: (cards: string[]) => void;
+  onDeckFx: (fx: DeckFxMessage) => void;
   onDragChange: (active: boolean) => void;
   animation: AnimationSettings;
 }
 
-// Тонкий React-хост над движком: монтирует ОДИН <canvas> ровно один раз и отдаёт
-// управление императивному RoomEngine. React больше не трогает содержимое канваса —
-// только прокидывает пропсы в движок. Растасовка теперь автоматическая: движок сам
-// анимирует реордер, когда приходит новый порядок колоды (setDeck).
 export function RoomCanvas({
   deck,
+  hand,
   seats,
   deckHolder,
   onDeckDropToSeat,
@@ -53,6 +61,12 @@ export function RoomCanvas({
   bottomInset,
   deckZone,
   deckDraggable,
+  dealMode,
+  deckFanned,
+  canDeal,
+  selfId,
+  selfReady,
+  selfIsDealer,
   fourColor,
   cardBack,
   facing,
@@ -61,6 +75,10 @@ export function RoomCanvas({
   incomingFx,
   rejectedFlip,
   onDeckDrop,
+  onDealCard,
+  onDeckFanChange,
+  collectSignal,
+  cardMovedSignal,
   onCardReorder,
   onShuffleChange,
   onFanChange,
@@ -72,32 +90,81 @@ export function RoomCanvas({
   animation,
 }: Props) {
   const deckKey = deck.join(",");
+  const handKey = hand.join(",");
   const wrapRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RoomEngine | null>(null);
 
-  // Свежий движок ничего не знает о комнате, а React переприменяет пропсы только когда
-  // они МЕНЯЮТСЯ. Пересоздали движок (первый вход, ремоунт, HMR) — и всё, что уже стояло
-  // в неизменном виде (зона колоды, держатель, места, скины), в него никогда не попадёт.
-  // Поэтому держим актуальные пропсы в ref и разом заливаем их сразу после mount.
   const latest = useRef({
-    deck, seats, deckHolder, deckZone, deckDraggable, selectedDecks, fourColor, cardBack,
-    facing, topInset, bottomInset, animation,
-    // Колбэки тоже: пересозданный движок (ремоунт, HMR) иначе остаётся немым —
-    // тап по колоде никуда не сообщает, и выделение «не работает».
-    onDeckTap, onEmptyTap,
-    onDeckDrop, onDeckDropToSeat, onCardReorder, onShuffleChange, onFanChange, onFlipDeck,
-    onFlipCards, onDeckFx, onDragChange,
+    deck,
+    hand,
+    seats,
+    deckHolder,
+    deckZone,
+    deckDraggable,
+    dealMode,
+    deckFanned,
+    canDeal,
+    selfId,
+    selfReady,
+    selfIsDealer,
+    selectedDecks,
+    fourColor,
+    cardBack,
+    facing,
+    topInset,
+    bottomInset,
+    animation,
+    onDeckTap,
+    onEmptyTap,
+    onDeckDrop,
+    onDeckDropToSeat,
+    onDealCard,
+    onDeckFanChange,
+    onCardReorder,
+    onShuffleChange,
+    onFanChange,
+    onFanCollapse,
+    onFlipDeck,
+    onFlipCards,
+    onDeckFx,
+    onDragChange,
   });
   latest.current = {
-    deck, seats, deckHolder, deckZone, deckDraggable, selectedDecks, fourColor, cardBack,
-    facing, topInset, bottomInset, animation,
-    onDeckTap, onEmptyTap,
-    onDeckDrop, onDeckDropToSeat, onCardReorder, onShuffleChange, onFanChange, onFlipDeck,
-    onFlipCards, onDeckFx, onDragChange,
+    deck,
+    hand,
+    seats,
+    deckHolder,
+    deckZone,
+    deckDraggable,
+    dealMode,
+    deckFanned,
+    canDeal,
+    selfId,
+    selfReady,
+    selfIsDealer,
+    selectedDecks,
+    fourColor,
+    cardBack,
+    facing,
+    topInset,
+    bottomInset,
+    animation,
+    onDeckTap,
+    onEmptyTap,
+    onDeckDrop,
+    onDeckDropToSeat,
+    onDealCard,
+    onDeckFanChange,
+    onCardReorder,
+    onShuffleChange,
+    onFanChange,
+    onFanCollapse,
+    onFlipDeck,
+    onFlipCards,
+    onDeckFx,
+    onDragChange,
   };
 
-  // Создать движок один раз. Движок сам создаёт свежий <canvas> внутри wrap.
-  // Cleanup гарантирует безопасный teardown (см. RoomEngine.destroy).
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -106,7 +173,7 @@ export function RoomCanvas({
     engineRef.current = engine;
     const rect = wrap.getBoundingClientRect();
     void engine.mount(wrap, rect.width, rect.height).then(() => {
-      if (engineRef.current !== engine) return; // успели размонтировать, пока поднимался Pixi
+      if (engineRef.current !== engine) return;
       const p = latest.current;
       engine.setTopInset(p.topInset);
       engine.setBottomInset(p.bottomInset);
@@ -114,9 +181,15 @@ export function RoomCanvas({
       engine.setAnimationProfile(resolveProfile(p.animation));
       engine.setFourColor(p.fourColor);
       engine.setCardBack(p.cardBack);
+      engine.setDealMode(p.dealMode);
+      engine.setDeckFanned(p.deckFanned);
+      engine.setCanDeal(p.canDeal);
+      engine.setSelfId(p.selfId);
+      engine.setSelfDealState(p.selfReady, p.selfIsDealer);
       engine.setDeckDraggable(p.deckDraggable);
-      engine.setAuthoritative(p.deckDraggable);
+      engine.setAuthoritative(p.deckDraggable || p.canDeal);
       engine.setDeck(p.deck);
+      engine.setHand(p.hand);
       engine.setCardFacing(p.facing);
       engine.setDeckHolder(p.deckHolder);
       engine.setDeckZone(p.deckZone);
@@ -125,9 +198,12 @@ export function RoomCanvas({
       engine.setOnEmptyTap(p.onEmptyTap);
       engine.setOnDeckDrop(p.onDeckDrop);
       engine.setOnDeckDropToSeat(p.onDeckDropToSeat);
+      engine.setOnDealCard(p.onDealCard);
+      engine.setOnDeckFanChange(p.onDeckFanChange);
       engine.setOnCardReorder(p.onCardReorder);
       engine.setOnShuffleChange(p.onShuffleChange);
       engine.setOnFanChange(p.onFanChange);
+      engine.setOnFanCollapse(p.onFanCollapse);
       engine.setOnFlipDeck(p.onFlipDeck);
       engine.setOnFlipCards(p.onFlipCards);
       engine.setOnDeckFx(p.onDeckFx);
@@ -147,18 +223,47 @@ export function RoomCanvas({
     };
   }, []);
 
-  // Синхронизация состояния комнаты → движок (императивно, без ре-рендера канваса).
   useEffect(() => {
     engineRef.current?.setDeck(deck);
-    // deckKey — стабильная сигнатура содержимого (массив пересоздаётся каждый sync).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckKey]);
   useEffect(() => {
+    engineRef.current?.setHand(hand);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handKey]);
+  useEffect(() => {
     engineRef.current?.setDeckZone(deckZone);
   }, [deckZone]);
-  // Посадка меняется редко (вход/выход, готовность, раздача) — сигнатурой гасим лишние
-  // пересчёты: каждый sync пересоздаёт массив, а перерисовка мест не бесплатна.
-  const seatsKey = seats.map((s) => `${s.id}:${s.name}:${s.handCount}:${+s.isReady}:${+s.isDealer}:${+s.connected}`).join("|");
+  useEffect(() => {
+    engineRef.current?.setDealMode(dealMode);
+  }, [dealMode]);
+  useEffect(() => {
+    engineRef.current?.setDeckFanned(deckFanned);
+  }, [deckFanned]);
+  useEffect(() => {
+    engineRef.current?.setCanDeal(canDeal);
+  }, [canDeal]);
+  useEffect(() => {
+    engineRef.current?.setSelfId(selfId);
+  }, [selfId]);
+  useEffect(() => {
+    engineRef.current?.setSelfDealState(selfReady, selfIsDealer);
+  }, [selfReady, selfIsDealer]);
+  const seatsKey = seats
+    .map((s) =>
+      [
+        s.id,
+        s.name,
+        s.handCount,
+        +s.isReady,
+        +s.isDealer,
+        +s.connected,
+        +s.handOpen,
+        +s.handFanned,
+        s.hand.join(","),
+      ].join(":"),
+    )
+    .join("|");
   useEffect(() => {
     engineRef.current?.setSeats(seats);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,10 +293,8 @@ export function RoomCanvas({
   }, [selectedKey]);
   useEffect(() => {
     engineRef.current?.setDeckDraggable(deckDraggable);
-    // Дилер в лобби — источник правды: применяет изменения мгновенно и не переигрывает
-    // собственное эхо с сервера.
-    engineRef.current?.setAuthoritative(deckDraggable);
-  }, [deckDraggable]);
+    engineRef.current?.setAuthoritative(deckDraggable || canDeal);
+  }, [deckDraggable, canDeal]);
   useEffect(() => {
     engineRef.current?.setFourColor(fourColor);
   }, [fourColor]);
@@ -201,53 +304,51 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setCardFacing(facing);
   }, [facing]);
-  // Кнопка «Растасовать»: порядок считает и анимирует движок, сеть узнаёт через
-  // onShuffleChange — как и у жестов.
   useEffect(() => {
     if (shuffleSignal > 0) engineRef.current?.shuffleAll();
   }, [shuffleSignal]);
-
   useEffect(() => {
     if (flipSignal > 0) engineRef.current?.flipDeckByButton();
   }, [flipSignal]);
-
-  // Отказ сервера: вернуть карты и объяснить причину.
   useEffect(() => {
     if (rejectedFlip) engineRef.current?.rejectFlip(rejectedFlip.cards, rejectedFlip.text);
   }, [rejectedFlip]);
-
-  // Чужой эффект: только показать. Состояние карт придёт схемой и всегда главнее.
   useEffect(() => {
     if (incomingFx) engineRef.current?.playFx(incomingFx);
   }, [incomingFx]);
   useEffect(() => {
     engineRef.current?.setOnDeckDrop(onDeckDrop);
   }, [onDeckDrop]);
-
+  useEffect(() => {
+    engineRef.current?.setOnDealCard(onDealCard);
+  }, [onDealCard]);
+  useEffect(() => {
+    engineRef.current?.setOnDeckFanChange(onDeckFanChange);
+  }, [onDeckFanChange]);
+  useEffect(() => {
+    if (collectSignal) engineRef.current?.playCollectAnim(collectSignal.order, collectSignal.counts);
+  }, [collectSignal]);
+  useEffect(() => {
+    if (cardMovedSignal) engineRef.current?.playCardMoved(cardMovedSignal.moves);
+  }, [cardMovedSignal]);
   useEffect(() => {
     engineRef.current?.setOnCardReorder(onCardReorder);
   }, [onCardReorder]);
-
   useEffect(() => {
     engineRef.current?.setOnShuffleChange(onShuffleChange);
   }, [onShuffleChange]);
-
   useEffect(() => {
     engineRef.current?.setOnFanChange(onFanChange);
   }, [onFanChange]);
-
   useEffect(() => {
     engineRef.current?.setOnFanCollapse(onFanCollapse);
   }, [onFanCollapse]);
-
   useEffect(() => {
     engineRef.current?.setOnFlipDeck(onFlipDeck);
   }, [onFlipDeck]);
-
   useEffect(() => {
     engineRef.current?.setOnFlipCards(onFlipCards);
   }, [onFlipCards]);
-
   useEffect(() => {
     engineRef.current?.setOnDeckFx(onDeckFx);
   }, [onDeckFx]);

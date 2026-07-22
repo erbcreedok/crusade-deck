@@ -15,9 +15,37 @@ export interface FanCard {
 // Позиция карты i из count в веере. Наклон линейно от -max (левая) до +max (правая),
 // крайние ровно ±maxAngleDeg (не круче). Центры лежат на окружности радиуса r (выведен
 // из ширины веера и угла): середина выше, края ниже — «почти арка».
+// Потолок угла веера по числу карт: крайние всегда ±angle, но при 2–3 картах полный
+// maxAngleDeg даёт нелепый «домик». Шаг между соседями не больше maxStepDeg.
+export function fanMaxAngleDeg(count: number, maxAngleDeg: number, maxStepDeg: number): number {
+  if (count < 2 || maxAngleDeg <= 0) return 0;
+  if (maxStepDeg <= 0) return maxAngleDeg;
+  return Math.min(maxAngleDeg, ((count - 1) * maxStepDeg) / 2);
+}
+
+// Ширина зоны под веер с потолком на шаг между картами.
+// maxStepOfCard — макс. горизонтальный шаг в долях ширины карты (0.75 idle / 0.80 драг):
+// при малом count веер не растягивается на всю полосу, а держит плотный шаг.
+export function clampFanWidth(
+  availableWidth: number,
+  count: number,
+  cardW: number,
+  widthFactor: number,
+  maxStepOfCard: number,
+): number {
+  if (count < 2 || cardW <= 0 || widthFactor <= 0 || maxStepOfCard <= 0) return availableWidth;
+  const maxSpan = (count - 1) * cardW * maxStepOfCard;
+  return Math.min(availableWidth, maxSpan / widthFactor);
+}
+
 // Насколько тесен веер (0 — просторно, 1 — максимально тесно). Горизонтальный шаг между
 // картами = ширина веера / (count-1); если он меньше нужного (cardW*gap) — «тесно», и тем
 // сильнее, чем меньше. По этой величине включается и масштабируется «червячок».
+export function fanStep(count: number, zoneWidth: number, widthFactor: number): number {
+  if (count < 2) return Number.POSITIVE_INFINITY;
+  return (zoneWidth * widthFactor) / (count - 1);
+}
+
 export function fanCrowd(
   count: number,
   zoneWidth: number,
@@ -27,10 +55,34 @@ export function fanCrowd(
   ramp: number,
 ): number {
   if (count < 2 || cardW <= 0) return 0;
-  const step = (zoneWidth * widthFactor) / (count - 1);
+  const step = fanStep(count, zoneWidth, widthFactor);
   const needed = cardW * gap;
   if (step >= needed) return 0;
   return Math.min(1, (needed - step) / (needed * ramp));
+}
+
+// Насколько нужно локальное раскрытие (ховер/тык): 0 — шаг уже ≥ idle-потолка
+// (мало карт, веер просторный — карты почти не двигаем), 1 — теснее порога wiggle.gap.
+export function fanRevealScale(
+  step: number,
+  cardW: number,
+  tightGapOfCard: number,
+  looseStepOfCard: number,
+): number {
+  if (cardW <= 0 || !Number.isFinite(step)) return 0;
+  const loose = cardW * looseStepOfCard;
+  const tight = cardW * tightGapOfCard;
+  if (step >= loose) return 0;
+  if (step <= tight) return 1;
+  if (loose <= tight) return 0;
+  return (loose - step) / (loose - tight);
+}
+
+// Amp раздвига при драге: на просторном веере (revealScale=0) доп. разъезд не нужен —
+// дырки в слоте insertAt уже достаточно; иначе сосед улетает за край (2_31 вместо 213).
+export function fanDragSpreadAmp(baseAmp: number, revealScale: number): number {
+  if (baseAmp === 0 || revealScale <= 0) return 0;
+  return baseAmp * Math.min(1, revealScale);
 }
 
 // Огибающая «энергии» эффекта: в момент тычка/раскрытия = boost, плавно спадает к 1

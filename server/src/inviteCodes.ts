@@ -1,7 +1,8 @@
 const codeToRoomId = new Map<string, string>();
 
 function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  // 4 цифры, с ведущими нулями (0000–9999).
+  return Math.floor(Math.random() * 10000).toString().padStart(4, "0");
 }
 
 export function registerInviteCode(roomId: string): string {

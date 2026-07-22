@@ -39,6 +39,27 @@ export function pickSeat(x: number, y: number, seats: SeatBox[]): string | null 
   return seats.find((s) => inRect(s.rect, x, y))?.id ?? null;
 }
 
+// Кому раздать карту при дропе: чужое место или своя полоса руки (дилер себе).
+// Места приоритетнее руки, если вдруг пересекутся.
+// readyIds — кто включил дроп-зону кнопкой «Готов». Своя рука всегда принимает
+// (дилер себе), даже если он сам не жал «Готов».
+export function pickDealTarget(
+  x: number,
+  y: number,
+  seats: SeatBox[],
+  layout: RoomLayout,
+  selfId: string | null,
+  readyIds?: ReadonlySet<string> | null,
+): string | null {
+  const seat = pickSeat(x, y, seats);
+  if (seat) {
+    if (readyIds && seat !== selfId && !readyIds.has(seat)) return null;
+    return seat;
+  }
+  if (selfId && pickDropTarget(x, y, layout)?.zone === "hand") return selfId;
+  return null;
+}
+
 // Что под точкой (x,y): зона стола или рука. При перекрытии —
 // ближайшая по нормированному расстоянию до центра зоны.
 export function pickDropTarget(x: number, y: number, layout: RoomLayout): DropTarget | null {

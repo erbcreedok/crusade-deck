@@ -5,9 +5,11 @@ export class Player extends Schema {
   @type("string") name: string = "Player";
   @type("boolean") isDealer: boolean = false;
   @type("boolean") isReady: boolean = false;
-  // Режим руки: открытая — остальные видят её так же, как я; закрытая — только оборотку.
-  // Это состояние игрока, а не локальный тумблер: его должны видеть все.
+  // Открытая рука — остальные видят НОМИНАЛЫ; закрытая — только рубашки.
+  // Не путать с handFanned (веер): закрытая тоже может лежать веером — просто рубашками.
   @type("boolean") handOpen: boolean = false;
+  // Веер руки на месте игрока (раскрыл/сложил). Видят все; от handOpen не зависит.
+  @type("boolean") handFanned: boolean = false;
   @type("boolean") connected: boolean = true;
   // Бот тестовой комнаты (см. bots.ts): такой же игрок за столом, но без клиента.
   // Клиенту нужен явный флаг, чтобы рисовать его местом за столом, а не «пустым стулом».
@@ -36,6 +38,9 @@ export class Proposal extends Schema {
 
 export class GameState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
+  // Круг мест по часовой: следующий после игрока = слева от него за столом.
+  // Порядок один для всех клиентов (не Map.forEach). Дилер — голова круга.
+  @type({ array: "string" }) seatOrder = new ArraySchema<string>();
   @type("string") deckType: "36" | "52" = "36";
   @type("string") phase: "lobby" | "playing" | "finished" = "lobby";
   @type("string") inviteCode: string = "";

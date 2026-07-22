@@ -15,7 +15,10 @@ export class TestRoom extends CardRoom {
   onCreate(options: TestRoomOptions) {
     super.onCreate({ ...options, isPrivate: true });
     for (let i = 0; i < BOT_COUNT; i++) {
-      this.state.players.set(botSessionId(i), makeBot(i));
+      const id = botSessionId(i);
+      this.state.players.set(id, makeBot(i));
+      // Пока без дилера — боты в круге; первый живой войдёт в голову seatOrder.
+      this.state.seatOrder.push(id);
     }
   }
 }

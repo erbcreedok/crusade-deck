@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeLayout } from "./layout";
-import { pickDropTarget, dropZoneRegions, pickSeat } from "./dropZones";
+import { pickDropTarget, dropZoneRegions, pickSeat, pickDealTarget } from "./dropZones";
 import { layoutSeats } from "./seatLayout";
 
 describe("pickDropTarget", () => {
@@ -49,5 +49,44 @@ describe("pickSeat — места игроков как дроп-зоны", () =
     const { seats: s, insets } = layoutSeats(["a", "b", "c"], 900, 700);
     const l = computeLayout(900, 700, insets);
     expect(pickSeat(l.centerZone.cx, l.centerZone.cy, s)).toBeNull();
+  });
+});
+
+describe("pickDealTarget — раздача, в том числе себе", () => {
+  const layout = computeLayout(800, 600);
+  const seats = layoutSeats(["a", "b"], 800, 600).seats;
+
+  it("дроп на чужое место — ему", () => {
+    const s = seats[0]!;
+    expect(pickDealTarget(s.rect.cx, s.rect.cy, seats, layout, "me")).toBe("a");
+  });
+
+  it("дроп в свою полосу руки — себе", () => {
+    expect(pickDealTarget(layout.handAnchor.x, layout.handAnchor.y, seats, layout, "me")).toBe("me");
+  });
+
+  it("мимо мест и руки — null", () => {
+    expect(pickDealTarget(2, 2, seats, layout, "me")).toBeNull();
+  });
+
+  it("без selfId рука не принимает", () => {
+    expect(pickDealTarget(layout.handAnchor.x, layout.handAnchor.y, seats, layout, null)).toBeNull();
+  });
+
+  it("не готовый игрок — дроп-зона выключена", () => {
+    const s = seats[0]!;
+    const ready = new Set<string>(); // никто не готов
+    expect(pickDealTarget(s.rect.cx, s.rect.cy, seats, layout, "me", ready)).toBeNull();
+  });
+
+  it("готовый игрок принимает карту", () => {
+    const s = seats[0]!;
+    const ready = new Set(["a"]);
+    expect(pickDealTarget(s.rect.cx, s.rect.cy, seats, layout, "me", ready)).toBe("a");
+  });
+
+  it("своя рука всегда принимает (дилер себе), даже без ready", () => {
+    const ready = new Set<string>();
+    expect(pickDealTarget(layout.handAnchor.x, layout.handAnchor.y, seats, layout, "me", ready)).toBe("me");
   });
 });

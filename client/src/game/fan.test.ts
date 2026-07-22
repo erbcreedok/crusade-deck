@@ -1,10 +1,42 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver, fanSpreadShift, fanSpreadPinned } from "./fan";
+import {
+  fanCard,
+  fanCrowd,
+  fanStep,
+  fanRevealScale,
+  fanDragSpreadAmp,
+  clampFanWidth,
+  fanMaxAngleDeg,
+  energyEnvelope,
+  pokeEnvelope,
+  fanBandContains,
+  fanInsertIndex,
+  visibleSliver,
+  fanSpreadShift,
+  fanSpreadPinned,
+} from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина зоны руки
 const MAX = 30; // градусов
 const WF = 0.9;
+
+describe("fanMaxAngleDeg", () => {
+  it("две карты — крошечный угол, не полный maxAngleDeg", () => {
+    expect(fanMaxAngleDeg(2, 30, 4)).toBeCloseTo(2, 5); // шаг 4° → ±2°
+    expect(fanMaxAngleDeg(2, 13.5, 4)).toBeCloseTo(2, 5);
+  });
+
+  it("много карт — упирается в maxAngleDeg", () => {
+    expect(fanMaxAngleDeg(36, 30, 4)).toBe(30);
+    expect(fanMaxAngleDeg(16, 30, 4)).toBe(30); // 15*4/2 = 30
+  });
+
+  it("пустая/одна карта — без угла", () => {
+    expect(fanMaxAngleDeg(0, 30, 4)).toBe(0);
+    expect(fanMaxAngleDeg(1, 30, 4)).toBe(0);
+  });
+});
 
 describe("fanCard", () => {
   it("крайние карты наклонены ровно на ±maxAngleDeg", () => {
@@ -50,6 +82,63 @@ describe("fanCard", () => {
     const only = fanCard(0, 1, anchor, W, MAX, WF);
     expect(only.rot).toBe(0);
     expect(only.x).toBeCloseTo(anchor.x, 5);
+  });
+});
+
+describe("clampFanWidth", () => {
+  const cardW = 40;
+
+  it("мало карт — ширина упирается в maxStep*cardW", () => {
+    // 3 карты, idle 0.75 → max span = 2 * 40 * 0.75 = 60 → width = 60/0.9
+    expect(clampFanWidth(400, 3, cardW, WF, 0.75)).toBeCloseTo(60 / WF, 5);
+  });
+
+  it("много карт — зона не режется", () => {
+    expect(clampFanWidth(400, 36, cardW, WF, 0.75)).toBe(400);
+  });
+
+  it("при драге потолок выше (0.8 > 0.75)", () => {
+    const idle = clampFanWidth(400, 3, cardW, WF, 0.75);
+    const drag = clampFanWidth(400, 3, cardW, WF, 0.8);
+    expect(drag).toBeGreaterThan(idle);
+  });
+});
+
+describe("fanRevealScale", () => {
+  const cardW = 40;
+
+  it("просторный шаг (как 3 карты на idle-потолке) — раскрытие выкл", () => {
+    expect(fanRevealScale(cardW * 0.75, cardW, 0.18, 0.75)).toBe(0);
+  });
+
+  it("тесный шаг — полное раскрытие", () => {
+    expect(fanRevealScale(cardW * 0.1, cardW, 0.18, 0.75)).toBe(1);
+  });
+
+  it("между порогами — плавно", () => {
+    const mid = fanRevealScale(cardW * 0.465, cardW, 0.18, 0.75);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
+  });
+
+  it("fanStep согласован с clamp: 3 карты → просторно", () => {
+    const width = clampFanWidth(400, 3, cardW, WF, 0.75);
+    const step = fanStep(3, width, WF);
+    expect(fanRevealScale(step, cardW, 0.18, 0.75)).toBe(0);
+  });
+});
+
+describe("fanDragSpreadAmp", () => {
+  it("на просторном веере доп. раздвиг при драге выкл — хватает дырки слота", () => {
+    expect(fanDragSpreadAmp(16, 0)).toBe(0);
+  });
+
+  it("на тесном — полный amp", () => {
+    expect(fanDragSpreadAmp(16, 1)).toBe(16);
+  });
+
+  it("между — пропорционально", () => {
+    expect(fanDragSpreadAmp(16, 0.5)).toBe(8);
   });
 });
 

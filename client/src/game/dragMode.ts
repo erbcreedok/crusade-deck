@@ -1,26 +1,42 @@
 import type { DeckZone } from "./deckZone";
 
-// Что берёт палец, когда нажимает на карты. Правило зависит от того, в фокусе рука или нет:
+// Что берёт палец, когда нажимает на карты.
 //
-//   рука вне фокуса — она «сложена»: тащится вся колода целиком (в любую дроп-зону),
-//                     отдельные карты не трогаются и не подсвечиваются;
-//   рука в фокусе   — она разложена веером: берутся только ОТДЕЛЬНЫЕ карты,
-//                     колоду из руки целиком утащить нельзя;
-//   другие зоны     — колода тащится целиком всегда, фокус руки на них не влияет.
-//
-// Отдельный модуль, потому что это правило игры, а не деталь отрисовки: движок просто
-// спрашивает у него, что делать с нажатием.
+//   рука вне фокуса — шеренга: тап выделяет / раскрывает; тащить стопку целиком нельзя
+//                     в режиме раздачи (колода живёт в центре);
+//   рука в фокусе   — веер: отдельные карты (перестановка);
+//   центр + dealMode + дилер — карта на раздачу (стопка: верх; веер: под пальцем);
+//   центр + dealMode + не-дилер + открытый веер — только peek (ховер/глиссандо, без драга);
+//   центр без dealMode — вся колода (перенос в зоны).
 
-export type DragMode = "deck" | "card" | "none";
+export type DragMode = "deck" | "card" | "topCard" | "peek" | "none";
 
 export interface DragContext {
   zone: DeckZone;
   handFocused: boolean;
-  draggable: boolean; // двигать колоду может только дилер и только в лобби
+  draggable: boolean; // двигать колоду целиком (дилер, не dealMode)
+  dealMode?: boolean;
+  canDeal?: boolean; // дилер может раздавать верхнюю карту
+  deckFanned?: boolean; // веер колоды на столе (для peek не-дилера)
 }
 
-export function dragModeFor({ zone, handFocused, draggable }: DragContext): DragMode {
-  if (!draggable || zone === "away") return "none";
+export function dragModeFor({
+  zone,
+  handFocused,
+  draggable,
+  dealMode = false,
+  canDeal = false,
+  deckFanned = false,
+}: DragContext): DragMode {
+  if (zone === "away") return "none";
+
+  // В режиме раздачи колода в центре: дилер раздаёт, остальные только смотрят веер.
+  if (dealMode && zone === "center") {
+    if (canDeal) return "topCard";
+    return deckFanned ? "peek" : "none";
+  }
+
+  if (!draggable) return "none";
   if (zone === "hand") return handFocused ? "card" : "deck";
   return "deck";
 }

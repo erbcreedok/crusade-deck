@@ -149,13 +149,13 @@ export function Lobby({
 
         <hr className="pixel-divider" />
 
-        <label className="pixel-label">6-значный код</label>
+        <label className="pixel-label">4-значный код</label>
         <input
           className="pixel-input"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="000000"
-          maxLength={6}
+          placeholder="0000"
+          maxLength={4}
         />
         <button className="pixel-btn pixel-btn-secondary pixel-btn-full" style={{ marginTop: 10 }} onClick={joinByCode}>
           Войти по коду
