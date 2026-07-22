@@ -305,6 +305,8 @@ textarea {
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* контекст позиционирования для абсолютного нижнего бара (кнопки не в потоке) */
+  position: relative;
   padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
     max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   overflow: hidden;
@@ -336,8 +338,9 @@ textarea {
   margin: 12px 0;
 }
 
-/* Игровое поле — единый WebGL-канвас. Занимает всю среднюю зону; кнопки идут ПОД ним
-   в общем потоке, поэтому ничего из action-элементов (колода/центр) не перекрывают. */
+/* Игровое поле — единый WebGL-канвас. Занимает всю среднюю зону. Кнопки вынесены из
+   потока (абсолютный .table-bottombar), поэтому их появление/смена НЕ меняет размер
+   канваса: стол статичен и пересчитывается лишь при реальном ресайзе экрана. */
 .room-canvas {
   position: relative;
   flex: 1;
@@ -428,15 +431,25 @@ textarea {
   opacity: 0.45;
 }
 
+/* Абсолютный оверлей у нижнего края — вне потока, чтобы динамическая высота набора
+   кнопок не «дёргала» размер канваса/стола. Пустые области бара кликов не ловят
+   (pointer-events: none), ловят только сами кнопки. */
 .table-bottombar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(12px, env(safe-area-inset-bottom));
   display: flex;
   gap: 10px;
   justify-content: center;
   flex-wrap: wrap;
+  padding: 0 12px;
+  pointer-events: none;
 }
 
 .table-bottombar .pixel-btn {
   flex: 0 1 220px;
+  pointer-events: auto;
 }
 
 .seat-hand-count {
