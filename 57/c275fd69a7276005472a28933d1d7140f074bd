@@ -1,0 +1,28 @@
+server/src/handRules.ts
+  s_3b000dfed76439::t_d18439891a69c2 37-45
+client/src/game/dealing.ts
+  s_3b000dfed76439::t_3bfeac14219b5b 36-37
+client/src/game/dealing.test.ts
+  s_3b000dfed76439::t_3bfeac14219b5b 2
+server/src/handRules.test.ts
+  s_3b000dfed76439::t_d18439891a69c2 2,70-88
+  s_3b000dfed76439::t_77f228b22ad4f3 89
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_d18439891a69c2 14,273,356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "57c275fd69a7276005472a28933d1d7140f074bd",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
