@@ -8,6 +8,8 @@ import { findAccountById } from "./accounts.js";
 import { setPublicRoom, updatePublicRoomCount, removePublicRoom } from "./publicRooms.js";
 import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
 import { moveCard, isPermutationOf } from "./deckOrder.js";
+import { flipWholeDeck, flippedFacing } from "./deckFacing.js";
+import { sanitizeDeckFx, FxRateLimiter } from "./deckFx.js";
 
 interface JoinOptions {
   token?: string;
@@ -55,6 +57,8 @@ export class CardRoom extends Room<GameState> {
   maxClients = 32;
   private proposalTimeout: Delayed | null = null;
   private shuffleLockTimer: Delayed | null = null;
+  // Эффекты необязательны, а сервер слабый — поток режем жёстко (см. deckFx.ts).
+  private fxLimiter = new FxRateLimiter(10, 1000);
   private disposeTimer: Delayed | null = null;
 
   onCreate(options: JoinOptions) {
@@ -63,7 +67,10 @@ export class CardRoom extends Room<GameState> {
     this.autoDispose = false;
     this.setState(new GameState());
     this.state.deckType = options.deckType === "52" ? "52" : "36";
-    buildDeck(this.state.deckType).forEach((card) => this.state.deck.push(card));
+    buildDeck(this.state.deckType).forEach((card) => {
+      this.state.deck.push(card);
+      this.state.faceUp.set(card, false); // свежая колода лежит рубашкой вверх
+    });
 
     if (options.isPrivate) {
       this.state.inviteCode = registerInviteCode(this.roomId);
@@ -95,6 +102,40 @@ export class CardRoom extends Room<GameState> {
       if (typeof card !== "string" || typeof to !== "number" || !Number.isFinite(to)) return;
       const next = moveCard(this.state.deck.toArray(), card, to);
       next.forEach((c, i) => this.state.deck.setAt(i, c));
+    });
+
+    // Переворот колоды целиком: кнопкой (когда колода НЕ в вее­ре) или свайпом по стопке.
+    // Порядок реверсится, каждая карта меняет сторону — как у настоящей стопки в руке.
+    this.onMessage("flip_deck", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      const out = flipWholeDeck(this.state.deck.toArray(), this.facingRecord());
+      out.order.forEach((c, i) => this.state.deck.setAt(i, c));
+      for (const [card, up] of Object.entries(out.facing)) this.state.faceUp.set(card, up);
+    });
+
+    // Переворот отдельных карт на месте (жесты по вееру: свайп вниз по карте, случайные
+    // перевороты при сильной тасовке). Порядок колоды не трогается.
+    this.onMessage("flip_cards", (client, message: { cards?: string[] }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      const cards = message?.cards;
+      if (!Array.isArray(cards) || cards.length === 0) return;
+      const next = flippedFacing(this.facingRecord(), cards.filter((c) => typeof c === "string"));
+      for (const [card, up] of Object.entries(next)) this.state.faceUp.set(card, up);
+    });
+
+    // Эффекты колоды (перевороты/тянучка/рассыпание) — чистое украшение: сервер их не
+    // интерпретирует, а лишь чистит, ставит своё время и раздаёт остальным, чтобы у них
+    // анимация длилась столько же, сколько у дилера. Состояние приходит отдельно, схемой,
+    // и всегда главнее: эффект может опоздать или потеряться — данные от этого не страдают.
+    this.onMessage("deck_fx", (client, message: unknown) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      if (!this.fxLimiter.allow(client.sessionId, Date.now())) return;
+      const fx = sanitizeDeckFx(message, Date.now());
+      if (!fx) return;
+      this.broadcast("deck_fx", fx, { except: client });
     });
 
     // Готовый порядок колоды от клиента (свайп по вееру: карты выплёскиваются и врезаются
@@ -231,6 +272,7 @@ export class CardRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     player.connected = false;
+    this.fxLimiter.forget(client.sessionId);
     if (this.state.shufflingBy === client.sessionId) this.clearShuffleLock(); // не оставляем колоду занятой
     this.cancelProposalInvolving(client.sessionId);
     this.tallyAndResolve();
@@ -267,6 +309,12 @@ export class CardRoom extends Room<GameState> {
 
   // Сторожевой таймер сессии тасовки: клиент мог закрыть вкладку прямо посреди жеста,
   // и колода осталась бы «занятой» навсегда.
+  private facingRecord(): Record<string, boolean> {
+    const out: Record<string, boolean> = {};
+    this.state.faceUp.forEach((up, card) => (out[card] = up));
+    return out;
+  }
+
   private armShuffleLockTimer() {
     this.shuffleLockTimer?.clear();
     this.shuffleLockTimer = this.clock.setTimeout(() => this.clearShuffleLock(), getShuffleLockMs());
@@ -284,7 +332,10 @@ export class CardRoom extends Room<GameState> {
     let i = 0;
     while (this.state.deck.length > 0) {
       const card = this.state.deck.pop();
-      if (card) connected[i % connected.length].hand.push(card);
+      if (card) {
+        connected[i % connected.length].hand.push(card);
+        this.state.faceUp.delete(card); // карта ушла в руку — её сторона в колоде не нужна
+      }
       i++;
     }
   }

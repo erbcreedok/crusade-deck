@@ -444,4 +444,69 @@ describe("CardRoom", () => {
     await dealer.leave();
     expect(room.state.shufflingBy).toBe("");
   });
+
+  // ——— сторона карт ———
+
+  it("fresh deck lies face down; flip_deck reverses order and flips every card", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const before = [...room.state.deck];
+    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
+
+    const waiter = room.waitForMessage("flip_deck");
+    dealer.send("flip_deck");
+    await waiter;
+
+    expect([...room.state.deck]).toEqual([...before].reverse());
+    expect([...room.state.faceUp.values()].every((v) => v === true)).toBe(true);
+  });
+
+  it("flip_cards flips only the given cards and keeps the order", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const before = [...room.state.deck];
+    const target = before[4];
+
+    const waiter = room.waitForMessage("flip_cards");
+    dealer.send("flip_cards", { cards: [target] });
+    await waiter;
+
+    expect([...room.state.deck]).toEqual(before); // порядок не тронут
+    expect(room.state.faceUp.get(target)).toBe(true);
+    expect(room.state.faceUp.get(before[5])).toBe(false); // соседей не задело
+  });
+
+  it("ignores flips from a non-dealer", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+    const before = [...room.state.deck];
+
+    let waiter = room.waitForMessage("flip_deck");
+    second.send("flip_deck");
+    await waiter;
+    expect([...room.state.deck]).toEqual(before);
+
+    waiter = room.waitForMessage("flip_cards");
+    second.send("flip_cards", { cards: [before[0]] });
+    await waiter;
+    expect(room.state.faceUp.get(before[0])).toBe(false);
+  });
+
+  it("card facing follows the card through a reorder", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const card = room.state.deck[0];
+
+    let waiter = room.waitForMessage("flip_cards");
+    dealer.send("flip_cards", { cards: [card] });
+    await waiter;
+
+    waiter = room.waitForMessage("reorder_deck");
+    dealer.send("reorder_deck", { card, to: 20 });
+    await waiter;
+
+    expect(room.state.deck[20]).toBe(card);
+    expect(room.state.faceUp.get(card)).toBe(true); // сторона уехала вместе с картой
+  });
 });
