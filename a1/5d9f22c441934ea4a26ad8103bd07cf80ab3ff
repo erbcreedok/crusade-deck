@@ -1,0 +1,37 @@
+server/src/deckBuild.ts
+  s_7d9a23fba6e8e1::t_d640f12d9aec0d 1-23
+server/src/roomConfig.ts
+  s_7d9a23fba6e8e1::t_24a159887f7439 1-29
+server/src/roomConfig.test.ts
+  s_7d9a23fba6e8e1::t_7798df3e04366e 1-30
+server/src/CardRoom.ts
+  s_7d9a23fba6e8e1::t_743fd1ac42f416 14-17,41,465-466,471-474,476,480,484,585,588-589,595-596,616
+  s_7d9a23fba6e8e1::t_34e4031a729805 528-529
+  s_7d9a23fba6e8e1::t_4e604a6ad68ac4 18
+server/src/seatRing.ts
+  s_7d9a23fba6e8e1::t_f5e34dc2b4c3d2 1-36
+server/src/deckBuild.test.ts
+  s_7d9a23fba6e8e1::t_d3e9df898f8e6a 1-41
+server/src/seatRing.test.ts
+  s_7d9a23fba6e8e1::t_095ac389e33cdb 1-54
+server/src/voteTally.test.ts
+  s_7d9a23fba6e8e1::t_5785b2a62e7389 1-96
+server/src/voteTally.ts
+  s_7d9a23fba6e8e1::t_de1366b4fee7f2 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a15d9f22c441934ea4a26ad8103bd07cf80ab3ff",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
