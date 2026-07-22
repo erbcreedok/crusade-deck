@@ -1,0 +1,23 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_608dbb26782b1e 2251-2262
+client/src/game/handRow.ts
+  s_3b000dfed76439::t_8c6477450edd6f 2-7,9,12-18,22-23,28-29
+client/src/game/handRow.test.ts
+  s_3b000dfed76439::t_bb2164ab16d922 2,8-12,15-18,21,24,37,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c56765c8c4003cf1629cf5c4e40aca165f1d7ab6",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
