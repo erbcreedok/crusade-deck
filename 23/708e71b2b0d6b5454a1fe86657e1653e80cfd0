@@ -1,0 +1,29 @@
+client/src/game/engine/CardPile.ts
+  s_7d9a23fba6e8e1::t_22324d634e900f 106-113
+  s_7d9a23fba6e8e1::t_d5b2bcd3197141 1-105,114-124
+client/src/game/engine/CardPile.test.ts
+  s_7d9a23fba6e8e1::t_58ea53ac82a181 1-80,83,85,89-138,157-165
+  s_7d9a23fba6e8e1::t_55922363b3cc91 81-82,84,86-88
+  s_7d9a23fba6e8e1::t_22324d634e900f 139-156
+client/src/game/RoomEngine.ts
+  s_7d9a23fba6e8e1::t_d3c3245843606d 48,710,2022
+  s_7d9a23fba6e8e1::t_65b3b0698831ee 113,164-179,595-612
+  s_7d9a23fba6e8e1::t_b46dc14bbdfb75 613,652-656,658,702-705,707,1987-1998,2000,2004-2007,2015-2016,2556-2557
+  s_7d9a23fba6e8e1::t_96d16c4016f64b 614
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "23708e71b2b0d6b5454a1fe86657e1653e80cfd0",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
