@@ -1,0 +1,77 @@
+import { dealHandAccent, dealSeatHoverLabel } from "../dealReadyTint";
+import type { DropZone } from "../dropZones";
+import { zoneAction, zoneTitle, type DraggedKind } from "../zoneLabels";
+import { COLORS } from "./constants";
+
+// Как выглядит дроп-зона в каждый момент. Зоны видны ВСЕГДА, но по-разному: в покое — еле
+// заметные очертания и название зоны, во время драга — заливка и ДЕЙСТВИЕ («что будет,
+// если бросить сюда»). Отдельный модуль, потому что это чистые правила, а не рисование.
+
+export interface ZoneChromeInput {
+  zone: DropZone;
+  /** Идёт драг (колоды или карты). */
+  dragging: boolean;
+  /** Курсор именно над этой зоной. */
+  active: boolean;
+  /** Что тащат — от этого зависит подпись действия. */
+  dragged: DraggedKind;
+  dealMode: boolean;
+  /** Моя готовность: в раздаче красит полосу руки жёлтым/серым. */
+  myReady: boolean;
+}
+
+export interface ZoneChrome {
+  /** Заливка зоны или null (в покое её нет). */
+  fill: { color: number; alpha: number } | null;
+  stroke: { width: number; color: number; alpha: number };
+  label: { text: string; tint: number; alpha: number };
+}
+
+export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
+  // В раздаче полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
+  const dealHand = o.dealMode && o.zone === "hand";
+  const base = dealHand ? dealHandAccent(o.myReady) : COLORS.gold;
+
+  let fill: ZoneChrome["fill"] = null;
+  if (o.active && dealHand) fill = { color: base, alpha: 0.82 }; // ховер раздачи — плотный оверлей
+  else if (o.active) fill = { color: 0xffe08a, alpha: 0.16 };
+  else if (o.dragging) fill = { color: base, alpha: 0.06 };
+
+  const stroke = {
+    width: o.active ? 5 : o.dragging ? 2.5 : 1.5,
+    color: o.active ? COLORS.hot : base,
+    alpha: o.active ? 0.95 : o.dragging ? 0.4 : dealHand ? 0.18 : 0.16,
+  };
+
+  const text =
+    o.active && dealHand
+      ? dealSeatHoverLabel(true) // себе раздать можно всегда
+      : o.dragging
+        ? zoneAction(o.zone, o.dragged)
+        : zoneTitle(o.zone);
+
+  const label = {
+    text,
+    tint: o.active && dealHand ? COLORS.ink : o.active ? COLORS.hot : base,
+    alpha: o.active ? (dealHand ? 0.95 : 0.75) : o.dragging ? 0.35 : dealHand ? 0.12 : 0.14,
+  };
+
+  return { fill, stroke, label };
+}
+
+/**
+ * Размер шрифта подписи зоны: от размера карты, но так, чтобы САМАЯ ДЛИННАЯ из подписей
+ * этой зоны влезала по ширине. Считаем по максимуму, иначе шрифт прыгал бы при смене
+ * названия на действие во время драга.
+ */
+export function zoneLabelFontSize(zone: DropZone, zoneWidth: number, cardH: number): number {
+  const base = Math.min(44, Math.max(14, cardH * 0.5));
+  const longest = Math.max(zoneTitle(zone).length, zoneAction(zone, "deck").length, zoneAction(zone, "card").length);
+  const fit = (zoneWidth * 0.9) / Math.max(1, longest * 0.62);
+  return Math.max(9, Math.min(base, fit));
+}
+
+/** Размер «низяяя» / короткой надписи поверх стола. */
+export function noticeFontSize(cardH: number): number {
+  return Math.min(110, Math.max(34, cardH * 1.2));
+}

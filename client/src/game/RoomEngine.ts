@@ -1,6 +1,5 @@
 import {
   Application,
-  Circle,
   Container,
   Graphics,
   Matrix,
@@ -60,7 +59,7 @@ import { cardsUnderTouch } from "./touch";
 import { rowOffsets, rowWidth } from "./handRow";
 import { collapseAnchorBottom, fitCollapseButton } from "./collapseButton";
 import { collapseRevealPose } from "./collapseReveal";
-import { zoneTitle, zoneAction, type DraggedKind } from "./zoneLabels";
+import { zoneTitle, type DraggedKind } from "./zoneLabels";
 import type { DeckFxMessage } from "./deckFxClient";
 import {
   swipeStrength,
@@ -79,14 +78,7 @@ import {
   lightShadowOffset,
   deckZoneScale,
 } from "./deckStack";
-import { parseCard, isCourt, suitColor } from "./card";
-import {
-  cardBackSkin,
-  latticeCenters,
-  mosaicTiles,
-  DEFAULT_CARD_BACK,
-  type CardBackId,
-} from "./cardBack";
+import { cardBackSkin, DEFAULT_CARD_BACK, type CardBackId } from "./cardBack";
 import { anim } from "./anim/config";
 import {
   DEFAULT_ANIMATION_SETTINGS,
@@ -95,47 +87,32 @@ import {
   type AnimationProfile,
 } from "./anim/animationSettings";
 import { easeOutQuad } from "./anim/easing";
+import { lerp, nearestIndexByX } from "./mathUtil";
+import {
+  CARD_EDGE,
+  COLORS,
+  DECK_ID,
+  DRAG_SCALE,
+  DRAG_THRESHOLD,
+  HAND_ID,
+  PIXEL_FONT,
+  REJECT_TEXT,
+  TEX_H,
+  Z,
+  ZERO_SHAKE,
+} from "./engine/constants";
+import type { ButtonLayout, CardVisual, FanGeom, ShufflePose } from "./engine/types";
+import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./engine/cardTextures";
+import { FaceTextureCache } from "./engine/faceTextureCache";
+import { handFanGeom } from "./engine/fanGeometry";
+import { paintSeats } from "./engine/seatPaint";
+import { paintZones, styleZoneLabels } from "./engine/zonePaint";
+import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReveal } from "./engine/collapseArrow";
+import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
+import { canSleep } from "./engine/idleGate";
 
-interface CardVisual {
-  body: CardBody;
-  sprite: Sprite;
-  card: string; // идентичность карты ("10♠") — для лицевой текстуры
-  phase: number; // фазовый сдвиг idle-покачивания (чтобы стопка не «дышала» унисоном)
-}
+export { DECK_ID, HAND_ID } from "./engine/constants";
 
-// Позиция-цель одной карты в анимации растасовки.
-interface ShufflePose {
-  x: number;
-  y: number;
-  rot: number;
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-// Логический размер текстуры рубашки (соотношение 0.7). Спрайты масштабируются от него.
-const TEX_W = 160;
-const TEX_H = 228;
-
-const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
-
-const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» при запрещённом дропе колоды
-
-// Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
-const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 };
-
-// Пока колода на столе одна, но выделение устроено по id — когда колод станет
-// несколько, поменяется только источник этого значения.
-export const DECK_ID = "deck";
-// Отдельная стопка: МОЯ рука (Player.hand). Не путать с DropZone "hand" (куда раньше
-// тащили всю колоду).
-export const HAND_ID = "hand";
-
-const DRAG_SCALE = 1.18; // карты «приподнимаются» при захвате (визуальный акцент)
-const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-клик), больше — реальный драг
-
-// Подписи зон — водяным текстом по центру каждой зоны, видны при отображении дроп-зон.
 // Императивный движок комнаты: владеет ОДНИМ Pixi Application, тикером и всеми объектами.
 // Никакого React-реконсайлера и «дерева нод на карту» — карты это простые CardVisual,
 // которые мы мутируем сами. Именно это отличает подход от прошлого (@pixi/react + краш).
@@ -153,8 +130,11 @@ export class RoomEngine {
   private cardLayer: Container | null = null; // сами карты (сортируется для риффла)
   private backTex: Texture | null = null; // рубашка (общая; стиль сменяем)
   private shadowTex: Texture | null = null;
-  private faceCache = new Map<string, Texture>(); // лицевые текстуры по ключу card|fourColor
-  private warmTimer: ReturnType<typeof setTimeout> | null = null; // фоновой прогрев текстур
+  // Лицевые текстуры: кэш + фоновой прогрев порциями (см. faceTextureCache.ts).
+  private faces = new FaceTextureCache<Texture>({
+    make: (card, fourColor) => makeCardFaceTexture(this.app!, card, fourColor),
+    destroy: (tex) => tex.destroy(true),
+  });
 
   // Чужие игроки за столом: данные (кто) + геометрия мест (где), см. seatLayout.ts.
   // Место игрока — прямоугольник и он же его дроп-зона.
@@ -242,8 +222,8 @@ export class RoomEngine {
   private deckCollapseWantShow = false;
   private collapseReveal = 0; // 0..1 появление: slide-up + fade
   private deckCollapseReveal = 0;
-  private collapseLayout: { x: number; y: number; r: number } | null = null;
-  private deckCollapseLayout: { x: number; y: number; r: number } | null = null;
+  private collapseLayout: ButtonLayout | null = null;
+  private deckCollapseLayout: ButtonLayout | null = null;
   private handCounter: Text | null = null; // счётчик карт под сложенной рукой
   private deckCounter: Text | null = null; // счётчик карт под колодой в центре (стопка и веер)
   private deckHit: Container | null = null;
@@ -415,21 +395,21 @@ export class RoomEngine {
 
     // Слои по zIndex: стол → места игроков → подсветка зон → тени → карты → хит колоды.
     this.tableG = new Graphics();
-    this.tableG.zIndex = 0;
+    this.tableG.zIndex = Z.table;
     this.seatLayer = new Container();
-    this.seatLayer.zIndex = 0.5; // под зонами и картами: места — часть «стола»
+    this.seatLayer.zIndex = Z.seats; // под зонами и картами: места — часть «стола»
     this.seatG = new Graphics();
     this.seatLayer.addChild(this.seatG);
     // Рамка фокуса рисуется НАД картами: она подсказывает, к чему сейчас относятся
     // кнопки панели, и не должна прятаться под стопкой.
     this.focusG = new Graphics();
-    this.focusG.zIndex = 9000;
+    this.focusG.zIndex = Z.focus;
     this.zoneLayer = new Graphics();
-    this.zoneLayer.zIndex = 1;
+    this.zoneLayer.zIndex = Z.zones;
     this.shadowLayer = new Container();
-    this.shadowLayer.zIndex = 2;
+    this.shadowLayer.zIndex = Z.shadows;
     this.cardLayer = new Container();
-    this.cardLayer.zIndex = 3;
+    this.cardLayer.zIndex = Z.cards;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
     this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer, this.focusG);
 
@@ -437,7 +417,7 @@ export class RoomEngine {
     (Object.keys(dropZoneRegions(this.layout)) as DropZone[]).forEach((z) => {
       const t = new Text({
         text: zoneTitle(z),
-        style: { fontFamily: "VT323, monospace", fontSize: 24, fill: 0xffffff, letterSpacing: 2 },
+        style: { fontFamily: PIXEL_FONT, fontSize: 24, fill: 0xffffff, letterSpacing: 2 },
       });
       t.anchor.set(0.5);
       t.visible = false;
@@ -449,7 +429,7 @@ export class RoomEngine {
     this.rejectText = new Text({
       text: REJECT_TEXT,
       style: {
-        fontFamily: "VT323, monospace",
+        fontFamily: PIXEL_FONT,
         fontSize: 64,
         fill: 0xff5a4a,
         stroke: { color: 0x2a0f0c, width: 6 },
@@ -459,12 +439,12 @@ export class RoomEngine {
     });
     this.rejectText.anchor.set(0.5);
     this.rejectText.visible = false;
-    this.rejectText.zIndex = 5000; // поверх карт (world.sortableChildren)
+    this.rejectText.zIndex = Z.rejectText; // поверх карт (world.sortableChildren)
     this.world.addChild(this.rejectText);
     this.styleZoneLabels();
 
-    this.backTex = this.makeCardBackTexture(app);
-    this.shadowTex = this.makeShadowTexture(app);
+    this.backTex = makeCardBackTexture(app, this.cardBack);
+    this.shadowTex = makeShadowTexture(app);
     this.baseScale = this.layout.cardH / TEX_H;
     this.buildTable();
 
@@ -485,7 +465,7 @@ export class RoomEngine {
     // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
     // всё, что под ней, рисуется одной Graphics (см. drawDeckBody).
     const body = new Graphics();
-    body.zIndex = 0.5; // над нижней картой (zIndex 0), под всеми остальными
+    body.zIndex = Z.deckBody; // над нижней картой (zIndex 0), под всеми остальными
     this.cardLayer.addChild(body);
     this.deckBody = body;
 
@@ -495,7 +475,7 @@ export class RoomEngine {
     const hit = new Container();
     hit.eventMode = "static";
     hit.cursor = "grab";
-    hit.zIndex = 10_000; // всегда над картами
+    hit.zIndex = Z.deckHit; // всегда над картами
     hit.on("pointerdown", (e: FederatedPointerEvent) => this.onDeckDown(e));
     // Тап по колоде (нажали и отпустили, не двигая) — выделение. Драг сюда не попадает.
     hit.on("pointertap", (e: FederatedPointerEvent) => {
@@ -514,7 +494,7 @@ export class RoomEngine {
     const collapse = new Container();
     collapse.eventMode = "static";
     collapse.cursor = "pointer";
-    collapse.zIndex = 10_500; // ВЫШЕ хит-зоны колоды (10 000): иначе её съедала полоса веера
+    collapse.zIndex = Z.collapseBtn; // ВЫШЕ хит-зоны колоды: иначе её съедала полоса веера
     collapse.visible = false;
     collapse.alpha = 0;
     collapse.addChild(new Graphics());
@@ -529,7 +509,7 @@ export class RoomEngine {
     const deckCollapse = new Container();
     deckCollapse.eventMode = "static";
     deckCollapse.cursor = "pointer";
-    deckCollapse.zIndex = 10_500;
+    deckCollapse.zIndex = Z.collapseBtn;
     deckCollapse.visible = false;
     deckCollapse.alpha = 0;
     deckCollapse.addChild(new Graphics());
@@ -541,27 +521,8 @@ export class RoomEngine {
     this.world.addChild(deckCollapse);
     this.deckCollapseBtn = deckCollapse;
 
-    const counter = new Text({
-      text: "",
-      style: { fontFamily: "VT323, monospace", fontSize: 20, fill: 0xd9b154, letterSpacing: 2 },
-    });
-    counter.anchor.set(0.5);
-    counter.visible = false;
-    counter.zIndex = 9200;
-    counter.eventMode = "none";
-    this.world.addChild(counter);
-    this.handCounter = counter;
-
-    const deckCounter = new Text({
-      text: "",
-      style: { fontFamily: "VT323, monospace", fontSize: 20, fill: 0xd9b154, letterSpacing: 2 },
-    });
-    deckCounter.anchor.set(0.5);
-    deckCounter.visible = false;
-    deckCounter.zIndex = 9200;
-    deckCounter.eventMode = "none";
-    this.world.addChild(deckCounter);
-    this.deckCounter = deckCounter;
+    this.handCounter = this.makeCounterText();
+    this.deckCounter = this.makeCounterText();
 
     this.syncCollapseButton();
     this.syncDeckCounter();
@@ -603,7 +564,7 @@ export class RoomEngine {
     const handHit = new Container();
     handHit.eventMode = "static";
     handHit.cursor = "pointer";
-    handHit.zIndex = 10_100;
+    handHit.zIndex = Z.handHit;
     handHit.on("pointerdown", (e: FederatedPointerEvent) => this.onHandDown(e));
     handHit.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
@@ -618,6 +579,20 @@ export class RoomEngine {
     app.ticker.add(this.tick);
     this.applyProfile(); // применить текущий профиль (FPS-кап, tilt) к свежему тикеру/картам
     this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
+  }
+
+  // Счётчик карт под стопкой (их два — под рукой и под колодой, различие только в позиции).
+  private makeCounterText(): Text {
+    const t = new Text({
+      text: "",
+      style: { fontFamily: PIXEL_FONT, fontSize: 20, fill: COLORS.gold, letterSpacing: 2 },
+    });
+    t.anchor.set(0.5);
+    t.visible = false;
+    t.zIndex = Z.counters;
+    t.eventMode = "none";
+    this.world!.addChild(t);
+    return t;
   }
 
   // Разбудить рендер-цикл (что-то будет двигаться). Идемпотентно.
@@ -908,226 +883,33 @@ export class RoomEngine {
     g.roundRect(x, y, w + pad * 2, h + pad * 2, 14).fill({ color: 0xffe08a, alpha: 0.08 });
   }
 
-
+  // Место игрока: прямоугольник с именем, числом карт и метками (дилер/готов/бот/пауза),
+  // плюс стопка/веер его руки. Вся отрисовка — в engine/seatPaint.ts.
   private drawSeats(): void {
     const g = this.seatG;
     const layer = this.seatLayer;
-    if (!g || !layer) return;
+    if (!g || !layer || !this.backTex) return;
     g.clear();
     this.seatTexts.forEach((t) => t.destroy());
-    this.seatTexts = [];
-    this.clearSeatHands();
-
-    const dragging = this.dragging || !!this.cardDrag;
-    const fontSize = Math.min(20, Math.max(11, this.layout.cardH * 0.22));
-
-    for (const box of this.seatBoxes) {
-      const seat = this.seats.find((s) => s.id === box.id);
-      if (!seat) continue;
-      const { cx, cy, w, h, r } = box.rect;
-      const x = cx - w / 2;
-      const y = cy - h / 2;
-      const hot = dragging && this.dealDrag && this.hoverSeat === seat.id;
-      // Раздача: готов → жёлтый, не готов → серый. Дилер всегда готов.
-      const seatOpen = isDealReady(seat.isReady, seat.isDealer);
-      const seatReadyTint = this.dealMode ? dealHandAccent(seatOpen) : null;
-      // Отключённый игрок («на паузе») — приглушён; дилер — золотая рамка вне раздачи.
-      const border =
-        seatReadyTint != null
-          ? seatReadyTint
-          : seat.isDealer
-            ? 0xf2c14e
-            : seat.connected
-              ? 0x8fa39a
-              : 0x5d6b64;
-      const alpha = seat.connected ? 1 : 0.45;
-
-      // Idle: только тонкая рамка-стиль (жёлтый/серый), без заливки и эффектов.
-      // Контент внутри не красим — цвет только у обводки зоны.
-      if (seatReadyTint == null) {
-        g.roundRect(x, y, w, h, r).fill({ color: 0x000000, alpha: 0.18 });
-      }
-      g.roundRect(x, y, w, h, r).stroke({
-        width: this.dealMode ? 2 : 2,
-        color: border,
-        alpha: seatReadyTint != null ? 0.22 * alpha : 0.55 * alpha,
-      });
-
-      // Режим руки соседа виден всем: 🔓 — его рука открыта, 🔒 — закрыта.
-      const marks = [seat.isBot ? "🤖" : "", seat.isDealer ? "♦" : "", seat.isReady ? "✓" : "", seat.handOpen ? "🔓" : "🔒"]
-        .filter(Boolean)
-        .join(" ");
-      const label = new Text({
-        text: marks ? `${seat.name} ${marks}` : seat.name,
-        style: {
-          fontFamily: "VT323, monospace",
-          fontSize,
-          fill: seat.connected ? 0xf5ead0 : 0x9aa8a2,
-          letterSpacing: 1,
-          align: "center",
-          wordWrap: true,
-          wordWrapWidth: Math.max(20, w - 10),
-        },
-      });
-      // Имя — к верхнему краю; середину в раздаче занимает стопка/веер руки.
-      label.anchor.set(0.5, 0);
-      label.x = cx;
-      label.y = y + 4;
-      layer.addChild(label);
-      this.seatTexts.push(label);
-
-      const visualCount = this.seatVisualCount(seat);
-      const handLayout = layoutSeatHand({
-        rect: box.rect,
-        count: visualCount,
-        handFanned: seat.handFanned,
-        dealMode: this.dealMode,
-        tableCardW: this.layout.cardW,
-        tableCardH: this.layout.cardH,
-      });
-      if (handLayout.kind !== "empty") {
-        this.paintSeatHand(seat, handLayout, visualCount);
-      } else {
-        // Вне раздачи (или пустая рука) — текстовый счётчик, как раньше.
-        const count = new Text({
-          text: visualCount > 0 ? `🂠 ${visualCount}` : "—",
-          style: { fontFamily: "VT323, monospace", fontSize, fill: 0xcdb98f, letterSpacing: 1 },
-        });
-        count.anchor.set(0.5, 1);
-        count.x = cx;
-        count.y = y + h - 4;
-        layer.addChild(count);
-        this.seatTexts.push(count);
-      }
-
-      // Ховер раздачи: плотный оверлей поверх контента бокса + действие.
-      if (hot && seatReadyTint != null) {
-        const overlay = new Graphics();
-        overlay.roundRect(x, y, w, h, r).fill({ color: seatReadyTint, alpha: 0.82 });
-        overlay.roundRect(x, y, w, h, r).stroke({ width: 4, color: 0xffe9a8, alpha: 0.95 });
-        overlay.eventMode = "none";
-        layer.addChild(overlay);
-        this.seatHandNodes.push(overlay);
-
-        const action = new Text({
-          text: dealSeatHoverLabel(seatOpen),
-          style: {
-            fontFamily: "VT323, monospace",
-            fontSize: Math.min(36, Math.max(18, h * 0.28)),
-            fill: 0x1a1f1c,
-            letterSpacing: 2,
-            align: "center",
-          },
-        });
-        action.anchor.set(0.5);
-        action.x = cx;
-        action.y = cy;
-        action.eventMode = "none";
-        layer.addChild(action);
-        this.seatTexts.push(action);
-      }
-    }
-  }
-
-  private clearSeatHands(): void {
     for (const n of this.seatHandNodes) n.destroy({ children: true });
-    this.seatHandNodes = [];
+
+    const painted = paintSeats(this.seats, this.seatBoxes, {
+      layer,
+      g,
+      backTex: this.backTex,
+      faceTex: (card) => this.faceTexFor(card),
+      cardBack: this.cardBack,
+      cardW: this.layout.cardW,
+      cardH: this.layout.cardH,
+      dealMode: this.dealMode,
+      hoverSeat: this.hoverSeat,
+      dealDragging: (this.dragging || !!this.cardDrag) && this.dealDrag,
+      visualCount: (seat) => this.seatVisualCount(seat),
+    });
+    this.seatTexts = painted.texts;
+    this.seatHandNodes = painted.nodes;
   }
 
-  // Стопка (закрытая) или веер (открытая) + цифровой счётчик под ними.
-  private paintSeatHand(seat: SeatView, L: SeatHandLayout, visualCount = seat.handCount): void {
-    const layer = this.seatLayer;
-    if (!layer || !this.backTex || L.cards.length === 0) return;
-    const root = new Container();
-    root.eventMode = "none";
-    root.alpha = seat.connected ? 1 : 0.45;
-
-    if (L.kind === "stack") this.paintSeatStack(root, seat, L);
-    else this.paintSeatFan(root, seat, L);
-
-    if (L.counter) {
-      const count = new Text({
-        text: String(visualCount),
-        style: {
-          fontFamily: "VT323, monospace",
-          fontSize: Math.max(11, Math.min(22, L.cardH * 0.38)),
-          fill: 0xd9b154,
-          letterSpacing: 1,
-        },
-      });
-      count.anchor.set(0.5);
-      count.x = L.counter.x;
-      count.y = L.counter.y;
-      root.addChild(count);
-    }
-
-    layer.addChild(root);
-    this.seatHandNodes.push(root);
-  }
-
-  // Стопка на месте: кирпич + верх. При handOpen верх — лицо (остальное рубашки).
-  private paintSeatStack(root: Container, seat: SeatView, L: SeatHandLayout): void {
-    const n = L.cards.length;
-    const w = L.cardW;
-    const h = L.cardH;
-    const r = Math.max(2, w * 0.1);
-    const bg = cardBackSkin(this.cardBack).bg;
-    const top = L.cards[n - 1]!;
-    const showFaces = seatCardFaceUp(seat.handOpen);
-
-    if (n >= 3) {
-      const g = new Graphics();
-      const back = L.cards[0]!;
-      g.roundRect(back.x - w / 2, back.y - h / 2, w, h, r)
-        .fill({ color: bg })
-        .stroke({ width: 1.2, color: CARD_EDGE.side });
-      for (const i of stackStripeIndices(n, anim.deck.stripeSpacing).filter((i) => i > 0)) {
-        const c = L.cards[i]!;
-        g.roundRect(c.x - w / 2, c.y - h / 2, w, h, r).fill({ color: bg });
-        g.moveTo(c.x - w / 2 + 0.6, c.y - h / 2 + r)
-          .lineTo(c.x - w / 2 + 0.6, c.y + h / 2 - r)
-          .stroke({ width: 1.2, color: CARD_EDGE.side });
-        g.moveTo(c.x - w / 2 + r, c.y + h / 2 - 0.6)
-          .lineTo(c.x + w / 2 - r, c.y + h / 2 - 0.6)
-          .stroke({ width: 1.2, color: CARD_EDGE.bottom });
-      }
-      root.addChild(g);
-    } else {
-      for (let i = 0; i < n - 1; i++) {
-        const c = L.cards[i]!;
-        const spr = new Sprite(this.backTex!);
-        spr.anchor.set(0.5);
-        spr.position.set(c.x, c.y);
-        spr.scale.set(L.cardH / TEX_H);
-        root.addChild(spr);
-      }
-    }
-
-    const topId = seat.hand[n - 1] ?? "";
-    const topTex = showFaces && topId ? this.faceTexFor(topId) : this.backTex!;
-    const topSpr = new Sprite(topTex);
-    topSpr.anchor.set(0.5);
-    topSpr.position.set(top.x, top.y);
-    topSpr.scale.set(L.cardH / TEX_H);
-    root.addChild(topSpr);
-  }
-
-  // Веер на месте. Лица — только если handOpen; иначе рубашки (закрытый веер).
-  private paintSeatFan(root: Container, seat: SeatView, L: SeatHandLayout): void {
-    const ids = seat.hand;
-    const showFaces = seatCardFaceUp(seat.handOpen);
-    for (let i = 0; i < L.cards.length; i++) {
-      const c = L.cards[i]!;
-      const id = ids[i] ?? "";
-      const tex = showFaces && id ? this.faceTexFor(id) : this.backTex!;
-      const spr = new Sprite(tex);
-      spr.anchor.set(0.5);
-      spr.position.set(c.x, c.y);
-      spr.rotation = c.rot;
-      spr.scale.set(L.cardH / TEX_H);
-      root.addChild(spr);
-    }
-  }
 
   // Скин рубашки: перерисовываем текстуру и раздаём её картам (лица не трогаем).
   setCardBack(id: CardBackId): void {
@@ -1135,7 +917,7 @@ export class RoomEngine {
     this.cardBack = id;
     if (!this.app) return;
     const old = this.backTex;
-    this.backTex = this.makeCardBackTexture(this.app);
+    this.backTex = makeCardBackTexture(this.app, this.cardBack);
     this.applyCardTextures();
     this.drawDeckBody(); // торцы блока красятся под скин
     this.drawSeats(); // чужие стопки/вееры на местах
@@ -2291,71 +2073,26 @@ export class RoomEngine {
   // Зоны видны ВСЕГДА, но по-разному. В покое — еле заметные очертания и подпись, что это
   // за зона: игрок понимает разметку стола, не отвлекаясь на неё. Во время драга зоны
   // заливаются оверлеем, а подпись меняется на ДЕЙСТВИЕ — что будет, если бросить сюда.
+  // Сами правила — в engine/zoneChrome.ts, рисование — в engine/zonePaint.ts.
   private drawZones(): void {
-    const g = this.zoneLayer;
-    if (!g) return;
-    g.clear();
-    const dragging = this.dragging || !!this.cardDrag;
-    const dragged: DraggedKind = this.cardDrag ? "card" : "deck";
-    const regions = dropZoneRegions(this.layout);
-    const myReady = this.selfDealReady();
-    (Object.keys(regions) as DropZone[]).forEach((z) => {
-      const { rect } = regions[z];
-      const label = this.zoneLabels[z];
-      if (rect.w <= 0 || rect.h <= 0) {
-        if (label) label.visible = false;
-        return;
-      }
-      const active = dragging && this.hoverZone?.zone === z;
-      // В раздаче полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
-      const base = this.dealMode && z === "hand" ? dealHandAccent(myReady) : 0xd9b154;
-      const hot = 0xffe9a8;
-      const x = rect.cx - rect.w / 2;
-      const y = rect.cy - rect.h / 2;
-      const dealHand = this.dealMode && z === "hand";
-
-      if (active && dealHand) {
-        // Ховер раздачи: плотный оверлей. Idle — без заливки, только тихая рамка.
-        g.roundRect(x, y, rect.w, rect.h, rect.r).fill({ color: base, alpha: 0.82 });
-      } else if (active) g.roundRect(x, y, rect.w, rect.h, rect.r).fill({ color: 0xffe08a, alpha: 0.16 });
-      else if (dragging) g.roundRect(x, y, rect.w, rect.h, rect.r).fill({ color: base, alpha: 0.06 });
-
-      g.roundRect(x, y, rect.w, rect.h, rect.r).stroke({
-        width: active ? 5 : dragging ? 2.5 : 1.5,
-        color: active ? hot : base,
-        alpha: active ? 0.95 : dragging ? 0.4 : dealHand ? 0.18 : 0.16,
-      });
-
-      if (label) {
-        if (active && dealHand) label.text = dealSeatHoverLabel(true); // себе всегда можно
-        else if (dragging) label.text = zoneAction(z, dragged);
-        else label.text = zoneTitle(z);
-        label.x = rect.cx;
-        label.y = rect.cy;
-        label.visible = true;
-        label.tint = active && dealHand ? 0x1a1f1c : active ? hot : base;
-        label.alpha = active ? (dealHand ? 0.95 : 0.75) : dragging ? 0.35 : dealHand ? 0.12 : 0.14;
-      }
+    if (!this.zoneLayer) return;
+    paintZones({
+      g: this.zoneLayer,
+      labels: this.zoneLabels,
+      layout: this.layout,
+      dragging: this.dragging || !!this.cardDrag,
+      hoverZone: this.hoverZone,
+      dragged: (this.cardDrag ? "card" : "deck") as DraggedKind,
+      dealMode: this.dealMode,
+      myReady: this.selfDealReady(),
     });
   }
 
   // Размер шрифта подписей/«низяяя» от размера карты (обновляется на ресайзе).
   private styleZoneLabels(): void {
-    const base = Math.min(44, Math.max(14, this.layout.cardH * 0.5));
-    const regions = dropZoneRegions(this.layout);
-    for (const z of Object.keys(this.zoneLabels) as DropZone[]) {
-      const t = this.zoneLabels[z];
-      if (!t) continue;
-      // Подпись не должна вылезать за свою зону — ужимаем по её ширине.
-      const rect = regions[z].rect;
-      // Считаем по САМОЙ ДЛИННОЙ подписи зоны: во время драга текст меняется на действие,
-      // и размер шрифта не должен из-за этого прыгать.
-      const longest = Math.max(zoneTitle(z).length, zoneAction(z, "deck").length, zoneAction(z, "card").length);
-      const fit = (rect.w * 0.9) / Math.max(1, longest * 0.62);
-      t.style.fontSize = Math.max(9, Math.min(base, fit));
-    }
-    if (this.rejectText) this.rejectText.style.fontSize = Math.min(110, Math.max(34, this.layout.cardH * 1.2));
+    styleZoneLabels(this.zoneLabels, this.layout, this.rejectText);
   }
+
 
 
   // «низяяя» по центру экрана во время отскока: та же тряска, что и у колоды, плюс
@@ -2440,17 +2177,7 @@ export class RoomEngine {
   }
 
   private nearestHandFanIndex(x: number): number {
-    if (this.hand.length === 0) return 0;
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < this.hand.length; i++) {
-      const d = Math.abs(this.hand[i]!.sprite.x - x);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    }
-    return best;
+    return nearestIndexByX(this.hand.map((c) => c.sprite.x), x);
   }
 
   private positionHandHit(): void {
@@ -2566,23 +2293,18 @@ export class RoomEngine {
     if (!sc) return;
     sc.t += dt;
     if (sc.t >= sc.nextAt) {
-      const n = this.cards.length;
       const slots = this.cards.map((_, i) => this.restTarget(i));
-      const perm = [...Array(n).keys()];
-      for (let i = n - 1; i > 0; i--) {
-        const k = Math.floor(Math.random() * (i + 1));
-        [perm[i], perm[k]] = [perm[k], perm[i]];
-      }
-      const rise = this.layout.cardH * 0.3;
+      const perm = randomPermutation(this.cards.length);
+      const rise = this.layout.cardH * SCRAMBLE_RISE;
       this.cards.forEach((c, i) => {
-        const s = slots[perm[i]];
-        c.body.setTarget({ x: s.x ?? 0, y: (s.y ?? 0) - rise, rot: (s.rot ?? 0) + (Math.random() * 2 - 1) * 0.15 });
-        c.sprite.zIndex = perm[i];
+        const s = slots[perm[i]!]!;
+        c.body.setTarget({ x: s.x ?? 0, y: (s.y ?? 0) - rise, rot: (s.rot ?? 0) + scrambleRot() });
+        c.sprite.zIndex = perm[i]!;
       });
-      sc.nextAt = sc.t + 0.16;
+      sc.nextAt = sc.t + SCRAMBLE_STEP_SEC;
     }
     // Страховка от «вечного» сумбура, если новый порядок так и не пришёл.
-    if (sc.t > 1.4) {
+    if (sc.t > SCRAMBLE_MAX_SEC) {
       this.scrambleAnim = null;
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     }
@@ -2799,10 +2521,7 @@ export class RoomEngine {
     this.cardLayer = null;
     this.backTex = null;
     this.shadowTex = null;
-    if (this.warmTimer !== null) clearTimeout(this.warmTimer);
-    this.warmTimer = null;
-    this.faceCache.forEach((t) => t.destroy(true));
-    this.faceCache.clear();
+    this.faces.clear(); // снимает прогрев и освобождает лицевые текстуры
     this.deckHit = null;
     this.handHit = null;
     this.onDeckDrop = null;
@@ -3013,26 +2732,30 @@ export class RoomEngine {
 
     // Всё осело, нет растасовки/драга/отбоя И нет живой idle → усыпляем цикл. При
     // включённой idle-анимации цикл не спит (карты постоянно чуть «дышат»).
-    const collapseBusy = this.collapseReveal !== (this.collapseWantShow ? 1 : 0);
+    // Список активностей — в engine/idleGate.ts: новая непрерывная анимация обязана
+    // появиться там, иначе цикл либо уснёт под ней, либо больше не заснёт никогда.
     if (
-      !this.shuffleAnim &&
-      !this.scrambleAnim &&
-      !this.splashAnim &&
-      this.cardFlights.length === 0 &&
-      !this.pendingShuffle &&
-      !this.flipAnim &&
-      !this.stretchAnim &&
-      !this.notice &&
-      !this.press &&
-      !this.cardPress &&
-      !this.cardDrag &&
-      !this.reject &&
-      !collapseBusy &&
-      !this.idleRunning() &&
-      !this.fanWiggling &&
-
-      this.cards.every((c) => c.body.isResting()) &&
-      this.hand.every((c) => c.body.isResting())
+      canSleep({
+        shuffle: !!this.shuffleAnim,
+        scramble: !!this.scrambleAnim,
+        splash: !!this.splashAnim,
+        pendingShuffle: !!this.pendingShuffle,
+        flip: !!this.flipAnim,
+        stretch: !!this.stretchAnim,
+        notice: !!this.notice,
+        reject: !!this.reject,
+        flights: this.cardFlights.length,
+        press: !!this.press,
+        cardPress: !!this.cardPress,
+        cardDrag: !!this.cardDrag,
+        collapseBusy:
+          this.collapseReveal !== (this.collapseWantShow ? 1 : 0) ||
+          this.deckCollapseReveal !== (this.deckCollapseWantShow ? 1 : 0),
+        idle: this.idleRunning(),
+        fanWiggle: this.fanWiggling,
+        cardsResting: this.cards.every((c) => c.body.isResting()),
+        handResting: this.hand.every((c) => c.body.isResting()),
+      })
     ) {
       this.sleep();
     }
@@ -3217,86 +2940,21 @@ export class RoomEngine {
     this.applyCardTextures();
   }
 
-  // Лицевые текстуры генерятся лениво, и первый же переворот требовал их все сразу —
-  // 36-52 генерации в одном кадре давали заметный «тупняк» именно на ПЕРВОМ перевороте.
-  // Поэтому греем их заранее, маленькими порциями между кадрами.
+  // Прогреть лицевые текстуры заранее, порциями (иначе первый переворот генерил все 52
+  // разом и заметно «тупил»). Что именно греть — колода, моя рука и открытые чужие руки.
   private warmFaceTextures(): void {
-    if (this.warmTimer !== null || this.destroyed || !this.app) return;
+    if (this.destroyed || !this.app) return;
     const openHands = this.seats.filter((s) => s.handOpen || s.handFanned).flatMap((s) => s.hand);
-    const queue = [...this.deckCards, ...this.handCards, ...openHands].filter(
-      (c) => !this.faceCache.has(`${c}|${this.fourColor ? 1 : 0}`),
+    this.faces.warm(
+      [...this.deckCards, ...this.handCards, ...openHands],
+      this.fourColor,
+      () => !this.destroyed && !!this.app,
     );
-    if (queue.length === 0) return;
-    let i = 0;
-    const step = () => {
-      this.warmTimer = null;
-      if (this.destroyed || !this.app) return;
-      for (let k = 0; k < 3 && i < queue.length; k++, i++) this.faceTexFor(queue[i]);
-      if (i < queue.length) this.warmTimer = setTimeout(step, 16);
-    };
-    this.warmTimer = setTimeout(step, 0);
   }
 
   private faceTexFor(card: string): Texture {
-    const key = `${card}|${this.fourColor ? 1 : 0}`;
-    let tex = this.faceCache.get(key);
-    if (!tex) {
-      tex = this.makeCardFaceTexture(card);
-      this.faceCache.set(key, tex);
-    }
-    return tex;
-  }
-
-  // «Бумажная» кромка карты: низ — серый, бока — темнее серым. В стопке карты сдвинуты
-  // вниз-влево, поэтому видно именно нижний и левый срезы соседней карты — они и создают
-  // ощущение толщины бумаги при свете сверху справа.
-  private drawCardEdges(g: Graphics): void {
-    const e = CARD_EDGE;
-    const r = 16;
-    // бока (весь контур) — тёмно-серый
-    g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, r).stroke({ width: e.width, color: e.side });
-    // низ — светлее: прямая по нижнему срезу, между скруглениями углов
-    g.moveTo(2 + r, TEX_H - 2 - e.width / 2)
-      .lineTo(TEX_W - 2 - r, TEX_H - 2 - e.width / 2)
-      .stroke({ width: e.width, color: e.bottom });
-  }
-
-  // Лицевая текстура: кремовый фон, ранг+масть по углам и крупный символ по центру
-  // (для J/Q/K — буква-заглушка, картинки добавим позже), цвет по масти (четырёхцв./классика).
-  private makeCardFaceTexture(card: string): Texture {
     if (!this.app) return this.backTex!;
-    const { rank, suit } = parseCard(card);
-    const color = suitColor(suit, this.fourColor);
-    const root = new Container();
-
-    const bg = new Graphics();
-    bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xf4ecd8 });
-    this.drawCardEdges(bg);
-    root.addChild(bg);
-
-    const cornerStyle = { fontFamily: "VT323, monospace", fontSize: 40, fill: color, align: "center" as const, lineHeight: 34 };
-    const tl = new Text({ text: `${rank}\n${suit}`, style: cornerStyle });
-    tl.anchor.set(0.5);
-    tl.position.set(28, 42);
-    root.addChild(tl);
-    const br = new Text({ text: `${rank}\n${suit}`, style: cornerStyle });
-    br.anchor.set(0.5);
-    br.position.set(TEX_W - 28, TEX_H - 42);
-    br.rotation = Math.PI;
-    root.addChild(br);
-
-    const court = isCourt(rank);
-    const center = new Text({
-      text: court ? rank : suit,
-      style: { fontFamily: "VT323, monospace", fontSize: court ? 96 : 120, fill: color },
-    });
-    center.anchor.set(0.5);
-    center.position.set(TEX_W / 2, TEX_H / 2 + 6);
-    root.addChild(center);
-
-    const tex = this.app.renderer.generateTexture({ target: root, resolution: 2 });
-    root.destroy({ children: true });
-    return tex;
+    return this.faces.get(card, this.fourColor);
   }
 
   // Колода лежит лицом вверх? Смотрим по верхней карте: от этого зависит, в какую
@@ -3307,6 +2965,7 @@ export class RoomEngine {
   }
 
   // Стрелки «сложить»: рука — всем; колода — только дилеру. Могут быть обе сразу.
+  // Раскладка и отрисовка кнопки — в engine/collapseArrow.ts.
   private syncCollapseButton(): void {
     const cardH = this.layout.cardH;
     const handFan = this.dealMode
@@ -3318,99 +2977,40 @@ export class RoomEngine {
     this.deckCollapseWantShow = deckFanBtn;
 
     if (handFan && this.collapseBtn) {
-      const z = this.layout.handZone;
       const fan = this.dealMode ? this.handFanGeom() : this.fanGeom();
-      const fit = fitCollapseButton({
-        cx: z.cx,
-        cardBottomY: collapseAnchorBottom(fan.anchor.y - cardH / 2, cardH),
-        minR: Math.max(14, cardH * 0.24),
-        maxR: cardH * anim.fan.collapse.hitRatio,
-        obstacles: [],
-      });
-      this.collapseLayout = { x: fit.x, y: fit.y, r: fit.r };
-      this.paintCollapseArrow(this.collapseBtn, fit.r);
+      this.collapseLayout = layoutCollapseButton(this.layout.handZone.cx, fan, cardH);
+      paintCollapseArrow(this.collapseBtn, this.collapseLayout.r);
     }
 
     if (deckFanBtn && this.deckCollapseBtn) {
-      const z = this.layout.centerZone;
-      const fan = this.deckFanGeom();
-      const fit = fitCollapseButton({
-        cx: z.cx,
-        cardBottomY: collapseAnchorBottom(fan.anchor.y - cardH / 2, cardH),
-        minR: Math.max(14, cardH * 0.24),
-        maxR: cardH * anim.fan.collapse.hitRatio,
-        obstacles: [],
-      });
-      this.deckCollapseLayout = { x: fit.x, y: fit.y, r: fit.r };
-      this.paintCollapseArrow(this.deckCollapseBtn, fit.r);
+      this.deckCollapseLayout = layoutCollapseButton(this.layout.centerZone.cx, this.deckFanGeom(), cardH);
+      paintCollapseArrow(this.deckCollapseBtn, this.deckCollapseLayout.r);
     }
 
     this.applyCollapseReveal();
   }
 
-  private paintCollapseArrow(btn: Container, hitR: number): void {
-    const visR = hitR * anim.fan.collapse.visualRatio;
-    const g = btn.children[0] as Graphics;
-    g.clear();
-    g.circle(0, 0, visR).fill({ color: 0x14281c, alpha: 0.72 }).stroke({ width: 3, color: 0xd9b154, alpha: 0.65 });
-    g.poly([-visR * 0.44, -visR * 0.16, visR * 0.44, -visR * 0.16, 0, visR * 0.42]).fill({
-      color: 0xd9b154,
-      alpha: 0.95,
-    });
-    btn.hitArea = new Circle(0, 0, hitR);
-  }
-
+  // Фаза появления обеих стрелок едет к своей цели; перерисовываем, только если сдвинулась.
   private stepCollapseReveal(dt: number): void {
-    const dur = Math.max(0.05, anim.fan.collapse.reveal.dur / Math.max(1, this.profile.speed));
-    const step = dt / dur;
-    const handT = this.collapseWantShow ? 1 : 0;
-    const deckT = this.deckCollapseWantShow ? 1 : 0;
-    let changed = false;
-    if (this.collapseReveal !== handT) {
-      this.collapseReveal = handT > this.collapseReveal
-        ? Math.min(1, this.collapseReveal + step)
-        : Math.max(0, this.collapseReveal - step);
-      changed = true;
-    }
-    if (this.deckCollapseReveal !== deckT) {
-      this.deckCollapseReveal = deckT > this.deckCollapseReveal
-        ? Math.min(1, this.deckCollapseReveal + step)
-        : Math.max(0, this.deckCollapseReveal - step);
-      changed = true;
-    }
-    if (changed) this.applyCollapseReveal();
+    const speed = this.profile.speed;
+    const hand = stepReveal(this.collapseReveal, this.collapseWantShow, dt, speed);
+    const deck = stepReveal(this.deckCollapseReveal, this.deckCollapseWantShow, dt, speed);
+    if (hand === this.collapseReveal && deck === this.deckCollapseReveal) return;
+    this.collapseReveal = hand;
+    this.deckCollapseReveal = deck;
+    this.applyCollapseReveal();
   }
 
   private applyCollapseReveal(): void {
-    this.applyOneCollapseReveal(this.collapseBtn, this.collapseLayout, this.collapseReveal, this.collapseWantShow);
-    this.applyOneCollapseReveal(
+    const cardH = this.layout.cardH;
+    applyCollapseReveal(this.collapseBtn, this.collapseLayout, this.collapseReveal, this.collapseWantShow, cardH);
+    applyCollapseReveal(
       this.deckCollapseBtn,
       this.deckCollapseLayout,
       this.deckCollapseReveal,
       this.deckCollapseWantShow,
+      cardH,
     );
-  }
-
-  private applyOneCollapseReveal(
-    btn: Container | null,
-    layout: { x: number; y: number; r: number } | null,
-    reveal: number,
-    wantShow: boolean,
-  ): void {
-    if (!btn) return;
-    if (!layout || (reveal <= 0 && !wantShow)) {
-      btn.visible = false;
-      btn.alpha = 0;
-      btn.eventMode = "none";
-      return;
-    }
-    const slide = this.layout.cardH * anim.fan.collapse.reveal.slide;
-    const pose = collapseRevealPose(reveal, layout.y, slide);
-    btn.visible = true;
-    btn.x = layout.x;
-    btn.y = pose.y;
-    btn.alpha = pose.alpha;
-    btn.eventMode = reveal > 0.85 ? "static" : "none";
   }
 
   private rowMode(): boolean {
@@ -3511,54 +3111,35 @@ export class RoomEngine {
     t.y = a.y + (this.layout.cardH / 2) * zs + ext.h * zs + this.rowCounterSpace() * 0.45;
   }
 
-  // Только для веера РУКИ (полоса снизу): якорь у верха зоны, провис и кнопка — вниз.
-  // Колода в центре — layoutDeckFan / deckFanGeom, якорь = deckAnchor.
-  private fanGeomFor(
-    zone: { cx: number; cy: number; w: number; h: number },
-    focused: boolean,
-  ): { anchor: { x: number; y: number }; width: number; angleDeg: number } {
-    const cardH = this.layout.cardH;
-    const anchor = { x: zone.cx, y: zone.cy - zone.h / 2 + cardH * 0.55 };
-    const angleDeg = focused ? anim.fan.maxAngleDeg : anim.fan.maxAngleDeg * anim.fan.idle.angleScale;
-    const maxA = (angleDeg * Math.PI) / 180;
-    const reserved = cardH * 2 * anim.fan.collapse.hitRatio;
-    const sagMax = Math.max(1, zone.h - cardH * 1.15 - reserved);
-    const byHeight = maxA > 0 ? (2 * sagMax * Math.sin(maxA)) / (1 - Math.cos(maxA)) : Infinity;
-    const fit = Math.min(zone.w, byHeight / anim.fan.widthFactor);
-    const width = focused ? fit : fit * anim.fan.idle.widthScale;
-    return { anchor, width, angleDeg };
+  // Веер РУКИ (полоса снизу): якорь у верха зоны, провис и кнопка — вниз. Формула целиком
+  // в engine/fanGeometry.ts; здесь только подстановка текущего состояния.
+  // Колода в центре — своя геометрия (layoutDeckFan / deckFanGeom), якорь = deckAnchor.
+  private handFanGeomFor(focused: boolean, count: number): FanGeom {
+    // Драг руки допускает более широкий шаг: иначе «дырку» под карту не видно.
+    const draggingHand = !!this.cardDrag && (this.cardDrag.fromHand || (!this.dealMode && !this.dealDrag));
+    return handFanGeom({
+      zone: this.layout.handZone,
+      cardW: this.layout.cardW,
+      cardH: this.layout.cardH,
+      count,
+      focused,
+      dragging: draggingHand,
+    });
   }
 
   // Геометрия веера в руке (legacy колода-в-руке или Player.hand).
-  private fanGeom(): { anchor: { x: number; y: number }; width: number; angleDeg: number } {
-    const g = this.fanGeomFor(this.layout.handZone, this.handFocused);
-    const count = this.dealMode ? this.handCount : this.deckCount;
-    return this.clampHandFanGeom(g, count);
+  private fanGeom(): FanGeom {
+    return this.handFanGeomFor(this.handFocused, this.dealMode ? this.handCount : this.deckCount);
   }
 
-  private handFanGeom(): { anchor: { x: number; y: number }; width: number; angleDeg: number } {
-    return this.clampHandFanGeom(this.fanGeomFor(this.layout.handZone, true), this.handCount);
-  }
-
-  // Нижний веер: при малом числе карт не растягивать шаг на всю полосу и не гнуть
-  // крайние на полный maxAngleDeg (две карты — почти плоско).
-  private clampHandFanGeom(
-    g: { anchor: { x: number; y: number }; width: number; angleDeg: number },
-    count: number,
-  ): { anchor: { x: number; y: number }; width: number; angleDeg: number } {
-    const draggingHand = !!this.cardDrag && (this.cardDrag.fromHand || (!this.dealMode && !this.dealDrag));
-    const maxStep = draggingHand ? anim.fan.maxStepDrag : anim.fan.maxStepIdle;
-    return {
-      ...g,
-      width: clampFanWidth(g.width, count, this.layout.cardW, anim.fan.widthFactor, maxStep),
-      angleDeg: fanMaxAngleDeg(count, g.angleDeg, anim.fan.maxStepAngleDeg),
-    };
+  private handFanGeom(): FanGeom {
+    return this.handFanGeomFor(true, this.handCount);
   }
 
   // Веер колоды в центре: якорь = якорь стопки (рядом со счётчиком).
   // НЕ fanGeomFor(centerZone) — та формула для руки (якорь у верха полосы), от неё веер
   // улетал на «вышку» при открытии.
-  private deckFanGeom(): { anchor: { x: number; y: number }; width: number; angleDeg: number } {
+  private deckFanGeom(): FanGeom {
     return layoutDeckFan({
       stackAnchor: this.layout.deckAnchor,
       zone: this.layout.centerZone,
@@ -3660,16 +3241,7 @@ export class RoomEngine {
 
   // Индекс карты веера, ближайшей по x к точке тыка (по текущим позициям спрайтов).
   private nearestFanIndex(x: number): number {
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < this.cards.length; i++) {
-      const d = Math.abs(this.cards[i].sprite.x - x);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    }
-    return best;
+    return nearestIndexByX(this.cards.map((c) => c.sprite.x), x);
   }
 
   // Тык по вееру колоды: даже если рука тоже открыта — волна идёт по колоде.
@@ -3909,54 +3481,4 @@ export class RoomEngine {
     this.tableG?.clear();
   }
 
-  // Рубашка по выбранному скину (см. cardBack.ts — там палитра и геометрия узора).
-  private makeCardBackTexture(app: Application): Texture {
-    const skin = cardBackSkin(this.cardBack);
-    const g = new Graphics();
-    g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16)
-      .fill({ color: skin.bg })
-      .stroke({ width: 5, color: skin.border });
-
-    if (skin.pattern === "lattice") {
-      // «Квадраторомб»: шахматка из ромбов и квадратов, как на классической рубашке.
-      const r = 13;
-      for (const p of latticeCenters(TEX_W, TEX_H, 4, 6, 22)) {
-        const color = skin.ink[p.odd ? 1 : 0];
-        if (p.odd) {
-          g.rect(p.x - r * 0.72, p.y - r * 0.72, r * 1.44, r * 1.44).fill({ color });
-        } else {
-          g.poly([p.x, p.y - r, p.x + r, p.y, p.x, p.y + r, p.x - r, p.y]).fill({ color });
-        }
-      }
-    } else {
-      // Мозаика: плитки встык, три оттенка синего по детерминированному узору.
-      for (const t of mosaicTiles(TEX_W, TEX_H, 5, 7, 20)) {
-        g.rect(t.x + 1, t.y + 1, t.w - 2, t.h - 2).fill({ color: skin.ink[t.shade] });
-      }
-    }
-
-    g.roundRect(16, 16, TEX_W - 32, TEX_H - 32, 10).stroke({ width: 3, color: skin.inner });
-    this.drawCardEdges(g);
-    const tex = app.renderer.generateTexture({ target: g, resolution: 2 });
-    g.destroy();
-    return tex;
-  }
-
-  // Мягкая тень: вложенные скруглённые прямоугольники с растущей прозрачностью имитируют
-  // размытый край (дёшево, без blur-фильтра). Рисуется в текстуру ОДИН раз и живёт как
-  // единственный спрайт под колодой, поэтому перекрытий/накопления альфы нет.
-  private makeShadowTexture(app: Application): Texture {
-    const g = new Graphics();
-    const layers = 8; // больше слоёв — мягче градиент края
-    for (let i = layers; i >= 1; i--) {
-      const grow = i * 5;
-      g.roundRect(2 - grow, 2 - grow, TEX_W - 4 + grow * 2, TEX_H - 4 + grow * 2, 16 + grow).fill({
-        color: 0x000000,
-        alpha: 0.1,
-      });
-    }
-    const tex = app.renderer.generateTexture({ target: g, resolution: 2 });
-    g.destroy();
-    return tex;
-  }
 }
