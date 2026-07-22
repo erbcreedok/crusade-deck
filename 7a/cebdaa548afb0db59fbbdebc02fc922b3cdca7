@@ -1,0 +1,85 @@
+client/src/theme.css
+  s_45aab95818ff9f::t_7e91b37a90fb5a 453-462,467,471-473,477,479-515,519-522,524-525,528,532-533,535,538-539,546,548-550,554,557-558,576-579,581,585-586
+  s_45aab95818ff9f::t_5e8c941130e666 516-518,523,526-527,529-531,534,536-537,540-545,547,551-553,555-556,559-575,580,582-584,587
+server/src/CardRoom.test.ts
+  s_45aab95818ff9f::t_45c4022c92e4c1 264
+  s_45aab95818ff9f::t_e18e6dbe0beae8 157,162,166-167,170,174-175,178-179,182-184,187,190-191,194,199,203,205,207-238,247
+client/src/game/layout.ts
+  s_45aab95818ff9f::t_33a9723e304e8f 42-44,47,66-69
+  s_45aab95818ff9f::t_92bd7ddcbbd41f 15-21,23-24,29-30,62-63,70-82,93-103,109-119
+  s_45aab95818ff9f::t_b4ea9edf838869 106-107
+  s_45aab95818ff9f::t_bfa7ce813126b1 64-65,83-85,88-91
+  s_45aab95818ff9f::t_efd361780b1b39 61
+client/src/game/dropZones.ts
+  s_45aab95818ff9f::t_b6b74a3a0e14f7 4-14,24-25,39-48,52-64
+client/src/game/seats.test.ts
+  s_45aab95818ff9f::t_def0258e4186f0 11
+client/src/game/deckZone.ts
+  s_45aab95818ff9f::t_40b5d8c43711ee 1-8,10-15,17,20-29
+client/src/game/layout.test.ts
+  s_45aab95818ff9f::t_c6aa8999992128 12,18,22,24-49,55-56,103
+  s_45aab95818ff9f::t_31c162fd22e833 118-147
+client/src/game/dropZones.test.ts
+  s_45aab95818ff9f::t_b6b74a3a0e14f7 3,6,9-10,13-14,17-20,24,27,29-36
+client/src/game/RoomEngine.ts
+  s_45aab95818ff9f::t_53962cb06056dd 2159
+  s_45aab95818ff9f::t_cf0c2d1105f9e2 676-677,679,686-687,691,769
+  s_45aab95818ff9f::t_b37c57ca265292 1112,1115-1116
+  s_45aab95818ff9f::t_def0258e4186f0 595-596
+  s_45aab95818ff9f::t_c7c1d897e257b0 1129,1388,2124-2138,2141,2145-2146,2156
+  s_45aab95818ff9f::t_6477ccf5734d45 139,528-535,545,1599
+  s_45aab95818ff9f::t_9c708fcca9d940 1282,1289-1291,1294,1298,1300-1314
+  s_45aab95818ff9f::t_50a5b750b2c609 2014-2016
+  s_45aab95818ff9f::t_99403e9f5e808c 158,195,720,783-786,839,880,901,922,933-940,964,1090,1092-1095,1099,1143,1381,1505,2117,2163,2191,2301,2317
+  s_45aab95818ff9f::t_2a50b0e2fe30de 300-302
+  s_45aab95818ff9f::t_df57275deefe76 1327-1328,1331-1336
+  s_45aab95818ff9f::t_91fcfbfeaa0cfb 1126,1365,1367-1368,1370-1371,1382
+  s_45aab95818ff9f::t_8241b26d7f07ea 16,110,196,772
+  s_45aab95818ff9f::t_1b1ce0dc61d62b 1341
+client/src/game/deckStack.ts
+  s_45aab95818ff9f::t_9c708fcca9d940 27-29,33-34
+client/src/game/RoomCanvas.tsx
+  s_45aab95818ff9f::t_6d3be2d9ca2b59 17,49,106,129-130
+  s_45aab95818ff9f::t_6477ccf5734d45 15,47,77,80,96,141-143
+  s_45aab95818ff9f::t_9c708fcca9d940 26
+client/src/ActionBar.tsx
+  s_45aab95818ff9f::t_6c41a864b0759d 1-57,84-127
+  s_45aab95818ff9f::t_5e8c941130e666 58-83
+server/src/CardRoom.ts
+  s_45aab95818ff9f::t_45c4022c92e4c1 27-29,184-214,216-217
+client/src/game/flip.test.ts
+  s_45aab95818ff9f::t_bd1a0a3c6f536c 2
+client/src/ActionBar.test.tsx
+  s_45aab95818ff9f::t_2d43c537cf3236 1-107
+server/src/GameState.ts
+  s_45aab95818ff9f::t_45c4022c92e4c1 8-10,41-42,44-47
+client/src/game/deckStack.test.ts
+  s_45aab95818ff9f::t_9c708fcca9d940 136,138,141-145
+client/src/RoomScreen.tsx
+  s_45aab95818ff9f::t_f62b99c32b8587 4,310-332,391-394
+  s_45aab95818ff9f::t_6477ccf5734d45 165-178,369
+  s_45aab95818ff9f::t_cf0c2d1105f9e2 24,91,305-307
+  s_45aab95818ff9f::t_6d3be2d9ca2b59 7,57-58,110,183-186,188-189,196,198-199,371
+client/src/game/seats.ts
+  s_45aab95818ff9f::t_def0258e4186f0 12
+client/src/game/deckZone.test.ts
+  s_45aab95818ff9f::t_40b5d8c43711ee 2,6-8,12,15-16,19-20,23-25,28-33
+client/src/game/anim/config.ts
+  s_45aab95818ff9f::t_9c708fcca9d940 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7acebdaa548afb0db59fbbdebc02fc922b3cdca7",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
