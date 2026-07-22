@@ -71,7 +71,7 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
   }, [onDeckDrop]);
   useEffect(() => {
     engineRef.current?.setAnimationProfile(resolveProfile(animation));
-  }, [animation.level, animation.speed]);
+  }, [animation.level, animation.speed, animation.shadows]);
 
   return <div className="room-canvas" ref={wrapRef} />;
 });
