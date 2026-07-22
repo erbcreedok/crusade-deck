@@ -1,0 +1,27 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_b2d6870baddbca 70-72,1268-1281,1291-1292,1509
+  s_3b000dfed76439::t_8c8eb2a3ab7308 28,710-711,719,721-722,1188-1190,1207-1209,1323-1324
+client/src/game/deckStack.ts
+  s_3b000dfed76439::t_f97febeaa408d7 1-13,16-26
+  s_3b000dfed76439::t_b4a91278982903 14-15
+client/src/game/deckStack.test.ts
+  s_3b000dfed76439::t_906bc974d3f3cc 1-55
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_f97febeaa408d7 29-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b2999b6f9581fb709e88cc2ff67e51c6b9f48fec",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
