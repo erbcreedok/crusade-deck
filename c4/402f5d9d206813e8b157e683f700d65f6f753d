@@ -1,0 +1,52 @@
+server/src/GameState.ts
+  s_4864baaac43e63::t_b7c5aaa1d56930 35-39
+server/src/CardRoom.ts
+  s_4864baaac43e63::t_569fb5de9e5053 63-72
+client/src/game/deckZone.test.ts
+  s_4864baaac43e63::t_2e772b69f54d36 1-20
+client/src/game/layout.ts
+  s_4864baaac43e63::t_eea8a1b47dc45d 16-18
+  s_4864baaac43e63::t_48b653ef18ac30 46-50
+client/src/game/RoomEngine.ts
+  s_4864baaac43e63::t_5651c0ece87d57 320-322
+  s_4864baaac43e63::t_ffcd13c1f2e500 189,192,195
+  s_4864baaac43e63::t_681e33559b9129 95-105
+  s_4864baaac43e63::t_692b99c5d7c601 236
+  s_4864baaac43e63::t_fe73cd41d6f424 327
+  s_4864baaac43e63::t_c7c2beace36ae6 1,4
+  s_4864baaac43e63::t_df54dcfcb023e3 134-176
+  s_4864baaac43e63::t_99b5e7145252dd 42-45
+  s_4864baaac43e63::t_815e85f361fba8 252-253
+client/src/game/layout.test.ts
+  s_4864baaac43e63::t_077b6f9c21582b 27-33
+client/src/game/RoomCanvas.tsx
+  s_4864baaac43e63::t_0688c60f653eb8 57-62
+  s_4864baaac43e63::t_ea91cdc878e8bf 4,12-13
+  s_4864baaac43e63::t_b8df6ce8589d16 21
+client/src/RoomScreen.tsx
+  s_4864baaac43e63::t_f0b9d131c27cf9 123-129
+  s_4864baaac43e63::t_a6d272ac450914 32
+  s_4864baaac43e63::t_21a29fe9523e2c 91-97
+  s_4864baaac43e63::t_40dcff1fec50e0 51
+  s_4864baaac43e63::t_0f673b4f92a910 1,5
+server/src/CardRoom.test.ts
+  s_4864baaac43e63::t_93aed80f42ac69 168-230
+client/src/game/deckZone.ts
+  s_4864baaac43e63::t_de17e0c9c80fd2 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c4402f5d9d206813e8b157e683f700d65f6f753d",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
