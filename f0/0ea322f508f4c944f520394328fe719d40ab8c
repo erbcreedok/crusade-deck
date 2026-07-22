@@ -1,0 +1,22 @@
+client/src/test/pixiFake.ts
+  s_7d9a23fba6e8e1::t_e68046a89e8e95 1-266
+client/src/game/RoomEngine.test.ts
+  s_7d9a23fba6e8e1::t_b7764ed53cf4d2 1-11,13-19,23-204
+  s_7d9a23fba6e8e1::t_2a17902d827e4b 12,20-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f00ea322f508f4c944f520394328fe719d40ab8c",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
