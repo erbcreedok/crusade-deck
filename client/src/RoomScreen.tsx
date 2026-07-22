@@ -348,6 +348,13 @@ export function RoomScreen({
   // Автораздача: с соседа слева по часовой, по две карты каждому, 2 карты/сек,
   // пока колода не пуста или STOP. Берём верх и ждём эхо колоды.
   const pendingDealRef = useRef<string | null>(null);
+  // Живой снимок стола для таймера автораздачи. Через ref, а не через зависимости эффекта:
+  // колода и игроки меняются на КАЖДЫЙ патч состояния (каждая розданная карта — это патч),
+  // и эффект пересоздавал бы интервал по нескольку раз в секунду. Тогда отсчёт всё время
+  // начинался заново, и темп раздачи плавал вместе с сетью вместо заявленных 2 карт/с.
+  const dealSnapshotRef = useRef({ deck, players, tableOrder });
+  dealSnapshotRef.current = { deck, players, tableOrder };
+
   useEffect(() => {
     if (!autoDealing) {
       autoDealRef.current = null;
@@ -358,64 +365,63 @@ export function RoomScreen({
       setAutoDealing(false);
       return;
     }
-    if (!autoDealRef.current) {
-      // Круг seatOrder, только готовые (+ дилер). Слева от дилера = следующий в круге.
-      const ids = tableOrder.filter((id) => {
-        const p = players.find((x) => x.id === id);
+
+    // Кому раздаём: круг seatOrder, только готовые (+ дилер: он готов всегда).
+    const targets = (): string[] => {
+      const { players: ps, tableOrder: circle } = dealSnapshotRef.current;
+      const ids = circle.filter((id) => {
+        const p = ps.find((x) => x.id === id);
         return !!p?.connected && (p.isReady || p.isDealer || id === room.sessionId);
       });
-      const order = dealOrder(ids, room.sessionId);
-      autoDealRef.current = { plan: autoDealPlan(order, deck.length), i: 0 };
-    }
+      return dealOrder(ids, room.sessionId);
+    };
+    const accepts = (id: string): boolean => {
+      if (id === room.sessionId) return true;
+      const p = dealSnapshotRef.current.players.find((x) => x.id === id);
+      return !!p?.isReady || !!p?.isDealer;
+    };
+
     const id = setInterval(() => {
-      const st = autoDealRef.current;
-      if (!st) return;
-      // Ждём, пока предыдущая карта исчезнет из колоды (эхо сервера).
+      const st = autoDealRef.current ?? { plan: [] as string[], i: 0 };
+      autoDealRef.current = st;
+      const live = dealSnapshotRef.current.deck;
+
+      // Ждём, пока предыдущая карта исчезнет из колоды (эхо сервера): иначе следующий
+      // тик возьмёт ту же верхнюю карту второй раз.
       if (pendingDealRef.current) {
-        if (deck.includes(pendingDealRef.current)) return;
+        if (live.includes(pendingDealRef.current)) return;
         pendingDealRef.current = null;
       }
-      if (deck.length === 0) {
+      if (live.length === 0) {
         setAutoDealing(false);
         return;
       }
-      // План кончился, а карты ещё есть — достраиваем ещё круг по две.
+      // План кончился, а карты ещё есть — достраиваем ещё круг.
       if (st.i >= st.plan.length) {
-        const ids = tableOrder.filter((id) => {
-          const p = players.find((x) => x.id === id);
-          return !!p?.connected && (p.isReady || p.isDealer || id === room.sessionId);
-        });
-        const order = dealOrder(ids, room.sessionId);
-        const extra = autoDealPlan(order, deck.length);
+        const extra = autoDealPlan(targets(), live.length);
         if (extra.length === 0) {
           setAutoDealing(false);
           return;
         }
         st.plan.push(...extra);
       }
-      // Снял «Готов» посреди автораздачи — пропускаем.
-      while (st.i < st.plan.length) {
-        const to = st.plan[st.i]!;
-        const p = players.find((x) => x.id === to);
-        if (to === room.sessionId || p?.isReady || p?.isDealer) break;
-        st.i += 1;
-      }
-      if (st.i >= st.plan.length || deck.length === 0) {
+      // Снял «Готов» посреди автораздачи — пропускаем его.
+      while (st.i < st.plan.length && !accepts(st.plan[st.i]!)) st.i += 1;
+      if (st.i >= st.plan.length) {
         setAutoDealing(false);
         return;
       }
-      const card = topCard(deck);
-      const to = st.plan[st.i]!;
+      const card = topCard(live);
       if (!card) {
         setAutoDealing(false);
         return;
       }
-      room.send("deal_card", { card, to, rev: nextRev() });
+      room.send("deal_card", { card, to: st.plan[st.i]!, rev: nextRev() });
       pendingDealRef.current = card;
       st.i += 1;
     }, AUTO_DEAL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [autoDealing, amIDealer, dealMode, players, room, deck, nextRev, tableOrder]);
+  }, [autoDealing, amIDealer, dealMode, room, nextRev]);
 
   // Отказы сервера. Клиент показывает переворот сразу, оптимистично — значит, каждый
   // отказ обязан вернуть картинку к правде и сказать, почему так нельзя.
@@ -517,7 +523,6 @@ export function RoomScreen({
     menuItems.push({
       label: "Сбросить колоду",
       onClick: () => {
-        console.debug("[reset_deck] client request", { deck, myHand });
         room.send("reset_deck");
       },
     });

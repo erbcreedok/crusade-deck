@@ -638,12 +638,10 @@ export class RoomEngine {
   // карты (не к индексу), поэтому реордер (растасовка) можно проиграть по-настоящему:
   // каждая карта летит из старого слота в новый. Клампим сверху (защита от абсурда).
   setDeck(cards: string[]): void {
-    // Защита от раздутой колоды (баг ArraySchema setAt / дубликаты при реордере).
-    const unique = dedupeDeckOrder(cards);
-    if (unique.length !== cards.length || cards.length > 52) {
-      console.warn("[setDeck] suspicious deck", { rawLen: cards.length, uniqueLen: unique.length, sample: cards.slice(0, 8) });
-    }
-    const newOrder = unique.slice(0, 52);
+    // Инвариант отрисовки: в колоде нет повторов. Дубликат означал бы рассинхрон со
+    // схемой, и рисовать по нему нельзя — на экране появились бы «карты-близнецы»,
+    // которые движок не смог бы развести (спрайты привязаны к идентичности карты).
+    const newOrder = dedupeDeckOrder(cards).slice(0, 52);
     const oldOrder = this.cards.map((c) => c.card);
     this.deckCards = newOrder;
     this.deckCount = newOrder.length;

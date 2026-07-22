@@ -109,7 +109,7 @@ export class CardRoom extends Room<GameState> {
       const to = message?.to;
       if (typeof card !== "string" || typeof to !== "number" || !Number.isFinite(to)) return;
       const next = moveCard(this.state.deck.toArray(), card, to);
-      // clear+push, не setAt: иначе ArraySchema иногда раздувается «дырами».
+      // clear+push, не setAt (см. пояснение у flip_deck).
       this.state.deck.clear();
       next.forEach((c) => this.state.deck.push(c));
     });
@@ -128,7 +128,11 @@ export class CardRoom extends Room<GameState> {
       }
       if (!this.acceptRev(message?.rev)) return; // устаревшее/повторное — молча пропускаем
       const out = flipWholeDeck(this.state.deck.toArray(), this.facingRecord());
-      out.order.forEach((c, i) => this.state.deck.setAt(i, c));
+      // clear+push, не setAt: setAt за пределы длины у ArraySchema ДОПИСЫВАЕТ элемент
+      // (проверено: массив из 3 после setAt(5) становится длиной 4). Здесь длина совпадает,
+      // но держим один безопасный способ записи колоды на все места, а не два.
+      this.state.deck.clear();
+      out.order.forEach((c) => this.state.deck.push(c));
       for (const [card, up] of Object.entries(out.facing)) this.state.faceUp.set(card, up);
     });
 
@@ -175,7 +179,7 @@ export class CardRoom extends Room<GameState> {
       if (!Array.isArray(order) || !order.every((c) => typeof c === "string")) return;
       if (!isPermutationOf(order, this.state.deck.toArray())) return;
       if (!this.acceptRev(message?.rev)) return;
-      // clear+push, не setAt: иначе ArraySchema иногда раздувается «дырами» → 60+ карт.
+      // clear+push, не setAt (см. пояснение у flip_deck).
       this.state.deck.clear();
       order.forEach((c) => this.state.deck.push(c));
       if (message?.final) this.clearShuffleLock();
@@ -248,7 +252,6 @@ export class CardRoom extends Room<GameState> {
       });
       const seatIds = this.seatIdsInOrder();
       const next = buildDeck(this.state.deckType);
-      console.debug("[reset_deck]", { oldDeck, oldHands, newDeck: next, deckType: this.state.deckType });
       this.state.deck.clear();
       this.state.faceUp.clear();
       next.forEach((card) => {
