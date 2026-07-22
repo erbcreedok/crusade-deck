@@ -1,0 +1,30 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_5fad447c4938cd 762-765
+  s_3b000dfed76439::t_23a6c44a489593 17
+  s_3b000dfed76439::t_0f0833f6c4f6ee 136,139-140
+  s_3b000dfed76439::t_6f184f3ecec04c 761,766,770
+  s_3b000dfed76439::t_8c62b63fe240a8 126-128
+  s_3b000dfed76439::t_26ef0aefd951e3 588-591,604-606,611-615,620
+client/src/game/shuffleFlight.test.ts
+  s_3b000dfed76439::t_caf4554536cabb 1-71
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_055e79e9eacd58 64-78
+client/src/game/shuffleFlight.ts
+  s_3b000dfed76439::t_0dd1e34357f78c 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "392a0c8033e85edb595c16b9058a1562c579038e",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
