@@ -1,0 +1,41 @@
+server/src/TestRoom.test.ts
+  s_7d9a23fba6e8e1::t_a32207c4d6d791 1,3,5-15,17-81
+  s_7d9a23fba6e8e1::t_eb64593c1d383a 4
+  s_7d9a23fba6e8e1::t_82b77375d25be9 2,16
+server/src/CardRoom.deck.test.ts
+  s_7d9a23fba6e8e1::t_a32207c4d6d791 1,3-13,15-331
+  s_7d9a23fba6e8e1::t_82b77375d25be9 2,14
+server/src/CardRoom.votes.test.ts
+  s_7d9a23fba6e8e1::t_82b77375d25be9 2,13
+  s_7d9a23fba6e8e1::t_a32207c4d6d791 1,3-12,14-84
+server/src/CardRoom.lifecycle.test.ts
+  s_7d9a23fba6e8e1::t_82b77375d25be9 2,15
+  s_7d9a23fba6e8e1::t_a32207c4d6d791 1,3-14,16-194
+server/src/CardRoom.facing.test.ts
+  s_7d9a23fba6e8e1::t_82b77375d25be9 2,14
+  s_7d9a23fba6e8e1::t_a32207c4d6d791 1,3-13,15-196
+server/src/CardRoom.hands.test.ts
+  s_7d9a23fba6e8e1::t_a32207c4d6d791 1,3-13,15-197
+  s_7d9a23fba6e8e1::t_82b77375d25be9 2,14
+server/src/roomHarness.ts
+  s_7d9a23fba6e8e1::t_82b77375d25be9 21-30,41-44,46
+  s_7d9a23fba6e8e1::t_4a28539bf0f276 50-55
+  s_7d9a23fba6e8e1::t_bbecaaf347fa75 1,3-20,31-40,45,47-49,56-77
+  s_7d9a23fba6e8e1::t_fbca4c611c3e6e 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e89daa145e7bfe81e973c3b6610736b8e5be94d4",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
