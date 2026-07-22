@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stackOffset, stackExtent, lightShadowOffset } from "./deckStack";
+import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset } from "./deckStack";
 
 const N = 36;
 
@@ -78,5 +78,40 @@ describe("lightShadowOffset", () => {
     const back = stackOffset(0, N); // задняя карта: ниже и левее
     expect(Math.sign(shadow.dx)).toBe(Math.sign(back.dx));
     expect(Math.sign(shadow.dy)).toBe(Math.sign(back.dy));
+  });
+});
+
+describe("stackStripeIndices", () => {
+  // Смещение на карту — доли пикселя, поэтому 52 отдельных торца в блок не влезают.
+  // Рисуем не все карты, а «полоски» с читаемым шагом — симуляция стопки.
+  it("полоски идут по возрастанию и не трогают верхнюю карту (она настоящий спрайт)", () => {
+    const idx = stackStripeIndices(52, 2.2);
+    expect(idx.length).toBeGreaterThan(1);
+    for (let k = 1; k < idx.length; k++) expect(idx[k]).toBeGreaterThan(idx[k - 1]);
+    expect(idx[0]).toBe(0); // самая задняя карта видна всегда
+    expect(Math.max(...idx)).toBeLessThan(51);
+  });
+
+  it("соседние полоски разнесены не ближе заданного шага", () => {
+    const spacing = 2.2;
+    const idx = stackStripeIndices(52, spacing);
+    for (let k = 1; k < idx.length; k++) {
+      const a = stackOffset(idx[k - 1], 52);
+      const b = stackOffset(idx[k], 52);
+      expect(Math.hypot(b.dx - a.dx, b.dy - a.dy)).toBeGreaterThanOrEqual(spacing - 1e-9);
+    }
+  });
+
+  it("толстая колода даёт больше полосок, чем тонкая", () => {
+    expect(stackStripeIndices(52, 2.2).length).toBeGreaterThan(stackStripeIndices(20, 2.2).length);
+  });
+
+  it("колода из одной карты и пустая полосок не дают", () => {
+    expect(stackStripeIndices(1, 2.2)).toEqual([]);
+    expect(stackStripeIndices(0, 2.2)).toEqual([]);
+  });
+
+  it("шаг крупнее всей толщины — остаётся одна задняя полоска", () => {
+    expect(stackStripeIndices(6, 999)).toEqual([0]);
   });
 });

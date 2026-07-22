@@ -25,7 +25,7 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
-import { stackOffset, stackExtent, lightShadowOffset } from "./deckStack";
+import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset } from "./deckStack";
 import { parseCard, isCourt, suitColor } from "./card";
 import {
   cardBackSkin,
@@ -989,17 +989,27 @@ export class RoomEngine {
     const h = this.layout.cardH;
     const r = Math.max(3, w * 0.1);
     const top = stackOffset(n - 1, n); // блок ставим в систему координат верхней карты
-    for (let i = 0; i < n - 1; i++) {
+    const bg = cardBackSkin(this.cardBack).bg;
+    // Сплошное «тело» блока — от самой задней карты, чтобы между полосками не просвечивал стол.
+    const back = stackOffset(0, n);
+    g.roundRect(back.dx - top.dx - w / 2, back.dy - top.dy - h / 2, w, h, r)
+      .fill({ color: bg })
+      .stroke({ width: 1.5, color: CARD_EDGE.side });
+
+    // Полоски торцов: не все 52 карты (их шаг — доли пикселя и они слились бы в пятно),
+    // а через равные промежутки. Видны с тех сторон, куда уходит задняя карта — слева и
+    // снизу, — поэтому у каждой полоски рисуем только левый и нижний срезы.
+    for (const i of stackStripeIndices(n, anim.deck.stripeSpacing)) {
       const so = stackOffset(i, n);
       const x = so.dx - top.dx - w / 2;
       const y = so.dy - top.dy - h / 2;
-      g.roundRect(x, y, w, h, r)
-        .fill({ color: cardBackSkin(this.cardBack).bg })
-        .stroke({ width: 1.5, color: CARD_EDGE.side });
-      // нижний срез светлее бокового — та же кромка, что и у настоящей карты
+      g.roundRect(x, y, w, h, r).fill({ color: bg });
+      g.moveTo(x + 0.75, y + r)
+        .lineTo(x + 0.75, y + h - r)
+        .stroke({ width: 1.5, color: CARD_EDGE.side }); // левый торец — темнее
       g.moveTo(x + r, y + h - 0.75)
         .lineTo(x + w - r, y + h - 0.75)
-        .stroke({ width: 1.5, color: CARD_EDGE.bottom });
+        .stroke({ width: 1.5, color: CARD_EDGE.bottom }); // нижний торец — светлее
     }
     this.deckBodyCount = n;
   }

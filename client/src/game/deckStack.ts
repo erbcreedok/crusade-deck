@@ -20,6 +20,19 @@ export function stackOffset(i: number, count: number): Offset {
   return { dx: (i - c) * anim.deck.stackDx + 0, dy: (i - c) * anim.deck.stackDy + 0 };
 }
 
+// Какие карты стопки рисовать «полосками» торцов в блоке колоды. Смещение на карту —
+// доли пикселя, поэтому все 52 торца в блок не влезают и сливаются в серое пятно: берём
+// подмножество с читаемым шагом minSpacing (в пикселях по диагонали смещения). Верхнюю
+// карту не включаем — она рисуется настоящим спрайтом поверх блока.
+export function stackStripeIndices(count: number, minSpacing: number): number[] {
+  if (count < 2) return [];
+  const perCard = Math.hypot(anim.deck.stackDx, anim.deck.stackDy);
+  const step = perCard > 0 ? Math.max(1, Math.ceil(minSpacing / perCard)) : 1;
+  const out: number[] = [];
+  for (let i = 0; i <= count - 2; i += step) out.push(i);
+  return out;
+}
+
 // Габарит «толщины» колоды: насколько крайние карты разъезжаются друг от друга. По нему
 // движок рисует блок колоды и растягивает её хит-зону.
 export function stackExtent(count: number): { w: number; h: number } {
