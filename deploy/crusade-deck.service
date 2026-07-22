@@ -12,10 +12,8 @@ RestartSec=2
 
 Environment=NODE_ENV=production
 Environment=PORT=2567
-# Только петля: наружу сервер выставлен через Caddy, 2567 закрыт файрволом.
-Environment=HOST=127.0.0.1
-# Заменить на реальный домен перед установкой.
-Environment=ALLOWED_ORIGIN=https://EXAMPLE.COM
+# Сервер слушает 0.0.0.0, наружу его не пускает UFW: открыты только 22/80/443,
+# 2567 доступен лишь Caddy по петле. См. deploy/README.md, шаг 1.
 
 # Аккаунты пишутся в server/data — единственный каталог, куда нужна запись.
 NoNewPrivileges=true
