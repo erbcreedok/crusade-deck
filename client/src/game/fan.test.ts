@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver, fanSpreadShift } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина сейф-зоны
@@ -206,5 +206,37 @@ describe("visibleSliver", () => {
     const tight = [0, 6, 12, 18, 24];
     const poked = [0, 6, 30, 54, 60]; // вокруг индекса 2 раскрыто
     expect(visibleSliver(poked, 2)).toBeGreaterThan(visibleSliver(tight, 2));
+  });
+});
+
+describe("fanSpreadShift", () => {
+  const CARDS = 5;
+  const AMP = 9;
+  const shift = (i: number, center: number, env = 1) => fanSpreadShift(i, center, CARDS, AMP, env);
+
+  it("в самой точке раскрытия сдвига нет — раздвигаются соседи", () => {
+    expect(shift(10, 10)).toBe(0);
+  });
+
+  it("слева уезжают влево, справа вправо, симметрично", () => {
+    expect(shift(9, 10)).toBeLessThan(0);
+    expect(shift(11, 10)).toBeGreaterThan(0);
+    expect(shift(9, 10)).toBeCloseTo(-shift(11, 10), 10);
+  });
+
+  it("растёт линейно внутри окна и упирается в потолок за ним", () => {
+    expect(Math.abs(shift(11, 10))).toBeLessThan(Math.abs(shift(12, 10)));
+    const ceiling = (AMP / 2) * 1;
+    expect(shift(13, 10)).toBeCloseTo(ceiling, 10); // окно ±2.5 слота — дальше константа
+    expect(shift(40, 10)).toBeCloseTo(ceiling, 10);
+  });
+
+  it("огибающая масштабирует раздвиг, на нуле его нет", () => {
+    expect(shift(12, 10, 0.5)).toBeCloseTo(shift(12, 10, 1) / 2, 10);
+    expect(shift(12, 10, 0)).toBe(0);
+  });
+
+  it("широкое окно раздвигает мягче узкого на той же дистанции", () => {
+    expect(Math.abs(fanSpreadShift(11, 10, 12, AMP, 1))).toBeLessThan(Math.abs(shift(11, 10)));
   });
 });

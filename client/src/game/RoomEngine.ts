@@ -21,6 +21,7 @@ import {
   fanBandContains,
   fanInsertIndex,
   visibleSliver,
+  fanSpreadShift,
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
@@ -114,7 +115,15 @@ export class RoomEngine {
   // Драг ОДНОЙ карты из раскрытого веера. Жест — длинное нажатие (holdMs): коротким
   // тапом «ковыряют» веер (poke), поэтому хватать карту сразу нельзя. Пока веер раскрыт,
   // драг всей колоды выключен — тащим карту; собери веер, чтобы двигать колоду.
-  private cardPress: { id: number; startX: number; startY: number; x: number; y: number; index: number } | null = null;
+  private cardPress: {
+    id: number;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    index: number;
+    canGrab: boolean; // на момент нажатия карта была видна достаточно, чтобы её взять
+  } | null = null;
   private cardDrag: { id: number; v: CardVisual; insertAt: number; x: number; y: number } | null = null;
   private cardShadow: Sprite | null = null;
   private skipNextTap = false; // гасит pointertap, прилетающий сразу после дропа карты
@@ -430,10 +439,11 @@ export class RoomEngine {
     if (this.fanOpen()) {
       if (this.cardPress || this.cardDrag) return;
       const index = this.nearestFanIndex(e.global.x);
-      // Зажатый веер не таскаем: сначала раздвинь его тыком (тач) или ховером (мышь) —
-      // пока карта не показала достаточную полоску, её не за что взять.
-      if (!this.canGrabAt(index)) return;
-      this.cardPress = { id: e.pointerId, startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y, index };
+      // Зажатый веер не таскаем: пока карта не показала достаточную полоску, её не за что
+      // взять. Но палец не игнорируем — ведение по вееру раскрывает его под пальцем
+      // («глиссандо», см. onPointerMove), и уже в открытый зазор карту можно брать.
+      const canGrab = this.canGrabAt(index);
+      this.cardPress = { id: e.pointerId, startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y, index, canGrab };
       this.wake();
       return;
     }
@@ -458,8 +468,11 @@ export class RoomEngine {
       this.cardPress.y = e.global.y;
       const dx = this.cardPress.x - this.cardPress.startX;
       const dy = this.cardPress.y - this.cardPress.startY;
-      // Захват МГНОВЕННЫЙ: ждём не время, а само движение. Без смещения это тык (poke).
-      if (dx * dx + dy * dy >= DRAG_THRESHOLD * DRAG_THRESHOLD) this.beginCardDrag();
+      if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return; // ещё тык, не жест
+      // Захват МГНОВЕННЫЙ: ждём не время, а само движение. Если же в момент нажатия веер
+      // был зажат — ведение пальцем раскрывает его под пальцем, как глиссандо по клавишам.
+      if (this.cardPress.canGrab) this.beginCardDrag();
+      else this.glissandoTo(e.global.x);
       return;
     }
     if (!this.press || e.pointerId !== this.press.id) return;
@@ -587,11 +600,14 @@ export class RoomEngine {
     const d = this.cardDrag;
     if (!d) return;
     d.v.body.setTarget({ x: d.x, y: d.y, rot: 0, scale: DRAG_SCALE });
+    const sp = anim.cardDrag.spread;
     let k = 0;
     for (const c of this.cards) {
       if (c === d.v) continue;
       const slot = k < d.insertAt ? k : k + 1; // пропускаем слот под перетаскиваемую карту
-      const t = this.fanTarget(slot);
+      // Плюс раскрытие вокруг точки вставки: соседи разъезжаются, и видно, между какими
+      // именно картами ляжет перетаскиваемая (одной «дырки» в тесном веере не видно).
+      const t = this.fanTarget(slot + fanSpreadShift(slot, d.insertAt, sp.cards, sp.amp, 1));
       c.body.setTarget({ x: t.x, y: t.y, rot: t.rot, scale: 1 });
       k++;
     }
@@ -1035,7 +1051,9 @@ export class RoomEngine {
       if (this.poke) {
         this.poke.t += frameDt;
         // Раскрытие переезжает к новой точке плавно (см. pokeFan) — без рывка карт.
-        this.poke.index += (this.poke.target - this.poke.index) * Math.min(1, frameDt * 12);
+        // Пока палец ведут по вееру, догоняем быстрее, чтобы зазор не отставал.
+        const follow = this.cardPress ? w.poke.followDrag : w.poke.follow;
+        this.poke.index += (this.poke.target - this.poke.index) * Math.min(1, frameDt * follow);
         if (pokeEnvelope(this.poke.t, w.poke.in, w.poke.hold, w.poke.out) <= 0 && this.poke.t > w.poke.in) {
           this.poke = null; // поке доиграл
         }
@@ -1333,6 +1351,22 @@ export class RoomEngine {
     this.reKickWaveAt(pi);
   }
 
+  // «Глиссандо»: палец ведут по зажатому вееру — раскрытие едет за ним и НЕ перезапускается
+  // (в отличие от тыка), сколько бы карт палец ни прошёл. Тачевый аналог ховера мышью.
+  private glissandoTo(x: number): void {
+    if (this.deckZone !== "safe" || !this.deckFanned || this.deckCount < 2) return;
+    const p = anim.fan.wiggle.poke;
+    const pi = this.nearestFanIndex(x);
+    if (!this.poke) {
+      this.poke = { index: pi, target: pi, t: p.in };
+      this.reKickWaveAt(pi);
+    } else {
+      this.poke.target = pi;
+      this.poke.t = Math.min(this.poke.t, p.in); // держим открытым, пока ведут
+    }
+    this.wake();
+  }
+
   // Ховер мышью (десктоп): раскрытие следует за курсором, пока он над веером.
   private onDeckHover(e: FederatedPointerEvent): void {
     if (e.pointerType !== "mouse" || this.press) return; // тач — не ховер; во время драга — нет
@@ -1374,10 +1408,7 @@ export class RoomEngine {
       env = pokeEnvelope(this.poke.t, p.in, p.hold, p.out);
       index = this.poke.index;
     }
-    if (env <= 0) return 0;
-    const half = p.cards / 2;
-    const s = Math.max(-1, Math.min(1, (i - index) / half)); // -1..1 через окно
-    return p.amp * env * s * 0.5;
+    return fanSpreadShift(i, index, p.cards, p.amp, env);
   }
 
   // Бегущая волна + локальный поке: каждая карта ездит вдоль веера. Волна ×crowd×energy,
