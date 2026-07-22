@@ -28,7 +28,8 @@ interface Props {
   onDeckDrop: (zone: "center" | "hand") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
   onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
-  onFanChange: (fanned: boolean) => void; // веер раскрылся/собрался (от этого зависят кнопки)
+  onFanChange: (fanned: boolean) => void;
+  onFanCollapse: () => void; // рука свёрнута: стрелка под веером или свайп вниз // веер раскрылся/собрался (от этого зависят кнопки)
   onFlipDeck: () => void; // жест перевернул колоду целиком
   onFlipCards: (cards: string[]) => void; // жест перевернул отдельные карты
   onDeckFx: (fx: DeckFxMessage) => void; // эффект для остальных игроков (украшение)
@@ -63,6 +64,7 @@ export function RoomCanvas({
   onCardReorder,
   onShuffleChange,
   onFanChange,
+  onFanCollapse,
   onFlipDeck,
   onFlipCards,
   onDeckFx,
@@ -233,6 +235,10 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setOnFanChange(onFanChange);
   }, [onFanChange]);
+
+  useEffect(() => {
+    engineRef.current?.setOnFanCollapse(onFanCollapse);
+  }, [onFanCollapse]);
 
   useEffect(() => {
     engineRef.current?.setOnFlipDeck(onFlipDeck);

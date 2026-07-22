@@ -28,6 +28,16 @@ export function isSelected(sel: Selection, type: SelectableType, id: string): bo
   return sel.type === type && sel.ids.includes(id);
 }
 
+// Тап, который только ВЫДЕЛЯЕТ и никогда не снимает выделение. Нужен там, где по элементу
+// работают жестами: рука в фокусе ловит тык и глиссандо, и если бы тап переключал выбор,
+// она сворачивалась бы прямо посреди работы с картами. Свернуть руку можно явно —
+// стрелкой под веером, свайпом вниз или тапом мимо.
+export function selectOnly(sel: Selection, type: SelectableType, id: string): Selection {
+  if (sel.type === type && sel.ids.includes(id)) return sel;
+  if (sel.type !== type) return { type, ids: [id] };
+  return { type, ids: [...sel.ids, id] };
+}
+
 // Тап по элементу. Тот же тип — добавляем/убираем из набора; другой тип — начинаем
 // выбор заново. Возвращает НОВОЕ выделение, прежнее не трогает.
 export function toggleSelection(sel: Selection, type: SelectableType, id: string): Selection {

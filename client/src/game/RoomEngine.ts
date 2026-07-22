@@ -194,6 +194,8 @@ export class RoomEngine {
   private onFlipCards: ((cards: string[]) => void) | null = null;
   private onDeckFx: ((fx: DeckFxMessage) => void) | null = null;
   private onFanChange: ((fanned: boolean) => void) | null = null;
+  private onFanCollapse: (() => void) | null = null; // «сложить руку»: стрелка или свайп вниз
+  private collapseBtn: Container | null = null; // кнопка-стрелка под веером
   private deckHit: Container | null = null;
 
   // Драг колоды дилером: press — палец/мышь прижаты у колоды (ещё не факт что драг),
@@ -430,6 +432,23 @@ export class RoomEngine {
     this.deckHit = hit;
     this.positionDeckHit();
 
+    // Стрелка «сложить руку» под веером. Живёт в канвасе, а не в HTML-панели: она
+    // привязана к самому вееру и должна ездить вместе с ним при ресайзе и смене зоны.
+    const collapse = new Container();
+    collapse.eventMode = "static";
+    collapse.cursor = "pointer";
+    collapse.zIndex = 9500;
+    collapse.visible = false;
+    const arrow = new Graphics();
+    collapse.addChild(arrow);
+    collapse.on("pointertap", (e: FederatedPointerEvent) => {
+      e.stopPropagation(); // иначе тап уйдёт на сцену и снимет выделение дважды
+      this.onFanCollapse?.();
+    });
+    this.world.addChild(collapse);
+    this.collapseBtn = collapse;
+    this.syncCollapseButton();
+
     // Move/up ловим на всей сцене — палец может уйти далеко за пределы колоды.
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
@@ -568,6 +587,7 @@ export class RoomEngine {
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.drawZones();
+    this.syncCollapseButton();
   }
 
   private rebuildLayout(): void {
@@ -794,6 +814,11 @@ export class RoomEngine {
   // чтобы у них анимация шла столько же, сколько шла здесь.
   setOnDeckFx(fn: ((fx: DeckFxMessage) => void) | null): void {
     this.onDeckFx = fn;
+  }
+
+  // Свернуть руку (выйти из фокуса): стрелка под веером или свайп вниз по нему.
+  setOnFanCollapse(fn: (() => void) | null): void {
+    this.onFanCollapse = fn;
   }
 
   setOnFanChange(fn: ((fanned: boolean) => void) | null): void {
@@ -1589,6 +1614,13 @@ export class RoomEngine {
   private updateVisibility(): void {
     const away = this.deckZone === "away";
     const detailed = this.detailedCards();
+    // В шеренге порядок наложения ОБРАТНЫЙ: сверху лежит первая карта, каждая следующая
+    // уходит под неё. Иначе поверх всех оказывалась последняя и торчала целиком — а
+    // читаться должна ровно одна карта, первая.
+    if (this.rowMode()) {
+      const n = this.cards.length;
+      for (let i = 0; i < n; i++) this.cards[i].sprite.zIndex = n - i;
+    }
     const n = this.cards.length;
     const top = n - 1;
     // Стопка — это ДВЕ настоящие карты (верхняя и нижняя) и блок торцов между ними.
@@ -1722,6 +1754,7 @@ export class RoomEngine {
     this.seatLayer = null;
     this.seatG = null;
     this.focusG = null;
+    this.collapseBtn = null;
     this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;
@@ -1912,6 +1945,7 @@ export class RoomEngine {
     }
     this.shake = this.rejectShake();
     this.updateVisibility(); // режим «кирпич/отдельные карты» может смениться прямо в тике
+    this.syncCollapseButton();
     for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
     this.syncDeckShadow();
@@ -2192,6 +2226,29 @@ export class RoomEngine {
   private deckIsFaceUp(): boolean {
     const top = this.cards[this.cards.length - 1];
     return !!top && !!this.facing[top.card];
+  }
+
+  // Рука сложена (в руке, но не в фокусе) — карты стоят шеренгой.
+  // Стрелка вниз под веером: видна только у руки в фокусе, стоит по центру под дугой.
+  private syncCollapseButton(): void {
+    const btn = this.collapseBtn;
+    if (!btn) return;
+    const show = this.fanned() && this.handFocused && this.cards.length > 0 && this.deckZone !== "away";
+    btn.visible = show;
+    if (!show) return;
+    const z = this.layout.handZone;
+    const r = Math.max(12, this.layout.cardH * 0.22);
+    btn.x = z.cx;
+    btn.y = z.cy + z.h / 2 - r * 1.15;
+    btn.hitArea = new Rectangle(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2); // палец толще стрелки
+    const g = btn.children[0] as Graphics;
+    g.clear();
+    g.circle(0, 0, r).fill({ color: 0x14281c, alpha: 0.55 }).stroke({ width: 2, color: 0xd9b154, alpha: 0.5 });
+    g.poly([-r * 0.42, -r * 0.18, r * 0.42, -r * 0.18, 0, r * 0.36]).fill({ color: 0xd9b154, alpha: 0.9 });
+  }
+
+  private rowMode(): boolean {
+    return this.fanned() && !this.handFocused && !this.detailedCards();
   }
 
   private restTarget(i: number): CardTargets {

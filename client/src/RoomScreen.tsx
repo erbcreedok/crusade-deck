@@ -6,7 +6,7 @@ import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
 import { deckPlaceFor } from "./game/deckZone";
 import { tableSummary, type SeatView } from "./game/seats";
-import { EMPTY_SELECTION, toggleSelection, clearSelection, type Selection } from "./game/selection";
+import { EMPTY_SELECTION, selectOnly, clearSelection, type Selection } from "./game/selection";
 import { barActionsFor, type BarActionId } from "./game/barActions";
 import { DECK_ID } from "./game/RoomEngine";
 import { ShuffleSession } from "./game/shuffleSession";
@@ -156,9 +156,13 @@ export function RoomScreen({
   // Выделение элементов стола. Тап выделяет, тап мимо — снимает; правила (что с чем
   // складывается и что чем сбрасывается) живут в selection.ts.
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
+  // Тап по колоде только ВЫДЕЛЯЕТ её и никогда не снимает выделение: рука в фокусе ловит
+  // тык и глиссандо, и переключающий тап сворачивал её посреди работы с картами.
+  // Свернуть можно явно — стрелкой под веером, свайпом вниз или тапом мимо.
   const onDeckTap = useCallback((deckId: string) => {
-    setSelection((sel) => toggleSelection(sel, "deck", deckId));
+    setSelection((sel) => selectOnly(sel, "deck", deckId));
   }, []);
+  const onFanCollapse = useCallback(() => setSelection(clearSelection()), []);
   const onEmptyTap = useCallback(() => setSelection(clearSelection()), []);
   const selectedDecks = selection.type === "deck" ? selection.ids : [];
 
@@ -398,6 +402,7 @@ export function RoomScreen({
         onDeckDropToSeat={onDeckDropToSeat}
         selectedDecks={selectedDecks}
         onDeckTap={onDeckTap}
+        onFanCollapse={onFanCollapse}
         onEmptyTap={onEmptyTap}
         topInset={topInset}
         bottomInset={bottomInset}

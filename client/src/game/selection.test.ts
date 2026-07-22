@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_SELECTION, toggleSelection, isSelected, clearSelection, selectionSize } from "./selection";
+import { EMPTY_SELECTION, toggleSelection, isSelected, clearSelection, selectionSize, selectOnly } from "./selection";
 
 describe("выделение элементов стола", () => {
   it("пустое выделение — ни типа, ни элементов", () => {
@@ -76,5 +76,23 @@ describe("выделение элементов стола", () => {
     const b = toggleSelection(a, "deck", "d2");
     expect(selectionSize(a)).toBe(1);
     expect(selectionSize(b)).toBe(2);
+  });
+});
+
+describe("selectOnly", () => {
+  it("выделяет и НЕ снимает выделение повторным тапом", () => {
+    const once = selectOnly(EMPTY_SELECTION, "deck", "d1");
+    expect(once).toEqual({ type: "deck", ids: ["d1"] });
+    expect(selectOnly(once, "deck", "d1")).toBe(once); // тот же объект — ничего не менялось
+  });
+
+  it("добавляет второй элемент того же типа", () => {
+    const sel = selectOnly(selectOnly(EMPTY_SELECTION, "deck", "d1"), "deck", "d2");
+    expect(sel.ids).toEqual(["d1", "d2"]);
+  });
+
+  it("элемент другого типа начинает выбор заново", () => {
+    const sel = selectOnly(selectOnly(EMPTY_SELECTION, "deck", "d1"), "player", "p1");
+    expect(sel).toEqual({ type: "player", ids: ["p1"] });
   });
 });
