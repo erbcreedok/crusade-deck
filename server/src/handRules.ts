@@ -19,3 +19,18 @@ export function collectHands(deck: readonly string[], hands: Record<string, read
   for (const card of next) faceUp[card] = false;
   return { deck: next, faceUp };
 }
+
+export interface DealResult {
+  deck: string[];
+  card: string;
+}
+
+// Раздать одну карту из колоды. Возвращает колоду без неё; кому карта ушла, решает
+// вызывающий (CardRoom кладёт её в hand игрока). Карты нет — раздачи нет (null).
+export function dealCardTo(deck: readonly string[], card: string): DealResult | null {
+  const i = deck.indexOf(card);
+  if (i < 0) return null;
+  const next = [...deck];
+  next.splice(i, 1);
+  return { deck: next, card };
+}

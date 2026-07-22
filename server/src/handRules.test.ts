@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectHands, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import { collectHands, dealCardTo, DEALER_VOTE_WEIGHT } from "./handRules.js";
 
 describe("collectHands", () => {
   const hands = { alice: ["A♠", "2♠"], bob: ["K♦"] };
@@ -38,5 +38,32 @@ describe("DEALER_VOTE_WEIGHT", () => {
 
   it("двое обычных игроков перевешивают дилера", () => {
     expect(2).toBeGreaterThan(DEALER_VOTE_WEIGHT);
+  });
+});
+
+describe("dealCardTo", () => {
+  const deck = ["A♠", "2♠", "3♠"];
+
+  it("раздаёт ровно одну карту: из колоды ушла, в руку пришла", () => {
+    const out = dealCardTo(deck, "3♠");
+    expect(out).not.toBeNull();
+    expect(out!.deck).toEqual(["A♠", "2♠"]);
+    expect(out!.card).toBe("3♠");
+  });
+
+  it("порядок остальных карт колоды не меняется", () => {
+    const out = dealCardTo(deck, "2♠");
+    expect(out!.deck).toEqual(["A♠", "3♠"]);
+  });
+
+  it("карты нет в колоде — раздачи нет", () => {
+    expect(dealCardTo(deck, "K♦")).toBeNull();
+    expect(dealCardTo([], "A♠")).toBeNull();
+  });
+
+  it("исходная колода не мутируется", () => {
+    const src = [...deck];
+    dealCardTo(src, "A♠");
+    expect(src).toEqual(deck);
   });
 });

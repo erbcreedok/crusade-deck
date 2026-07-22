@@ -158,7 +158,12 @@ describe("CardRoom", () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
 
-    const waiter = room.waitForMessage("move_deck");
+    // Переносить колоду можно только ВНЕ режима раздачи — там она живёт в центре.
+    let waiter = room.waitForMessage("toggle_deal_mode");
+    dealer.send("toggle_deal_mode");
+    await waiter;
+
+    waiter = room.waitForMessage("move_deck");
     dealer.send("move_deck", { zone: "hand" });
     await waiter;
 
@@ -170,6 +175,11 @@ describe("CardRoom", () => {
   it("move_deck 'center' возвращает колоду на стол и забывает слот", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    await (async () => {
+      const w = room.waitForMessage("toggle_deal_mode");
+      dealer.send("toggle_deal_mode");
+      await w;
+    })();
 
     let waiter = room.waitForMessage("move_deck");
     dealer.send("move_deck", { zone: "hand" });
@@ -690,7 +700,7 @@ describe("CardRoom", () => {
     expect(room.state.players.get(second.sessionId)!.handHidden.size).toBe(0);
   });
 
-  it("toggle_reveal_mode раскрывает колоду и делает все руки приватными", async () => {
+  it("toggle_deal_mode: выход из раздачи раскрывает колоду и закрывает руки", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const second = await colyseus.connectTo(room, { name: "Bob" });
@@ -700,18 +710,18 @@ describe("CardRoom", () => {
     await waiter;
     expect(room.state.players.get(second.sessionId)!.handOpen).toBe(true);
 
-    waiter = room.waitForMessage("toggle_reveal_mode");
-    dealer.send("toggle_reveal_mode");
+    waiter = room.waitForMessage("toggle_deal_mode");
+    dealer.send("toggle_deal_mode");
     await waiter;
 
-    expect(room.state.revealMode).toBe(true);
+    expect(room.state.dealMode).toBe(false); // вышли из раздачи
     expect([...room.state.faceUp.values()].every((v) => v === true)).toBe(true);
     expect(room.state.players.get(second.sessionId)!.handOpen).toBe(false); // руки приватные
 
-    waiter = room.waitForMessage("toggle_reveal_mode");
-    dealer.send("toggle_reveal_mode");
+    waiter = room.waitForMessage("toggle_deal_mode");
+    dealer.send("toggle_deal_mode");
     await waiter;
-    expect(room.state.revealMode).toBe(false);
+    expect(room.state.dealMode).toBe(true);
     expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
   });
 
@@ -720,10 +730,10 @@ describe("CardRoom", () => {
     await colyseus.connectTo(room, { name: "Alice" });
     const second = await colyseus.connectTo(room, { name: "Bob" });
 
-    let waiter = room.waitForMessage("toggle_reveal_mode");
-    second.send("toggle_reveal_mode");
+    let waiter = room.waitForMessage("toggle_deal_mode");
+    second.send("toggle_deal_mode");
     await waiter;
-    expect(room.state.revealMode).toBe(false);
+    expect(room.state.dealMode).toBe(true); // не-дилер режим не переключил
 
     waiter = room.waitForMessage("collect_hands");
     second.send("collect_hands");
@@ -773,5 +783,111 @@ describe("CardRoom", () => {
     await waiter;
 
     expect(room.state.players.has(dealer.sessionId)).toBe(false);
+  });
+
+  // ——— режим раздачи ———
+
+  it("deal_card отдаёт карту из колоды в руку игрока, порядок остальных цел", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+    const before = [...room.state.deck];
+    const card = before[before.length - 1]; // верхняя карта
+
+    const waiter = room.waitForMessage("deal_card");
+    dealer.send("deal_card", { card, to: second.sessionId });
+    await waiter;
+
+    expect(room.state.players.get(second.sessionId)!.hand.toArray()).toEqual([card]);
+    expect([...room.state.deck]).toEqual(before.slice(0, -1)); // остальные на местах
+    expect(room.state.faceUp.get(card)).toBeUndefined(); // сторона в колоде больше не нужна
+  });
+
+  it("deal_card отбивает чужого отправителя, несуществующую карту и игрока", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+    const before = [...room.state.deck];
+
+    let waiter = room.waitForMessage("deal_card");
+    second.send("deal_card", { card: before[0], to: second.sessionId }); // не дилер
+    await waiter;
+    expect(room.state.deck.length).toBe(36);
+
+    const dealer2 = await colyseus.createRoom("card_room", { deckType: "36" });
+    const d = await colyseus.connectTo(dealer2, { name: "Carol" });
+    waiter = dealer2.waitForMessage("deal_card");
+    d.send("deal_card", { card: "нет такой", to: d.sessionId });
+    await waiter;
+    expect(dealer2.state.deck.length).toBe(36);
+
+    waiter = dealer2.waitForMessage("deal_card");
+    d.send("deal_card", { card: dealer2.state.deck[0], to: "не-игрок" });
+    await waiter;
+    expect(dealer2.state.deck.length).toBe(36);
+  });
+
+  it("move_deck в режиме раздачи не двигает колоду; после выхода из режима — двигает", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    let waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "hand" });
+    await waiter;
+    expect(room.state.deckLocation).toBe("center"); // dealMode включён по умолчанию
+
+    waiter = room.waitForMessage("toggle_deal_mode");
+    dealer.send("toggle_deal_mode");
+    await waiter;
+
+    waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "hand" });
+    await waiter;
+    expect(room.state.deckLocation).toBe(dealer.sessionId);
+  });
+
+  it("set_deck_fanned: дилер раскрывает веер на столе, все это видят", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("set_deck_fanned");
+    second.send("set_deck_fanned", { open: true }); // не дилер
+    await waiter;
+    expect(room.state.deckFanned).toBe(false);
+
+    waiter = room.waitForMessage("set_deck_fanned");
+    dealer.send("set_deck_fanned", { open: true });
+    await waiter;
+    expect(room.state.deckFanned).toBe(true);
+
+    waiter = room.waitForMessage("set_deck_fanned");
+    dealer.send("set_deck_fanned", { open: false });
+    await waiter;
+    expect(room.state.deckFanned).toBe(false);
+  });
+
+  it("set_hand_order принимает перестановку своей руки и отбивает подмену", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const cards = [room.state.deck[35], room.state.deck[34], room.state.deck[33]];
+    for (const card of cards) {
+      const w = room.waitForMessage("deal_card");
+      dealer.send("deal_card", { card, to: dealer.sessionId });
+      await w;
+    }
+    const me = room.state.players.get(dealer.sessionId)!;
+    expect(me.hand.length).toBe(3);
+
+    const sorted = [...me.hand.toArray()].reverse();
+    let waiter = room.waitForMessage("set_hand_order");
+    dealer.send("set_hand_order", { order: sorted });
+    await waiter;
+    expect(me.hand.toArray()).toEqual(sorted);
+
+    waiter = room.waitForMessage("set_hand_order");
+    dealer.send("set_hand_order", { order: ["K♦", ...sorted.slice(1)] }); // подмена
+    await waiter;
+    expect(me.hand.toArray()).toEqual(sorted); // не принято
   });
 });

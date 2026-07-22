@@ -11,7 +11,7 @@ import { moveCard, isPermutationOf } from "./deckOrder.js";
 import { flipWholeDeck, flippedFacing } from "./deckFacing.js";
 import { sanitizeDeckFx, FxRateLimiter } from "./deckFx.js";
 import { flipRejectReason } from "./rejections.js";
-import { collectHands, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import { collectHands, dealCardTo, DEALER_VOTE_WEIGHT } from "./handRules.js";
 
 interface JoinOptions {
   token?: string;
@@ -184,6 +184,9 @@ export class CardRoom extends Room<GameState> {
       (client, message: { zone?: "center" | "hand" | "player"; targetId?: string }) => {
         const player = this.state.players.get(client.sessionId);
         if (!player?.isDealer || this.state.phase !== "lobby") return;
+        // В режиме раздачи колода живёт только в центре: раздают рогаткой и веером,
+        // а не переносом колоды.
+        if (this.state.dealMode) return;
         const zone = message?.zone;
         if (zone === "center") {
           this.state.deckLocation = "center";
@@ -210,14 +213,54 @@ export class CardRoom extends Room<GameState> {
       else player.handHidden.set(card, true);
     });
 
-    // Дилерский режим видимости: карты колоды перестают быть скрытыми, а руки всех
-    // игроков становятся приватными. Выключение возвращает колоду рубашкой вверх.
-    this.onMessage("toggle_reveal_mode", (client) => {
+    // Режим раздачи (дилер). Выключение раскрывает колоду (бывший revealMode) и делает
+    // руки приватными; включение прячет колоду обратно.
+    this.onMessage("toggle_deal_mode", (client) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer) return;
-      this.state.revealMode = !this.state.revealMode;
-      this.state.deck.forEach((card) => this.state.faceUp.set(card, this.state.revealMode));
-      if (this.state.revealMode) this.state.players.forEach((p) => (p.handOpen = false));
+      this.state.dealMode = !this.state.dealMode;
+      this.state.deck.forEach((card) => this.state.faceUp.set(card, !this.state.dealMode));
+      if (!this.state.dealMode) this.state.players.forEach((p) => (p.handOpen = false));
+    });
+
+    // Веер колоды на столе: раскрыть/собрать может только дилер и только пока колода
+    // в центре. Состояние комнатное — веер видят все.
+    this.onMessage("set_deck_fanned", (client, message: { open?: boolean }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.deckLocation !== "center") return;
+      this.state.deckFanned = message?.open === true;
+    });
+
+    // Раздача одной карты (рогатка, драг из веера, автораздача). Только дилер. Карта
+    // уходит из колоды в руку игрока; получатель сразу видит номинал (см. handView.ts —
+    // свою руку владелец видит всегда).
+    this.onMessage("deal_card", (client, message: { card?: string; to?: string; rev?: number }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer) return;
+      const card = message?.card;
+      const to = message?.to;
+      if (typeof card !== "string" || typeof to !== "string") return;
+      const target = this.state.players.get(to);
+      if (!target) return;
+      const out = dealCardTo(this.state.deck.toArray(), card);
+      if (!out) return;
+      if (!this.acceptRev(message?.rev)) return;
+      this.state.deck.clear();
+      out.deck.forEach((c) => this.state.deck.push(c));
+      this.state.faceUp.delete(card);
+      target.hand.push(card);
+      if (this.state.deck.length === 0) this.state.deckFanned = false; // раздали всё — веера нет
+    });
+
+    // Свой порядок руки (сортировка/перестановка на клиенте). Принимается только
+    // перестановка СВОЕЙ руки — состав не изменить.
+    this.onMessage("set_hand_order", (client, message: { order?: string[] }) => {
+      const player = this.state.players.get(client.sessionId);
+      const order = message?.order;
+      if (!player || !Array.isArray(order) || !order.every((c) => typeof c === "string")) return;
+      if (!isPermutationOf(order, player.hand.toArray())) return;
+      player.hand.clear();
+      order.forEach((c) => player.hand.push(c));
     });
 
     // «Ресет»: дилер забирает карты из всех рук к себе, делает их скрытыми, а руки —
@@ -236,7 +279,8 @@ export class CardRoom extends Room<GameState> {
         p.handHidden.clear();
         p.handOpen = false;
       });
-      this.state.revealMode = false;
+      this.state.dealMode = true; // сбор возвращает комнату в раздачу
+      this.state.deckFanned = false;
       this.state.deckLocation = client.sessionId;
       this.state.deckRev += 1;
     });
