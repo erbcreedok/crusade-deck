@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 182 tests
-cd client && npm test && npx tsc --noEmit   # 573 tests
+cd client && npm test && npx tsc --noEmit   # 617 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -43,7 +43,8 @@ into `client/` or `server/` explicitly before `tsc`/`vitest`/`vite`.
 
 ## Table architecture (client)
 
-`client/src/game/RoomEngine.ts` (~3500 lines) is an imperative engine: it owns a single
+`client/src/game/RoomEngine.ts` (~3400 lines, ~187 methods averaging 18 lines) is an
+imperative engine: it owns a single
 Pixi `Application`, the ticker, and all visual objects (`CardVisual` — plain mutable
 structs, not React nodes). `RoomCanvas.tsx` is a thin React host: mounts the engine
 once, then forwards each prop with `useEngineEffect` (one line per binding) and pours
@@ -75,11 +76,22 @@ one sprite per card, no duplicates, shuffle reuses sprites, the loop sleeps and 
 loop only ever sleeps on the "moderate" animation profile: on "full", idle breathing
 keeps it awake by design.
 
-Two card piles live in the engine in parallel, almost symmetrically: the deck
-(`this.cards`, `reconcileByIdentity`, `restTarget`) and your own hand (`this.hand`,
-`reconcileHandByIdentity`, `handRestTarget`). Sprites in both are keyed by **card
-identity**, not array index — so shuffles/reorders can be played back for real (each
-card flies from its old slot to its new one) instead of teleporting.
+The deck and your own hand are the same thing with a different layout, and both are
+`engine/CardPile` — order plus sprites keyed by **card identity**, not array index, so
+shuffles/reorders play back for real (each card flies from its old slot to its new one)
+instead of teleporting. The only difference between the two piles is two callbacks:
+where card `i` rests, and what to do with a freshly created sprite (z-order for the
+deck, "stay hidden while it's still flying" for the hand).
+
+A frame reads as a table of contents: `stepPhysics` (substeps: scramble, splash,
+flights, shuffle, springs) → `stepFanWiggle` → `stepDraggedCard` → `stepFlipAnim` →
+`stepOverlays` → `syncScene` → `maybeSleep`. `mount` is likewise split into
+`buildLayers` / `buildOverlays` / `buildShadows` / `buildHitAreas` / `bindStageEvents`.
+
+What a finger movement MEANS is a pure function: `pressIntent` in
+`engine/gestureIntent.ts` returns `wait | deal | collapse-hand | shuffle | glissando |
+grab`. That's where it's easiest to get it wrong — e.g. read a slow drag as a swipe and
+shuffle the deck while the player is just looking at the cards.
 
 Game math is factored out of the engine into small pure modules in
 `client/src/game/*.ts`, each with a matching `*.test.ts` — the engine just calls them
@@ -161,18 +173,11 @@ A hard split that must not blur when adding new deck-related mechanics:
 
 ## Known trade-offs (deliberate, not forgotten)
 
-- `RoomEngine.ts` is still ~3500 lines across ~164 methods (average 21 lines each), and
-  that is not leftover leaf logic: what remains is stateful orchestration over ~120
-  private fields — `onTick` (228 lines, touches every animation), `mount` (221),
-  the gesture state machine (`onPointerMove`/`onDeckDown`/`onPointerUp`/`dropCard`,
-  ~410 together) and 44 setters. Shrinking it further needs design changes, not moves:
-  a shared `CardPile`, animations as objects with `step(dt)` (then `onTick` becomes a
-  loop over a list), and gestures as an explicit state machine. The safety net for that
-  work already exists (`RoomEngine.test.ts` + the Pixi fake).
-- The deck and the hand in the engine are two parallel, nearly mirrored sets of fields
-  and methods (`reconcileByIdentity`/`reconcileHandByIdentity`,
-  `restTarget`/`handRestTarget`). A shared "card pile" type is calling out to be made,
-  but that's a dedicated rework, not a drive-by fix.
+- `RoomEngine.ts` is still ~3400 lines, but no longer a wall: ~187 methods averaging 18
+  lines, the longest being `dropCard` (76) and `onPointerUp` (74). What keeps it big is
+  ~120 private fields shared across gestures and animations — cutting it further means
+  moving state out of the class (separate gesture and animation owners), which is a
+  bigger change than anything done so far and needs a real reason to start.
 - Server message handlers are split by theme (`server/src/messages/*`) and get what they
   need from the room through the `RoomHost` interface; every write to the schema goes
   through `stateWrite.ts` (that's where the `clear()+push()` rule is enforced once).
