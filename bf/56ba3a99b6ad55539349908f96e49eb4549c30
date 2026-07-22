@@ -1,0 +1,32 @@
+client/src/game/fan.ts
+  s_3b000dfed76439::t_1ad5a4128e2a79 63-88
+client/src/game/swipeShuffle.test.ts
+  s_3b000dfed76439::t_d1243b49d774e6 2,131-143
+  s_3b000dfed76439::t_beef706f56e39e 144
+client/src/game/swipeShuffle.ts
+  s_3b000dfed76439::t_d1243b49d774e6 79-86
+client/src/game/fan.test.ts
+  s_3b000dfed76439::t_2424790081a7c2 2,243-283
+  s_3b000dfed76439::t_94df06e73d0888 284
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_c04191ca7121b0 475,495-501,512,1550
+  s_3b000dfed76439::t_76ce5dd0a53f31 30,232-239,260,458,462-464,466,995-1010,1325-1332,1355-1356,2336-2337,2340
+  s_3b000dfed76439::t_c2f201b5b5b887 51,509-510,1029-1034
+  s_3b000dfed76439::t_a4fc0fe0cf20cf 208,472-474,476-482,504-508,511,644,955,1845,2037,2420-2446
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "bf56ba3a99b6ad55539349908f96e49eb4549c30",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
