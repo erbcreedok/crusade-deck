@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { Room } from "colyseus.js";
-import { joinRoom, joinByInviteCode, joinRoomById, fetchPublicRooms, PublicRoomInfo } from "./colyseus";
+import {
+  joinRoom,
+  joinByInviteCode,
+  joinRoomById,
+  fetchPublicRooms,
+  fetchLastRoom,
+  PublicRoomInfo,
+  LastRoomInfo,
+} from "./colyseus";
 
 export function Lobby({
   accountId,
@@ -18,10 +26,30 @@ export function Lobby({
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([]);
+  const [lastRoom, setLastRoom] = useState<LastRoomInfo | null>(null);
 
   useEffect(() => {
     fetchPublicRooms().then(setPublicRooms);
   }, []);
+
+  // Последняя посещённая комната этого аккаунта (память на сервере — видна и в новом
+  // браузере под тем же аккаунтом). Возврат — обычным joinRoomById по roomId.
+  useEffect(() => {
+    if (!accountId) return;
+    fetchLastRoom(accountId).then(setLastRoom);
+  }, [accountId]);
+
+  async function returnToLast() {
+    if (!lastRoom) return;
+    setError(null);
+    try {
+      const room = await joinRoomById(lastRoom.roomId, { accountId, name });
+      onJoined(room);
+    } catch (e) {
+      setLastRoom(null); // комната уже исчезла — прячем кнопку
+      setError((e as Error).message);
+    }
+  }
 
   function saveNameIfChanged() {
     const trimmed = name.trim();
@@ -62,6 +90,12 @@ export function Lobby({
     <div className="pixel-screen">
       <div className="pixel-panel">
         <h2 className="pixel-title">♣ Лобби ♦</h2>
+
+        {lastRoom && (
+          <button className="pixel-btn pixel-btn-full" onClick={returnToLast}>
+            ↩ Вернуться в {lastRoom.inviteCode || "игру"}
+          </button>
+        )}
 
         <label className="pixel-label">Твоё имя</label>
         <input

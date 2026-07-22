@@ -40,3 +40,17 @@ export async function fetchPublicRooms(): Promise<PublicRoomInfo[]> {
   if (!res.ok) return [];
   return res.json();
 }
+
+export interface LastRoomInfo {
+  roomId: string;
+  inviteCode: string;
+  deckType: "36" | "52";
+}
+
+// Последняя посещённая аккаунтом комната (сервер помнит, пока она жива). null — если
+// нет/комната уже исчезла. Возврат делается через joinRoomById(roomId, ...).
+export async function fetchLastRoom(accountId: string): Promise<LastRoomInfo | null> {
+  const res = await fetch(`${HTTP_URL}/accounts/${accountId}/last-room`);
+  if (!res.ok) return null;
+  return res.json();
+}

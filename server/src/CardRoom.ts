@@ -6,6 +6,16 @@ import { verifyFirebaseToken } from "./auth.js";
 import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
 import { findAccountById } from "./accounts.js";
 import { setPublicRoom, updatePublicRoomCount, removePublicRoom } from "./publicRooms.js";
+import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
+
+// Снимок состояния игрока по аккаунту — чтобы восстановить руку при повторном входе
+// (в т.ч. из нового браузера) после того, как его Player удалён из стейта.
+interface AccountSnapshot {
+  name: string;
+  hand: string[];
+  isDealer: boolean;
+  hadDeckInSafe: boolean;
+}
 
 interface JoinOptions {
   token?: string;
@@ -36,11 +46,28 @@ function getVoteTimeoutMs(): number {
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 10_000;
 }
 
+// Секунды окна переподключения (allowReconnection). Лениво из env — тесты ставят короткое.
+function getReconnectSeconds(): number {
+  const fromEnv = Number(process.env.RECONNECT_SECONDS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 30;
+}
+
+// Сколько живёт опустевшая комната перед диспоузом (даёт вернуться «в последнюю игру»).
+function getEmptyRoomTtlMs(): number {
+  const fromEnv = Number(process.env.EMPTY_ROOM_TTL_MS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 30 * 60_000; // 30 минут
+}
+
 export class CardRoom extends Room<GameState> {
   maxClients = 32;
   private proposalTimeout: Delayed | null = null;
+  private disposeTimer: Delayed | null = null;
+  private accountSnapshots = new Map<string, AccountSnapshot>();
 
   onCreate(options: JoinOptions) {
+    // Комната не диспоузится сразу при опустошении — держим её живой TTL, чтобы игрок
+    // мог вернуться «в последнюю игру» с восстановленными картами (см. disposeTimer).
+    this.autoDispose = false;
     this.setState(new GameState());
     this.state.deckType = options.deckType === "52" ? "52" : "36";
     buildDeck(this.state.deckType).forEach((card) => this.state.deck.push(card));
@@ -132,12 +159,49 @@ export class CardRoom extends Room<GameState> {
   }
 
   onJoin(client: Client, options: JoinOptions, auth?: { uid: string }) {
+    const accountId = auth!.uid;
+    const wasEmpty = this.state.players.size === 0;
     const player = new Player();
-    player.id = auth!.uid;
+    player.id = accountId;
     player.name = options.name || "Player";
-    player.isDealer = this.state.players.size === 0;
+
+    // Есть ли прежнее состояние этого аккаунта: (a) ещё висящий отключённый Player
+    // (вход из нового браузера в окне переподключения) или (b) сохранённый снапшот.
+    const lingering = [...this.state.players.entries()].find(
+      ([sid, p]) => p.id === accountId && !p.connected && sid !== client.sessionId,
+    );
+    const snap = this.accountSnapshots.get(accountId);
+    const prior = lingering
+      ? { name: lingering[1].name, hand: [...lingering[1].hand] as string[], isDealer: lingering[1].isDealer, oldSid: lingering[0] as string }
+      : snap
+        ? { name: snap.name, hand: snap.hand, isDealer: snap.isDealer, oldSid: undefined }
+        : null;
+
+    if (prior) {
+      player.name = prior.name || player.name;
+      prior.hand.forEach((c) => player.hand.push(c));
+      // Дилерство возвращаем только если сейчас дилера нет — иначе не плодим второго.
+      const hasDealer = [...this.state.players.values()].some((p) => p.isDealer);
+      player.isDealer = prior.isDealer && !hasDealer;
+      // Колода была в сейф-зоне этого игрока — перецепляем на новый sessionId.
+      const hadDeckInSafe = lingering ? this.state.deckLocation === prior.oldSid : !!snap?.hadDeckInSafe;
+      if (hadDeckInSafe) this.state.deckLocation = client.sessionId;
+      if (prior.oldSid) this.state.players.delete(prior.oldSid);
+      this.accountSnapshots.delete(accountId);
+    } else {
+      player.isDealer = wasEmpty;
+    }
+
     this.state.players.set(client.sessionId, player);
-    if (this.state.isPublic) updatePublicRoomCount(this.roomId, this.state.players.size);
+    this.cancelDisposeTimer(); // комната снова не пуста
+    setLastRoom(accountId, {
+      roomId: this.roomId,
+      inviteCode: this.state.inviteCode,
+      deckType: this.state.deckType,
+    });
+    if (this.state.isPublic) {
+      setPublicRoom(this.roomId, { roomId: this.roomId, deckType: this.state.deckType, playerCount: this.state.players.size });
+    }
   }
 
   onLeave(client: Client) {
@@ -152,21 +216,54 @@ export class CardRoom extends Room<GameState> {
 
     this.cancelProposalInvolving(client.sessionId);
     this.tallyAndResolve();
+    this.maybeScheduleDisposeTimer(); // все отключились → завести таймер жизни пустой комнаты
 
-    // Даем 30 секунд на переподключение перед тем как выкинуть из комнаты
-    this.allowReconnection(client, 30)
+    // Окно переподключения; по его истечении — снапшот состояния и удаление игрока.
+    this.allowReconnection(client, getReconnectSeconds())
       .then(() => {
         player.connected = true;
+        this.cancelDisposeTimer();
       })
       .catch(() => {
+        // Сохраняем руку/дилерство по аккаунту, чтобы восстановить при возврате.
+        this.accountSnapshots.set(player.id, {
+          name: player.name,
+          hand: [...player.hand] as string[],
+          isDealer: player.isDealer,
+          hadDeckInSafe: this.state.deckLocation === client.sessionId,
+        });
+        if (this.state.deckLocation === client.sessionId) this.state.deckLocation = "center";
         this.state.players.delete(client.sessionId);
         if (this.state.isPublic) updatePublicRoomCount(this.roomId, this.state.players.size);
+        this.maybeScheduleDisposeTimer();
       });
   }
 
   onDispose() {
+    this.disposeTimer?.clear();
+    clearLastRoomByRoomId(this.roomId);
     if (this.state.inviteCode) releaseInviteCode(this.state.inviteCode);
     removePublicRoom(this.roomId);
+  }
+
+  private connectedCount(): number {
+    let n = 0;
+    this.state.players.forEach((p) => {
+      if (p.connected) n++;
+    });
+    return n;
+  }
+
+  // Нет подключённых игроков → завести таймер диспоуза (комната поживёт TTL для возврата).
+  private maybeScheduleDisposeTimer() {
+    if (this.connectedCount() > 0 || this.disposeTimer) return;
+    if (this.state.isPublic) removePublicRoom(this.roomId); // пустую не светим в списке
+    this.disposeTimer = this.clock.setTimeout(() => this.disconnect(), getEmptyRoomTtlMs());
+  }
+
+  private cancelDisposeTimer() {
+    this.disposeTimer?.clear();
+    this.disposeTimer = null;
   }
 
   private shuffleDeck() {

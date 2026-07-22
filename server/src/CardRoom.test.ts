@@ -1,13 +1,22 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { boot, ColyseusTestServer } from "@colyseus/testing";
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { CardRoom } from "./CardRoom.js";
+import { getLastRoom } from "./lastRooms.js";
 
-// Короткий таймаут голосования — тесты не должны ждать реальные 10 секунд.
-// CardRoom.ts читает VOTE_TIMEOUT_MS "лениво" (при каждом голосовании), а
-// не один раз при загрузке модуля, ровно ради этого.
+// Любой непустой accountId в тестах считаем валидным аккаунтом, чтобы onAuth вернул
+// uid = accountId (в реале это findAccountById из accounts.json). Без мока onAuth
+// свалился бы в guest-<sessionId> и не дал бы стабильной идентичности между входами.
+vi.mock("./accounts.js", () => ({
+  findAccountById: (id: string) => (id ? { id, name: "T", recoveryHash: "X", createdAt: 0 } : null),
+}));
+
+// Короткие таймауты — тесты не ждут реальные секунды. CardRoom читает их «лениво»
+// (при каждом обращении) из process.env, ровно ради тестируемости.
 process.env.VOTE_TIMEOUT_MS = "150";
+process.env.RECONNECT_SECONDS = "0.2"; // окно переподключения
+process.env.EMPTY_ROOM_TTL_MS = "300"; // сколько живёт опустевшая комната
 
 function createGameServer() {
   const server = new Server({ transport: new WebSocketTransport() });
@@ -239,5 +248,48 @@ describe("CardRoom", () => {
     await waiter;
 
     expect(room.state.isPublic).toBe(true);
+  });
+
+  // --- память комнаты: последняя комната аккаунта + восстановление руки ---
+
+  it("records the account's last visited room on join", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice", accountId: "acc-last-1" });
+
+    expect(getLastRoom("acc-last-1")?.roomId).toBe(room.roomId);
+    expect(getLastRoom("acc-last-1")?.deckType).toBe("36");
+  });
+
+  it("restores the hand when the same account rejoins after a disconnect", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const a = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-rejoin" });
+    await colyseus.connectTo(room, { name: "Bob", accountId: "acc-bob" }); // держит комнату живой
+
+    const waiter = room.waitForMessage("start_game");
+    a.send("start_game");
+    await waiter;
+    const handBefore = [...room.state.players.get(a.sessionId)!.hand];
+    expect(handBefore.length).toBeGreaterThan(0);
+
+    // A отваливается; ждём финализации (снапшот) дольше окна переподключения.
+    await a.leave();
+    await new Promise((r) => setTimeout(r, 400));
+
+    // A заходит снова тем же аккаунтом → рука должна восстановиться.
+    const a2 = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-rejoin" });
+    const restored = [...room.state.players.get(a2.sessionId)!.hand];
+    expect(restored).toEqual(handBefore);
+  });
+
+  it("keeps an emptied room alive until TTL, then disposes and forgets it", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const a = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-empty" });
+    expect(getLastRoom("acc-empty")?.roomId).toBe(room.roomId);
+
+    await a.leave();
+    // Дольше EMPTY_ROOM_TTL_MS (300) — комната диспоузится, память забывается.
+    await new Promise((r) => setTimeout(r, 600));
+
+    expect(getLastRoom("acc-empty")).toBeUndefined();
   });
 });

@@ -8,6 +8,7 @@ import { CardRoom } from "./CardRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
 import { createAccount, findAccountByRecoveryHash, renameAccount, regenerateRecoveryHash } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
+import { getLastRoom } from "./lastRooms.js";
 
 const { Server } = colyseusPkg;
 
@@ -71,6 +72,14 @@ app.post("/accounts/:id/regenerate-code", (req, res) => {
 
 app.get("/rooms/public", (_req, res) => {
   res.json(listPublicRooms());
+});
+
+// Последняя посещённая аккаунтом комната (для кнопки «вернуться в игру» в лобби).
+// Запись существует, только пока комната ещё жива (чистится на её диспоузе).
+app.get("/accounts/:id/last-room", (req, res) => {
+  const last = getLastRoom(req.params.id);
+  if (!last) return res.status(404).json({ error: "not_found" });
+  res.json(last);
 });
 
 const PORT = Number(process.env.PORT) || 2567;
