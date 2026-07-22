@@ -1,0 +1,85 @@
+client/src/game/engine/zonePaint.ts
+  s_7d9a23fba6e8e1::t_eb17573e6a311f 1-68
+client/src/game/engine/zoneChrome.test.ts
+  s_7d9a23fba6e8e1::t_9b6b5231421aab 1-80
+client/src/game/engine/collapseArrow.test.ts
+  s_7d9a23fba6e8e1::t_4f9bac17da3320 1-43
+client/src/game/engine/fanGeometry.ts
+  s_7d9a23fba6e8e1::t_b0b6bcd7cc4784 1-60
+client/src/game/engine/scramble.test.ts
+  s_7d9a23fba6e8e1::t_bfec3973e752c4 16-17
+  s_7d9a23fba6e8e1::t_bf41b1dae4d4e3 1-15,18-33
+client/src/game/engine/idleGate.ts
+  s_7d9a23fba6e8e1::t_5153e7ccf28d86 1-61
+client/src/game/engine/collapseArrow.ts
+  s_7d9a23fba6e8e1::t_92aa7f0595582e 1-73
+client/src/game/engine/constants.ts
+  s_7d9a23fba6e8e1::t_84db96ca5c57d7 1-66
+client/src/game/engine/idleGate.test.ts
+  s_7d9a23fba6e8e1::t_5683aeadd59d66 1-60
+client/src/game/engine/zoneChrome.ts
+  s_7d9a23fba6e8e1::t_491414d25b3a97 1-77
+client/src/game/engine/cardTextures.ts
+  s_7d9a23fba6e8e1::t_b9d70a650f4eef 1-115
+client/src/game/RoomEngine.ts
+  s_7d9a23fba6e8e1::t_96699bd1f0e17b 420
+  s_7d9a23fba6e8e1::t_01d6c87f0431c0 225-226
+  s_7d9a23fba6e8e1::t_18dd6da8ac0c5b 584-597
+  s_7d9a23fba6e8e1::t_ba05c4ac011099 2076,2078-2087,2093
+  s_7d9a23fba6e8e1::t_f435c67ff5cd60 2735-2736,2738-2758
+  s_7d9a23fba6e8e1::t_b1a1da5b36ee13 886-887
+  s_7d9a23fba6e8e1::t_3ef0eba2658cda 2968,2981-2982,2986-2987,2993,2995-3001,3005-3007,3012
+  s_7d9a23fba6e8e1::t_0a0c8ee70ab9bc 62
+  s_7d9a23fba6e8e1::t_12cbe515fd8dc1 512
+  s_7d9a23fba6e8e1::t_99ec1f783c85aa 2524
+  s_7d9a23fba6e8e1::t_89d0ac9e82b59a 133-137
+  s_7d9a23fba6e8e1::t_7fe3ebc122c3f8 468
+  s_7d9a23fba6e8e1::t_4f23307e6d8ef7 2943-2944,2946,2948-2951,2957
+  s_7d9a23fba6e8e1::t_b92d77bf2e9c1c 432,442,446-447
+  s_7d9a23fba6e8e1::t_5607113c98dc2c 524-525
+  s_7d9a23fba6e8e1::t_71e9ec1576da40 497
+  s_7d9a23fba6e8e1::t_d4f38d0ee951dd 891,896-910
+  s_7d9a23fba6e8e1::t_4860dab99a5d0c 567
+  s_7d9a23fba6e8e1::t_9f07d70975551e 398,400,406,408,410,412
+  s_7d9a23fba6e8e1::t_534358af76438e 478
+  s_7d9a23fba6e8e1::t_b1bb1aeb585650 920
+  s_7d9a23fba6e8e1::t_873bb7eacd3d30 81,90-114
+  s_7d9a23fba6e8e1::t_6056939cd471da 2180,2297-2298,2300-2302,2304,2307,3114-3127,3131-3132,3135-3136,3142,3244
+  s_7d9a23fba6e8e1::t_8dd39eee52e18c 2097
+client/src/game/engine/types.ts
+  s_7d9a23fba6e8e1::t_b65a90a9ee0b7d 1-31
+client/src/game/mathUtil.ts
+  s_7d9a23fba6e8e1::t_001bcbb8a873c3 1-29
+client/src/game/engine/faceTextureCache.test.ts
+  s_7d9a23fba6e8e1::t_b025a3c04ce2ca 1-111
+client/src/game/engine/fanGeometry.test.ts
+  s_7d9a23fba6e8e1::t_628cb395c6614b 1-69
+client/src/game/engine/seatChrome.test.ts
+  s_7d9a23fba6e8e1::t_eddee492672cfa 1-54
+client/src/game/mathUtil.test.ts
+  s_7d9a23fba6e8e1::t_24f7a387d23852 1-44
+client/src/game/engine/scramble.ts
+  s_7d9a23fba6e8e1::t_1403fda8eaf099 1-26
+client/src/game/engine/faceTextureCache.ts
+  s_7d9a23fba6e8e1::t_14f8bac4da1f8c 1-92
+client/src/game/engine/seatChrome.ts
+  s_7d9a23fba6e8e1::t_6ffad069bdfb1a 1-76
+client/src/game/engine/seatPaint.ts
+  s_7d9a23fba6e8e1::t_f9393246bff622 1-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0fa661b744c90e7b641421b86161ccf16b82487f",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
