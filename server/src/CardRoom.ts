@@ -7,7 +7,7 @@ import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
 import { findAccountById } from "./accounts.js";
 import { setPublicRoom, updatePublicRoomCount, removePublicRoom } from "./publicRooms.js";
 import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
-import { moveCard } from "./deckOrder.js";
+import { moveCard, scatterCards } from "./deckOrder.js";
 
 interface JoinOptions {
   token?: string;
@@ -81,6 +81,18 @@ export class CardRoom extends Room<GameState> {
       const to = message?.to;
       if (typeof card !== "string" || typeof to !== "number" || !Number.isFinite(to)) return;
       const next = moveCard(this.state.deck.toArray(), card, to);
+      next.forEach((c, i) => this.state.deck.setAt(i, c));
+    });
+
+    // Свайп по раскрытому вееру: игрок выбросил пачку соседних карт — они врезаются
+    // обратно в колоду на случайные места. Это НЕ полная перетасовка: все остальные
+    // карты сохраняют порядок относительно друг друга (см. scatterCards).
+    this.onMessage("scatter_cards", (client, message: { cards?: string[] }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      const cards = message?.cards;
+      if (!Array.isArray(cards) || cards.length === 0) return;
+      const next = scatterCards(this.state.deck.toArray(), cards.filter((c) => typeof c === "string"), Math.random);
       next.forEach((c, i) => this.state.deck.setAt(i, c));
     });
 

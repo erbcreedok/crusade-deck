@@ -158,7 +158,7 @@ export class RoomEngine {
   // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
   // если новый порядок придёт в полёте, карта просто вернётся уже в новый слот.
   private splashAnim: { t: number; dur: number; entries: { v: CardVisual; dir: Dir; dist: number; spin: number; z: number }[] } | null = null;
-  private onSwipeShuffle: (() => void) | null = null;
+  private onSwipeShuffle: ((cards: string[]) => void) | null = null;
 
   // «Кирпич» колоды: торцы карт под верхней, одной Graphics вместо полусотни спрайтов.
   private deckBody: Graphics | null = null;
@@ -461,8 +461,9 @@ export class RoomEngine {
     this.onCardReorder = fn;
   }
 
-  // Свайп вверх по вееру = «перемешать»: движок играет выплеск, React шлёт shuffle_deck.
-  setOnSwipeShuffle(fn: (() => void) | null): void {
+  // Свайп вверх по вееру: движок играет выплеск, React шлёт на сервер список выброшенных
+  // карт (scatter_cards) — врезаются обратно только они.
+  setOnSwipeShuffle(fn: ((cards: string[]) => void) | null): void {
     this.onSwipeShuffle = fn;
   }
 
@@ -1574,7 +1575,9 @@ export class RoomEngine {
     this.splashAnim = { t: 0, dur: s.dur, entries };
     this.poke = null;
     this.hoverTarget = 0;
-    this.onSwipeShuffle?.();
+    // Наверх уходят ИМЕННО выброшенные карты: сервер врежет обратно только их, а порядок
+    // остальных не тронет (полная перетасовка — это отдельная кнопка «Растасовать»).
+    this.onSwipeShuffle?.(entries.map((e) => e.v.card));
     this.wake();
   }
 

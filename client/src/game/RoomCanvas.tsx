@@ -15,7 +15,7 @@ interface Props {
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
-  onSwipeShuffle: () => void; // свайп вверх по вееру = «перемешать»
+  onSwipeShuffle: (cards: string[]) => void; // свайп вверх: выброшенные карты врезать обратно
   onDragChange: (active: boolean) => void;
   animation: AnimationSettings;
 }

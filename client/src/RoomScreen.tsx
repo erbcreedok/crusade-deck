@@ -128,12 +128,16 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
-  // Свайп вверх по раскрытому вееру — то же «Растасовать», только жестом. «Сумбур» не
-  // запускаем: движок уже играет выплеск карт, две анимации поверх друг друга не нужны.
-  const onSwipeShuffle = useCallback(() => {
-    if (!canMoveDeck) return;
-    room.send("shuffle_deck");
-  }, [canMoveDeck, room]);
+  // Свайп вверх по раскрытому вееру — НЕ полная перетасовка: врезаем обратно только те
+  // карты, что выплеснулись из-под пальца, порядок остальных сервер не трогает. «Сумбур»
+  // не запускаем — движок уже играет выплеск, две анимации поверх друг друга не нужны.
+  const onSwipeShuffle = useCallback(
+    (cards: string[]) => {
+      if (!canMoveDeck || cards.length === 0) return;
+      room.send("scatter_cards", { cards });
+    },
+    [canMoveDeck, room],
+  );
 
   const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
 
