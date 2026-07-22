@@ -15,6 +15,7 @@ interface Props {
   shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает тасовку в движке
   flipSignal: number; // растёт при нажатии «Перевернуть колоду»
   incomingFx: DeckFxIncoming | null; // чужой эффект с сервера — проиграть как есть
+  rejectedFlip: { cards: string[]; text: string; seq: number } | null; // сервер не подтвердил переворот
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
@@ -41,6 +42,7 @@ export function RoomCanvas({
   shuffleSignal,
   flipSignal,
   incomingFx,
+  rejectedFlip,
   onDeckDoubleClick,
   onDeckDrop,
   onCardReorder,
@@ -110,6 +112,11 @@ export function RoomCanvas({
   useEffect(() => {
     if (flipSignal > 0) engineRef.current?.flipDeckByButton();
   }, [flipSignal]);
+
+  // Отказ сервера: вернуть карты и объяснить причину.
+  useEffect(() => {
+    if (rejectedFlip) engineRef.current?.rejectFlip(rejectedFlip.cards, rejectedFlip.text);
+  }, [rejectedFlip]);
 
   // Чужой эффект: только показать. Состояние карт придёт схемой и всегда главнее.
   useEffect(() => {

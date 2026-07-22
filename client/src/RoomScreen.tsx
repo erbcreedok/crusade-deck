@@ -6,6 +6,7 @@ import type { CardBackId } from "./game/cardBack";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
 import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
+import { rejectionText } from "./game/rejections";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
 interface RoomPlayer {
@@ -51,6 +52,9 @@ export function RoomScreen({
   const [flipSignal, setFlipSignal] = useState(0);
   // Последний пришедший чужой эффект — движок его просто показывает.
   const [incomingFx, setIncomingFx] = useState<DeckFxIncoming | null>(null);
+  // Отказ сервера на переворот: карты уже показаны другой стороной, их надо вернуть.
+  // seq нужен, чтобы два одинаковых отказа подряд не слились в один эффект React.
+  const [rejectedFlip, setRejectedFlip] = useState<{ cards: string[]; text: string; seq: number } | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -180,6 +184,19 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
+  // Отказы сервера. Клиент показывает переворот сразу, оптимистично — значит, каждый
+  // отказ обязан вернуть картинку к правде и сказать, почему так нельзя.
+  useEffect(() => {
+    let seq = 0;
+    room.onMessage("action_rejected", (msg: { cards?: string[]; reason?: string }) => {
+      setRejectedFlip({
+        cards: Array.isArray(msg?.cards) ? msg.cards : [],
+        text: rejectionText(String(msg?.reason ?? "")),
+        seq: ++seq,
+      });
+    });
+  }, [room]);
+
   // Приём чужих эффектов. Протухшие (пинг скакнул, вкладка была свёрнута) не играем:
   // догонять момент полусекундной давности бессмысленно, а данные всё равно уже пришли
   // схемой — они и есть правда, эффект лишь помогает понять, ЧТО произошло.
@@ -249,6 +266,7 @@ export function RoomScreen({
         shuffleSignal={shuffleSignal}
         flipSignal={flipSignal}
         incomingFx={incomingFx}
+        rejectedFlip={rejectedFlip}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onCardReorder={onCardReorder}

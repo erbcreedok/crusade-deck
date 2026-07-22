@@ -509,4 +509,44 @@ describe("CardRoom", () => {
     expect(room.state.deck[20]).toBe(card);
     expect(room.state.faceUp.get(card)).toBe(true); // сторона уехала вместе с картой
   });
+
+  // Клиент показывает переворот СРАЗУ, поэтому отказ обязан быть явным: иначе он
+  // останется с картинкой, которой на сервере не существует.
+  it("answers a rejected flip with a reason instead of staying silent", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+    const card = room.state.deck[0];
+
+    const rejects: any[] = [];
+    second.onMessage("action_rejected", (m) => rejects.push(m));
+
+    let waiter = room.waitForMessage("flip_deck");
+    second.send("flip_deck");
+    await waiter;
+
+    waiter = room.waitForMessage("flip_cards");
+    second.send("flip_cards", { cards: [card] });
+    await waiter;
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(rejects.map((r) => r.action)).toEqual(["flip_deck", "flip_cards"]);
+    expect(rejects.every((r) => r.reason === "not_dealer")).toBe(true);
+    expect(rejects[1].cards).toEqual([card]); // клиенту вернут ровно те карты, что он крутил
+    expect(room.state.faceUp.get(card)).toBe(false); // и состояние не тронуто
+  });
+
+  it("rejects flipping cards that are not in the deck", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const rejects: any[] = [];
+    dealer.onMessage("action_rejected", (m) => rejects.push(m));
+
+    const waiter = room.waitForMessage("flip_cards");
+    dealer.send("flip_cards", { cards: ["джокер"] });
+    await waiter;
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(rejects[0]?.reason).toBe("unknown_cards");
+  });
 });

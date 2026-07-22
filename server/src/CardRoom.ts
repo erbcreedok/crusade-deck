@@ -10,6 +10,7 @@ import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
 import { moveCard, isPermutationOf } from "./deckOrder.js";
 import { flipWholeDeck, flippedFacing } from "./deckFacing.js";
 import { sanitizeDeckFx, FxRateLimiter } from "./deckFx.js";
+import { flipRejectReason } from "./rejections.js";
 
 interface JoinOptions {
   token?: string;
@@ -108,7 +109,14 @@ export class CardRoom extends Room<GameState> {
     // Порядок реверсится, каждая карта меняет сторону — как у настоящей стопки в руке.
     this.onMessage("flip_deck", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      const deck = this.state.deck.toArray();
+      const reason = flipRejectReason(player, this.state.phase, deck, []);
+      if (reason) {
+        // Клиент уже показал карты другой стороной — молчать нельзя, иначе он останется
+        // с неверной картинкой. Отвечаем отказом, он вернёт колоду и объяснит почему.
+        client.send("action_rejected", { action: "flip_deck", reason, cards: [] });
+        return;
+      }
       const out = flipWholeDeck(this.state.deck.toArray(), this.facingRecord());
       out.order.forEach((c, i) => this.state.deck.setAt(i, c));
       for (const [card, up] of Object.entries(out.facing)) this.state.faceUp.set(card, up);
@@ -118,10 +126,15 @@ export class CardRoom extends Room<GameState> {
     // перевороты при сильной тасовке). Порядок колоды не трогается.
     this.onMessage("flip_cards", (client, message: { cards?: string[] }) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player?.isDealer || this.state.phase !== "lobby") return;
-      const cards = message?.cards;
-      if (!Array.isArray(cards) || cards.length === 0) return;
-      const next = flippedFacing(this.facingRecord(), cards.filter((c) => typeof c === "string"));
+      const raw = message?.cards;
+      const cards = Array.isArray(raw) ? raw.filter((c): c is string => typeof c === "string") : [];
+      if (cards.length === 0) return; // пустой запрос — нечего ни делать, ни откатывать
+      const reason = flipRejectReason(player, this.state.phase, this.state.deck.toArray(), cards);
+      if (reason) {
+        client.send("action_rejected", { action: "flip_cards", reason, cards });
+        return;
+      }
+      const next = flippedFacing(this.facingRecord(), cards);
       for (const [card, up] of Object.entries(next)) this.state.faceUp.set(card, up);
     });
 

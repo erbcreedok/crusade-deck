@@ -85,6 +85,8 @@ const TEX_H = 228;
 
 const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
 
+const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» при запрещённом дропе колоды
+
 // Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
 const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 };
 
@@ -139,7 +141,14 @@ export class RoomEngine {
   // данные всегда побеждают анимацию.
   private flipExpect = new Map<string, { up: boolean; until: number }>();
   // Переворот: карты + задержка старта (стопка переворачивается волной).
-  private flipAnim: { t: number; dur: number; angle: number; entries: { v: CardVisual; delay: number }[] } | null = null;
+  private flipAnim: {
+    t: number;
+    dur: number;
+    angle: number;
+    entries: { v: CardVisual; delay: number; swapped: boolean }[];
+  } | null = null;
+  // Текст-объяснение поверх стола (отказ сервера). Живёт отдельно от «ударного» отскока.
+  private notice: { t: number; dur: number } | null = null;
   // Резиновая тянучка запрещённого жеста (свайп вверх по стопке).
   private stretchAnim: { t: number; dur: number; angle: number } | null = null;
   private flipMap = new Map<CardVisual, number>(); // карта → задержка старта её переворота
@@ -313,7 +322,7 @@ export class RoomEngine {
 
     // «низяяя» — крупный текст поверх карт, всплывает по центру во время отскока.
     this.rejectText = new Text({
-      text: "низяяя",
+      text: REJECT_TEXT,
       style: {
         fontFamily: "VT323, monospace",
         fontSize: 64,
@@ -758,7 +767,7 @@ export class RoomEngine {
   private startFlip(cards: CardVisual[], angle: number, dur: number, emit: boolean, wholeDeck = false): void {
     if (cards.length === 0) return;
     const stagger = wholeDeck ? anim.flip.stagger : 0;
-    const entries = cards.map((v, i) => ({ v, delay: i * stagger }));
+    const entries = cards.map((v, i) => ({ v, delay: i * stagger, swapped: false }));
     this.flipAnim = { t: 0, dur, angle, entries };
     this.flipMap = new Map(entries.map((e) => [e.v, e.delay]));
     if (emit) {
@@ -820,6 +829,27 @@ export class RoomEngine {
       }
       this.onDeckFx?.({ kind: "spill", angle: 0, cards: [], count: take, dur: Math.round(dur * 1000) });
     }
+    this.wake();
+  }
+
+  // Сервер не подтвердил переворот. Карты уже показаны другой стороной — возвращаем их
+  // тем же движением (переворот в обратную сторону) и объясняем причину поверх стола.
+  rejectFlip(cards: string[], text: string): void {
+    if (this.destroyed) return;
+    const affected = cards.length > 0 ? this.cards.filter((c) => cards.includes(c.card)) : [...this.cards];
+    const optimistic = affected.filter((c) => this.flipExpect.has(c.card));
+    if (optimistic.length > 0) {
+      this.flipAnim = null; // прерываем незавершённый переворот — он больше не про правду
+      this.flipMap.clear();
+      this.startFlip(optimistic, -Math.PI / 2, anim.flip.cardDur, false, optimistic.length === this.cards.length);
+    }
+    this.showNotice(text);
+  }
+
+  // Короткая надпись поверх стола (переиспользуем оверлей «низяяя»).
+  private showNotice(text: string): void {
+    if (this.rejectText) this.rejectText.text = text;
+    this.notice = { t: 0, dur: anim.flip.noticeDur };
     this.wake();
   }
 
@@ -1089,11 +1119,11 @@ export class RoomEngine {
   private syncRejectText(): void {
     const t = this.rejectText;
     if (!t) return;
-    if (!this.reject) {
+    if (!this.reject && !this.notice) {
       if (t.visible) t.visible = false;
       return;
     }
-    const p = this.reject.t / this.reject.dur; // 0 → 1
+    const p = this.reject ? this.reject.t / this.reject.dur : this.notice!.t / this.notice!.dur;
     t.visible = true;
     t.x = this.w / 2 + this.shake.dx;
     t.y = this.h / 2 + this.shake.dy;
@@ -1525,11 +1555,24 @@ export class RoomEngine {
       for (const e of fa.entries) {
         const p = (fa.t - e.delay) / fa.dur;
         if (p < 1) done = false;
-        if (flipShowsOther(p) && !this.flipExpect.has(e.v.card)) this.expectFlipped([e.v]);
+        // Ровно на «ребре» показываем другую сторону — один раз за анимацию. Это верно и
+        // для отката: там тем же движением карта возвращается к тому, что говорит сервер.
+        if (!e.swapped && flipShowsOther(p)) {
+          e.swapped = true;
+          this.expectFlipped([e.v]);
+        }
       }
       if (done) {
         this.flipAnim = null;
         this.flipMap.clear();
+      }
+    }
+
+    if (this.notice) {
+      this.notice.t += frameDt;
+      if (this.notice.t >= this.notice.dur) {
+        this.notice = null;
+        if (this.rejectText) this.rejectText.text = REJECT_TEXT; // вернуть текст по умолчанию
       }
     }
 
@@ -1588,6 +1631,7 @@ export class RoomEngine {
       !this.pendingShuffle &&
       !this.flipAnim &&
       !this.stretchAnim &&
+      !this.notice &&
       !this.press &&
       !this.cardPress &&
       !this.cardDrag &&
@@ -1744,8 +1788,9 @@ export class RoomEngine {
     return up && card ? this.faceTexFor(card) : this.backTex!;
   }
 
-  // Показать карту другой стороной, не дожидаясь сервера. Ставится в момент «ребра»
-  // переворота; снимется, когда придут данные (или по таймауту — правда важнее).
+  // Показать карту другой стороной СРАЗУ, не дожидаясь сервера. Снимется, когда придут
+  // данные (подтверждение) или отказ (откат). Таймер — только страховка на случай, когда
+  // ответа не будет вовсе (обрыв связи), а не нормальный путь.
   private expectFlipped(cards: CardVisual[]): void {
     const until = performance.now() + anim.flip.optimisticMs;
     for (const c of cards) {
