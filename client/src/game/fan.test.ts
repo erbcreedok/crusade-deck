@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver, fanSpreadShift } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver, fanSpreadShift, fanSpreadPinned } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина зоны руки
@@ -238,5 +238,47 @@ describe("fanSpreadShift", () => {
 
   it("широкое окно раздвигает мягче узкого на той же дистанции", () => {
     expect(Math.abs(fanSpreadShift(11, 10, 12, AMP, 1))).toBeLessThan(Math.abs(shift(11, 10)));
+  });
+});
+
+describe("fanSpreadPinned", () => {
+  const N = 20;
+  const CARDS = 5;
+  const AMP = 4;
+  const shift = (i: number, center: number) => fanSpreadPinned(i, N, center, CARDS, AMP);
+
+  it("края веера прибиты: общая ширина при раздвиге не меняется", () => {
+    for (const center of [0, 5, 10, 19]) {
+      expect(shift(0, center)).toBeCloseTo(0, 10);
+      expect(shift(N - 1, center)).toBeCloseTo(0, 10);
+    }
+  });
+
+  it("вокруг точки вставки зазор раскрывается: соседи разъезжаются в стороны", () => {
+    const center = 10;
+    expect(shift(9, center)).toBeLessThan(0); // левый сосед уходит левее
+    expect(shift(11, center)).toBeGreaterThan(0); // правый — правее
+  });
+
+  it("дальше от точки вставки веер, наоборот, поджимается", () => {
+    const center = 10;
+    // Между зазором и прибитым краем карты должны сдвигаться к краю, а не от него.
+    expect(Math.abs(shift(16, center))).toBeLessThan(Math.abs(shift(12, center)));
+  });
+
+  it("порядок карт сохраняется — соседи не проскакивают друг сквозь друга", () => {
+    const center = 7;
+    for (let i = 1; i < N; i++) {
+      expect(i + shift(i, center)).toBeGreaterThan(i - 1 + shift(i - 1, center));
+    }
+  });
+
+  it("нулевая амплитуда ничего не двигает", () => {
+    for (let i = 0; i < N; i++) expect(fanSpreadPinned(i, N, 10, CARDS, 0)).toBe(0);
+  });
+
+  it("вырожденные размеры безопасны", () => {
+    expect(fanSpreadPinned(0, 1, 0, CARDS, AMP)).toBe(0);
+    expect(fanSpreadPinned(0, 0, 0, CARDS, AMP)).toBe(0);
   });
 });

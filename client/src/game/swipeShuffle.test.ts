@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swipeStrength, swipeCardCount, swipeDirections, swipeVelocity, swipeCardIndices } from "./swipeShuffle";
+import { swipeStrength, swipeCardCount, swipeDirections, swipeVelocity, swipeCardIndices, isSwipeDown } from "./swipeShuffle";
 import { anim } from "./anim/config";
 
 const s = anim.swipe;
@@ -126,5 +126,19 @@ describe("swipeCardIndices", () => {
   it("вырожденные входы безопасны", () => {
     expect(swipeCardIndices(0, 5, 0)).toEqual([]);
     expect(swipeCardIndices(0, 0, 36)).toEqual([]);
+  });
+});
+
+describe("isSwipeDown", () => {
+  it("вниз и вниз-по-диагонали — да", () => {
+    expect(isSwipeDown(0, 1500)).toBe(true);
+    expect(isSwipeDown(500, 1500)).toBe(true);
+  });
+
+  it("вверх, вбок и вялое движение — нет", () => {
+    expect(isSwipeDown(0, -1500)).toBe(false);
+    expect(isSwipeDown(1500, 0)).toBe(false);
+    expect(isSwipeDown(1500, 300)).toBe(false); // почти горизонталь — это глиссандо
+    expect(isSwipeDown(0, 50)).toBe(false);
   });
 });

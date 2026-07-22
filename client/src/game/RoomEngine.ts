@@ -27,6 +27,7 @@ import {
   fanInsertIndex,
   visibleSliver,
   fanSpreadShift,
+  fanSpreadPinned,
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
@@ -47,6 +48,7 @@ import {
   swipeCardCount,
   swipeDirections,
   swipeVelocity,
+  isSwipeDown,
   swipeCardIndices,
   type Dir,
   type SwipeSample,
@@ -203,6 +205,7 @@ export class RoomEngine {
   private onFanCollapse: (() => void) | null = null; // «сложить руку»: стрелка или свайп вниз
   private collapseBtn: Container | null = null; // кнопка-стрелка под веером
   private debugG: Graphics | null = null; // временные рамки (см. DEBUG_BORDERS)
+  private handCounter: Text | null = null; // счётчик карт под сложенной рукой
   private deckHit: Container | null = null;
 
   // Драг колоды дилером: press — палец/мышь прижаты у колоды (ещё не факт что драг),
@@ -226,7 +229,14 @@ export class RoomEngine {
     canGrab: boolean; // на момент нажатия карта была видна достаточно, чтобы её взять
     samples: SwipeSample[]; // короткая история движения — по ней считается скорость свайпа
   } | null = null;
-  private cardDrag: { id: number; v: CardVisual; insertAt: number; x: number; y: number } | null = null;
+  private cardDrag: {
+    id: number;
+    v: CardVisual;
+    insertAt: number;
+    x: number;
+    y: number;
+    samples: SwipeSample[]; // история движения — по ней ловим бросок вниз
+  } | null = null;
   private cardShadow: Sprite | null = null;
   // «Выплеск» по свайпу вверх: несколько карт вылетают из веера и возвращаются, пока
   // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
@@ -247,6 +257,7 @@ export class RoomEngine {
   // «Кирпич» колоды: торцы карт под верхней, одной Graphics вместо полусотни спрайтов.
   private deckBody: Graphics | null = null;
   private deckBodyCount = -1; // на сколько карт нарисован блок (перерисовываем при смене)
+  private tapStartedOnDeck = false; // нажатие началось на колоде — тап мимо не снимает выделение
   private skipNextTap = false; // гасит pointertap, прилетающий сразу после дропа карты
   private onCardReorder: ((card: string, to: number) => void) | null = null;
   // Разрешено ли класть карту в зоны (центр/рука). Во время раздачи — нет: карту можно
@@ -444,16 +455,30 @@ export class RoomEngine {
     const collapse = new Container();
     collapse.eventMode = "static";
     collapse.cursor = "pointer";
-    collapse.zIndex = 9500;
+    collapse.zIndex = 10_500; // ВЫШЕ хит-зоны колоды (10 000): иначе её съедала полоса веера
     collapse.visible = false;
     const arrow = new Graphics();
     collapse.addChild(arrow);
+    // Нажатие на кнопку не должно доходить ни до колоды, ни до сцены: иначе тем же
+    // касанием начинался драг карты или снималось выделение.
+    collapse.on("pointerdown", (e: FederatedPointerEvent) => e.stopPropagation());
     collapse.on("pointertap", (e: FederatedPointerEvent) => {
-      e.stopPropagation(); // иначе тап уйдёт на сцену и снимет выделение дважды
+      e.stopPropagation();
       this.onFanCollapse?.();
     });
     this.world.addChild(collapse);
     this.collapseBtn = collapse;
+
+    const counter = new Text({
+      text: "",
+      style: { fontFamily: "VT323, monospace", fontSize: 20, fill: 0xd9b154, letterSpacing: 2 },
+    });
+    counter.anchor.set(0.5);
+    counter.visible = false;
+    counter.zIndex = 9200;
+    counter.eventMode = "none";
+    this.world.addChild(counter);
+    this.handCounter = counter;
 
     if (DEBUG_BORDERS) {
       this.debugG = new Graphics();
@@ -467,10 +492,24 @@ export class RoomEngine {
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
     app.stage.on("pointermove", (e: FederatedPointerEvent) => this.onPointerMove(e));
-    app.stage.on("pointerup", (e: FederatedPointerEvent) => this.onPointerUp(e));
+    app.stage.on("pointerup", (e: FederatedPointerEvent) => {
+      const wasDrag = this.dragging || !!this.cardDrag;
+      this.onPointerUp(e);
+      // После настоящего драга тапа не будет — снимаем метку сами, иначе она проглотит
+      // следующий честный тап по пустому месту.
+      if (wasDrag) this.tapStartedOnDeck = false;
+    });
     // Тап мимо всего — снять выделение. Тап по колоде сюда не доходит: он погашен
     // на её хит-зоне (stopPropagation выше).
-    app.stage.on("pointertap", () => this.onEmptyTap?.());
+    app.stage.on("pointertap", () => {
+      // Жест начался на колоде, а палец отпустили мимо зоны — это НЕ «тап по пустому
+      // месту»: рука не должна складываться от касания собственных карт.
+      if (this.tapStartedOnDeck) {
+        this.tapStartedOnDeck = false;
+        return;
+      }
+      this.onEmptyTap?.();
+    });
     app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
 
     if (this.seats.length > 0) this.applySeats(); // места могли приехать до монтирования
@@ -602,6 +641,7 @@ export class RoomEngine {
     this.positionDeckHit();
     this.drawZones();
     this.syncCollapseButton();
+    this.syncHandCounter();
   }
 
   private rebuildLayout(): void {
@@ -912,6 +952,7 @@ export class RoomEngine {
   // ——— драг колоды ———
 
   private onDeckDown(e: FederatedPointerEvent): void {
+    this.tapStartedOnDeck = true;
     this.skipNextTap = false; // новый жест — прошлое подавление тапа больше не актуально
     const mode = this.dragMode();
     if (mode === "none") return;
@@ -951,6 +992,22 @@ export class RoomEngine {
 
   private onPointerMove(e: FederatedPointerEvent): void {
     if (this.cardDrag && e.pointerId === this.cardDrag.id) {
+      this.cardDrag.samples.push({ x: e.global.x, y: e.global.y, t: performance.now() });
+      if (this.cardDrag.samples.length > 12) this.cardDrag.samples.shift();
+      // Резкий бросок ВНИЗ прерывает драг: карта возвращается на место, рука складывается.
+      const v = swipeVelocity(this.cardDrag.samples, anim.swipe.windowMs);
+      if (isSwipeDown(v.vx, v.vy)) {
+        const dragged = this.cardDrag.v;
+        this.cardDrag = null;
+        this.skipNextTap = true;
+        this.hoverZone = null;
+        this.returnCardHome(dragged);
+        this.drawZones();
+        this.onDragChange?.(false);
+        this.onFanCollapse?.();
+        this.wake();
+        return;
+      }
       this.cardDrag.x = e.global.x;
       this.cardDrag.y = e.global.y;
       this.cardDrag.insertAt = this.insertIndexAt(e.global.x);
@@ -969,6 +1026,12 @@ export class RoomEngine {
       // Резкий бросок ВВЕРХ по вееру — это «перемешать». Медленное ведение (скролл/
       // глиссандо) сюда не проходит: нужна и скорость по окну, и пройденный путь вверх.
       const v = swipeVelocity(p.samples, anim.swipe.windowMs);
+      // Свайп ВНИЗ по вееру складывает руку — явный выход из фокуса (тап её не сворачивает).
+      if (this.fanOpen() && isSwipeDown(v.vx, v.vy) && p.y - p.startY >= this.layout.cardH * anim.swipe.minTravel) {
+        this.cardPress = null;
+        this.onFanCollapse?.();
+        return;
+      }
       if (this.isSwipeUp(v.vx, v.vy, p.startY - p.y)) {
         this.startSwipeShuffle(v.vx, v.vy, p.index);
         this.cardPress = null;
@@ -1259,7 +1322,14 @@ export class RoomEngine {
     this.cardPress = null;
     this.poke = null; // раскрытие/ховер веера на время драга не нужны
     this.hoverTarget = 0;
-    this.cardDrag = { id: p.id, v, insertAt: this.insertIndexAt(p.x), x: p.x, y: p.y };
+    this.cardDrag = {
+      id: p.id,
+      v,
+      insertAt: this.insertIndexAt(p.x),
+      x: p.x,
+      y: p.y,
+      samples: [{ x: p.x, y: p.y, t: performance.now() }],
+    };
     v.sprite.zIndex = 100_000; // над всеми картами (но под хит-зоной колоды)
     if (this.deckHit) this.deckHit.cursor = "grabbing";
     this.hoverZone = pickDropTarget(p.x, p.y, this.layout);
@@ -1282,7 +1352,8 @@ export class RoomEngine {
       const slot = k < d.insertAt ? k : k + 1; // пропускаем слот под перетаскиваемую карту
       // Плюс раскрытие вокруг точки вставки: соседи разъезжаются, и видно, между какими
       // именно картами ляжет перетаскиваемая (одной «дырки» в тесном веере не видно).
-      const t = this.fanTarget(slot + fanSpreadShift(slot, d.insertAt, sp.cards, sp.amp, 1));
+      // Раздвиг с прибитыми краями: у пивота шире, дальше плотнее, общая ширина та же.
+      const t = this.fanTarget(slot + fanSpreadPinned(slot, this.deckCount, d.insertAt, sp.cards, sp.amp));
       c.body.setTarget({ x: t.x, y: t.y, rot: t.rot, scale: 1 });
       k++;
     }
@@ -1476,6 +1547,7 @@ export class RoomEngine {
   }
 
   private handleDeckTap(e: FederatedPointerEvent): void {
+    this.tapStartedOnDeck = false; // тап дошёл до колоды — метка отработала
     if (this.skipNextTap) {
       this.skipNextTap = false; // отпускание после драга карты — не тык и не дабл-клик
       return;
@@ -1770,6 +1842,7 @@ export class RoomEngine {
     this.focusG = null;
     this.collapseBtn = null;
     this.debugG = null;
+    this.handCounter = null;
     this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;
@@ -1961,6 +2034,7 @@ export class RoomEngine {
     this.shake = this.rejectShake();
     this.updateVisibility(); // режим «кирпич/отдельные карты» может смениться прямо в тике
     this.syncCollapseButton();
+    this.syncHandCounter();
     this.drawDebugBorders();
     for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
@@ -2259,11 +2333,11 @@ export class RoomEngine {
     const r = Math.max(18, cardH * 0.42);
     const g0 = this.fanGeom();
     // Середина веера сидит в якоре дуги; её нижняя кромка и есть «потолок» кармана.
-    const under = g0.anchor.y + cardH * 0.5 + r * 0.72;
-    const bottomLimit = z.cy + z.h / 2 - r * 0.6;
+    const under = g0.anchor.y + cardH * 0.5 + r * 1.15; // ниже кромки веера, а не впритык
+    const bottomLimit = z.cy + z.h / 2 - r * 0.35;
     btn.x = z.cx;
     btn.y = Math.min(under, bottomLimit);
-    btn.hitArea = new Circle(0, 0, r * 1.25); // круглая зона под палец, чуть шире рисунка
+    btn.hitArea = new Circle(0, 0, r * 1.7); // невидимый запас под косое нажатие
     const g = btn.children[0] as Graphics;
     g.clear();
     g.circle(0, 0, r).fill({ color: 0x14281c, alpha: 0.72 }).stroke({ width: 3, color: 0xd9b154, alpha: 0.65 });
@@ -2343,7 +2417,33 @@ export class RoomEngine {
     const width = rowWidth(count, cardW, maxW);
     const left = z.cx - width / 2;
     const x = left + (offsets[Math.max(0, Math.min(offsets.length - 1, i))] ?? 0) + cardW / 2;
-    return { x, y: z.cy, rot: 0, scale: 1 };
+    // Шеренга прижата к НИЗУ зоны, под ней остаётся полоса под счётчик карт.
+    return { x, y: this.rowCardsY(), rot: 0, scale: 1 };
+  }
+
+  // Центр карт шеренги по вертикали: низ зоны минус место под счётчик и полкарты.
+  private rowCardsY(): number {
+    const z = this.layout.handZone;
+    return z.cy + z.h / 2 - this.rowCounterSpace() - this.layout.cardH / 2;
+  }
+
+  private rowCounterSpace(): number {
+    return Math.max(14, this.layout.cardH * 0.32);
+  }
+
+  // Счётчик под шеренгой: сколько карт в руке. Видно только когда рука сложена — в фокусе
+  // карты и так разложены веером и считаются глазами.
+  private syncHandCounter(): void {
+    const t = this.handCounter;
+    if (!t) return;
+    const show = this.rowMode() && this.deckZone !== "away" && this.deckCount > 0;
+    t.visible = show;
+    if (!show) return;
+    const z = this.layout.handZone;
+    t.text = String(this.deckCount);
+    t.style.fontSize = Math.max(11, Math.min(28, this.rowCounterSpace() * 0.85));
+    t.x = z.cx;
+    t.y = this.rowCardsY() + this.layout.cardH / 2 + this.rowCounterSpace() * 0.5;
   }
 
   // Геометрия веера в руке. Дуга fanCard провисает ВНИЗ от якоря, поэтому якорь стоит у

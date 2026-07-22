@@ -76,3 +76,11 @@ export function swipeDirections(count: number, vx: number, vy: number): Dir[] {
   }
   return out;
 }
+
+// Свайп ВНИЗ: им складывают руку (выход из фокуса) и прерывают драг карты. Сектор широкий,
+// диагонали вниз тоже считаются, а горизонтальное ведение — нет: это глиссандо по вееру.
+export function isSwipeDown(vx: number, vy: number): boolean {
+  const speed = Math.hypot(vx, vy);
+  if (speed < anim.flip.minSwipeSpeed) return false;
+  return vy / speed > anim.flip.upSectorCos;
+}
