@@ -1,0 +1,39 @@
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_ec8222eb1ccd9d 148-152
+client/src/RoomScreen.tsx
+  s_3b000dfed76439::t_e44261b532ff4d 9,55-57,187-199,269
+server/src/CardRoom.test.ts
+  s_3b000dfed76439::t_992a12c8503c03 512-551
+client/src/game/RoomCanvas.tsx
+  s_3b000dfed76439::t_e44261b532ff4d 18,45,116-119
+  s_3b000dfed76439::t_85d38539e8bd60 120
+client/src/game/rejections.test.ts
+  s_3b000dfed76439::t_bf4dab5ae931e1 1-29
+server/src/rejections.test.ts
+  s_3b000dfed76439::t_79053b1806c371 1-35
+server/src/rejections.ts
+  s_3b000dfed76439::t_79053b1806c371 1-19
+client/src/game/rejections.ts
+  s_3b000dfed76439::t_bf4dab5ae931e1 1-21
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_b9e943fc52168b 144-151,770,835-855,1122,1126,1558-1563,1571-1578,1634,1791-1793
+  s_3b000dfed76439::t_ec8222eb1ccd9d 88-89,325
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_992a12c8503c03 13,112-119,129-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4b527f093783ba8bcaf6fd47a5be7ddeb03c96bf",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
