@@ -1,0 +1,24 @@
+client/src/game/deckOrder.ts
+  s_3b000dfed76439::t_913fae0f90411c 44-51
+client/src/RoomScreen.tsx
+  s_3b000dfed76439::t_7cfc2c3c286d24 16,71-72,146-159,312,552,561
+client/src/game/deckOrder.test.ts
+  s_3b000dfed76439::t_913fae0f90411c 2,85-96
+  s_3b000dfed76439::t_1bb293a5733ff4 97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6d81ba7563f15dc0ee644b77c91c88f39301fad9",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
