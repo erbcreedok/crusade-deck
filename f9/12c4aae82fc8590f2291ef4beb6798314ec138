@@ -1,0 +1,57 @@
+client/src/game/card.test.ts
+  s_4864baaac43e63::t_b513107efab2e5 1-38
+client/src/AppMenu.tsx
+  s_4864baaac43e63::t_797e85488cba99 26-27,38-39
+  s_4864baaac43e63::t_38e5a936145369 160-163
+client/src/game/card.ts
+  s_4864baaac43e63::t_b4e5fd05207701 1-36
+client/src/App.tsx
+  s_4864baaac43e63::t_ddbd5f530d3b66 211-212,218
+  s_4864baaac43e63::t_efd3a203211fff 10
+  s_4864baaac43e63::t_52c83c1365de52 39
+client/src/RoomScreen.tsx
+  s_4864baaac43e63::t_ccace5e3b79e2b 153,156
+  s_4864baaac43e63::t_cf11320a33f420 25-33,39
+  s_4864baaac43e63::t_8c630039544605 59
+client/src/useFourColor.ts
+  s_4864baaac43e63::t_9f5f2c39125d07 1-15
+client/src/AppMenu.test.tsx
+  s_4864baaac43e63::t_685c0eec04749e 21-22
+client/src/useFourColor.test.ts
+  s_4864baaac43e63::t_d927312933ac74 1-27
+client/src/game/RoomEngine.ts
+  s_4864baaac43e63::t_3ecc0a450adc1b 251,728,731,738,744-745,751-805
+  s_4864baaac43e63::t_37379261b59e37 17
+  s_4864baaac43e63::t_3658d224fbde31 76-77
+  s_4864baaac43e63::t_90e4dacdb6abce 185
+  s_4864baaac43e63::t_c85d6d9cbbe6de 458,465-477,482
+  s_4864baaac43e63::t_98814e2523eec6 350
+  s_4864baaac43e63::t_87242795b2763c 235-239,245-249
+  s_4864baaac43e63::t_920757ab6053a9 33
+  s_4864baaac43e63::t_ffb1972a88e4de 260
+  s_4864baaac43e63::t_c5996a949d5f13 66,68
+  s_4864baaac43e63::t_781e152137ac4c 602,604-605
+  s_4864baaac43e63::t_122bf36ff477d4 250
+  s_4864baaac43e63::t_90770fb23c503a 252
+  s_4864baaac43e63::t_22431bd084060b 806
+client/src/game/RoomCanvas.tsx
+  s_4864baaac43e63::t_99c7957d8a4e80 60-63,70-72
+  s_4864baaac43e63::t_60de98a36e79dd 11,14
+  s_4864baaac43e63::t_514acfbf3b9d70 25,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f912c4aae82fc8590f2291ef4beb6798314ec138",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
