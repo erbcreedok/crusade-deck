@@ -15,6 +15,7 @@ interface Props {
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
+  onSwipeShuffle: () => void; // свайп вверх по вееру = «перемешать»
   onDragChange: (active: boolean) => void;
   animation: AnimationSettings;
 }
@@ -34,6 +35,7 @@ export function RoomCanvas({
   onDeckDoubleClick,
   onDeckDrop,
   onCardReorder,
+  onSwipeShuffle,
   onDragChange,
   animation,
 }: Props) {
@@ -99,6 +101,10 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setOnCardReorder(onCardReorder);
   }, [onCardReorder]);
+
+  useEffect(() => {
+    engineRef.current?.setOnSwipeShuffle(onSwipeShuffle);
+  }, [onSwipeShuffle]);
   useEffect(() => {
     engineRef.current?.setOnDragChange(onDragChange);
   }, [onDragChange]);

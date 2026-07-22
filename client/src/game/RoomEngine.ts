@@ -25,6 +25,7 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
+import { swipeStrength, swipeCardCount, swipeDirections, type Dir } from "./swipeShuffle";
 import {
   stackOffset,
   stackExtent,
@@ -141,9 +142,18 @@ export class RoomEngine {
     y: number;
     index: number;
     canGrab: boolean; // на момент нажатия карта была видна достаточно, чтобы её взять
+    lastT: number; // время последней выборки (для скорости свайпа)
+    vx: number;
+    vy: number;
   } | null = null;
   private cardDrag: { id: number; v: CardVisual; insertAt: number; x: number; y: number } | null = null;
   private cardShadow: Sprite | null = null;
+  // «Выплеск» по свайпу вверх: несколько карт вылетают из веера и возвращаются, пока
+  // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
+  // если новый порядок придёт в полёте, карта просто вернётся уже в новый слот.
+  private splashAnim: { t: number; dur: number; entries: { v: CardVisual; dir: Dir; dist: number; spin: number; z: number }[] } | null = null;
+  private onSwipeShuffle: (() => void) | null = null;
+
   // «Кирпич» колоды: торцы карт под верхней, одной Graphics вместо полусотни спрайтов.
   private deckBody: Graphics | null = null;
   private deckBodyCount = -1; // на сколько карт нарисован блок (перерисовываем при смене)
@@ -445,6 +455,11 @@ export class RoomEngine {
     this.onCardReorder = fn;
   }
 
+  // Свайп вверх по вееру = «перемешать»: движок играет выплеск, React шлёт shuffle_deck.
+  setOnSwipeShuffle(fn: (() => void) | null): void {
+    this.onSwipeShuffle = fn;
+  }
+
   // Можно ли уронить ОДНУ карту в зоны (центр/рука). Во время раздачи — нельзя (отскок).
   setCardDropZonesAllowed(v: boolean): void {
     this.cardDropZonesAllowed = v;
@@ -484,7 +499,18 @@ export class RoomEngine {
       // взять. Но палец не игнорируем — ведение по вееру раскрывает его под пальцем
       // («глиссандо», см. onPointerMove), и уже в открытый зазор карту можно брать.
       const canGrab = this.canGrabAt(index);
-      this.cardPress = { id: e.pointerId, startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y, index, canGrab };
+      this.cardPress = {
+        id: e.pointerId,
+        startX: e.global.x,
+        startY: e.global.y,
+        x: e.global.x,
+        y: e.global.y,
+        index,
+        canGrab,
+        lastT: performance.now(),
+        vx: 0,
+        vy: 0,
+      };
       this.wake();
       return;
     }
@@ -505,8 +531,20 @@ export class RoomEngine {
       return;
     }
     if (this.cardPress && e.pointerId === this.cardPress.id) {
+      const now = performance.now();
+      const dt = Math.max(1, now - this.cardPress.lastT) / 1000;
+      this.cardPress.vx = (e.global.x - this.cardPress.x) / dt;
+      this.cardPress.vy = (e.global.y - this.cardPress.y) / dt;
+      this.cardPress.lastT = now;
       this.cardPress.x = e.global.x;
       this.cardPress.y = e.global.y;
+      // Резкое движение ВВЕРХ по вееру — это «перемешать»: жест выигрывает и у драга,
+      // и у глиссандо (их движения медленные и не вверх).
+      if (this.isSwipeUp(this.cardPress.vx, this.cardPress.vy)) {
+        this.startSwipeShuffle(this.cardPress.vx, this.cardPress.vy);
+        this.cardPress = null;
+        return;
+      }
       const dx = this.cardPress.x - this.cardPress.startX;
       const dy = this.cardPress.y - this.cardPress.startY;
       if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return; // ещё тык, не жест
@@ -881,6 +919,7 @@ export class RoomEngine {
     const oldIndex = new Map<string, number>();
     oldOrder.forEach((c, i) => oldIndex.set(c, i));
     const speed = Math.max(1, this.profile.speed);
+    const flying = new Set(this.splashAnim?.entries.map((e) => e.v) ?? []);
     const entries = this.cards.map((v, j) => {
       const oi = oldIndex.get(v.card) ?? j;
       const nd = n > 1 ? Math.abs(j - oi) / (n - 1) : 0; // 0..1 нормированная дельта
@@ -903,8 +942,11 @@ export class RoomEngine {
         zSwapped: false,
       };
     });
-    const totalDur = entries.reduce((m, e) => Math.max(m, e.delay + e.dur), 0);
-    this.shuffleAnim = { t: 0, totalDur, entries };
+    // Карту, которая сейчас в выплеске, растасовка не трогает: она вернётся сама и уже
+    // в новый слот (stepSplash каждый кадр берёт актуальный restTarget).
+    const kept = entries.filter((e) => !flying.has(e.v));
+    const totalDur = kept.reduce((m, e) => Math.max(m, e.delay + e.dur), 0);
+    this.shuffleAnim = { t: 0, totalDur, entries: kept };
   }
 
   // «Сумбур» на время запроса: запускается по нажатию «Растасовать» (до прихода нового
@@ -970,7 +1012,7 @@ export class RoomEngine {
   // растасовка/сумбур, драг карты. Верхняя карта настоящая всегда — из неё потом вырастет
   // «снять карту с колоды» (её можно будет тащить отдельно от блока).
   private detailedCards(): boolean {
-    return this.deckFanned || !!this.shuffleAnim || !!this.scrambleAnim || !!this.cardDrag;
+    return this.deckFanned || !!this.shuffleAnim || !!this.scrambleAnim || !!this.cardDrag || !!this.splashAnim;
   }
 
   private updateVisibility(): void {
@@ -1065,6 +1107,7 @@ export class RoomEngine {
     this.destroyed = true;
     this.shuffleAnim = null;
     this.scrambleAnim = null;
+    this.splashAnim = null;
     this.press = null;
     this.cardPress = null;
     this.cardDrag = null;
@@ -1110,6 +1153,7 @@ export class RoomEngine {
       remaining -= dt;
 
       if (this.scrambleAnim) this.stepScramble(dt);
+      if (this.splashAnim) this.stepSplash(dt);
 
       if (this.shuffleAnim) {
         const sa = this.shuffleAnim;
@@ -1211,6 +1255,7 @@ export class RoomEngine {
     if (
       !this.shuffleAnim &&
       !this.scrambleAnim &&
+      !this.splashAnim &&
       !this.press &&
       !this.cardPress &&
       !this.cardDrag &&
@@ -1448,6 +1493,7 @@ export class RoomEngine {
       this.deckCount > 1 &&
       !this.shuffleAnim &&
       !this.scrambleAnim &&
+      !this.splashAnim && // карты в выплеске летают сами
       !this.press &&
       !this.cardDrag && // карту тащат — веер стоит ровно с «дыркой» под неё
       (this.fanCrowd() > 0 || this.poke !== null || this.hoverTarget === 1 || this.hoverEnv > 0.001)
@@ -1486,6 +1532,68 @@ export class RoomEngine {
     }
     this.poke = { index: pi, target: pi, t: 0 };
     this.reKickWaveAt(pi);
+  }
+
+  // Свайп вверх: быстрое движение, у которого вертикальная составляющая направлена вверх
+  // и весома. Наклон вбок допускаем (он потом задаёт сторону разлёта) — не пускаем только
+  // движения вниз и «горизонтальные протяжки», которые на деле глиссандо.
+  private isSwipeUp(vx: number, vy: number): boolean {
+    if (!this.fanOpen() || this.deckCount < 2) return false;
+    if (vy >= 0) return false; // вниз — не тот жест
+    if (-vy < Math.abs(vx) * anim.swipe.upBias) return false; // почти горизонтально — не свайп
+    return swipeStrength(vx, vy) > 0;
+  }
+
+  // Выплеск: несколько карт вылетают из веера в стороны и возвращаются. Сам порядок тасует
+  // сервер (onSwipeShuffle шлёт shuffle_deck) — анимация не ждёт ответа и не зависит от него.
+  private startSwipeShuffle(vx: number, vy: number): void {
+    const strength = swipeStrength(vx, vy);
+    const n = this.cards.length;
+    const count = Math.min(n, swipeCardCount(strength));
+    if (count <= 0) return;
+    const dirs = swipeDirections(count, vx, vy);
+    const s = anim.swipe;
+    const dist = this.layout.cardH * (s.dist.base + s.dist.perStrength * strength);
+    // Берём карты, равномерно разбросанные по вееру, — вылетает «из колоды», а не с краю.
+    const entries = dirs.map((dir, k) => {
+      const idx = Math.min(n - 1, Math.round(((k + 0.5) / count) * (n - 1)));
+      return { v: this.cards[idx], dir, dist, spin: (dir.dx >= 0 ? 1 : -1) * s.spin, z: 50_000 + k };
+    });
+    for (const e of entries) e.v.sprite.zIndex = e.z; // летят поверх веера
+    this.splashAnim = { t: 0, dur: s.dur, entries };
+    this.poke = null;
+    this.hoverTarget = 0;
+    this.onSwipeShuffle?.();
+    this.wake();
+  }
+
+  // Шаг выплеска: карта уходит по своему направлению и возвращается (синус — туда-обратно).
+  // База — ТЕКУЩИЙ слот карты, поэтому пришедший в полёте новый порядок она отработает сама.
+  private stepSplash(dt: number): void {
+    const sa = this.splashAnim;
+    if (!sa) return;
+    sa.t += dt;
+    const p = Math.min(1, sa.t / sa.dur);
+    const arc = Math.sin(Math.PI * p);
+    for (const e of sa.entries) {
+      const i = this.cards.indexOf(e.v);
+      if (i < 0) continue;
+      const home = this.restTarget(i);
+      e.v.body.setTarget({
+        x: (home.x ?? 0) + e.dir.dx * e.dist * arc,
+        y: (home.y ?? 0) + e.dir.dy * e.dist * arc,
+        rot: (home.rot ?? 0) + e.spin * arc,
+        scale: (home.scale ?? 1) * (1 + 0.12 * arc),
+      });
+    }
+    if (p >= 1) {
+      for (const e of sa.entries) {
+        const i = this.cards.indexOf(e.v);
+        e.v.sprite.zIndex = i < 0 ? 0 : i; // вернулись в общий порядок
+        if (i >= 0) e.v.body.setTarget(this.restTarget(i));
+      }
+      this.splashAnim = null;
+    }
   }
 
   // «Глиссандо»: палец ведут по зажатому вееру — раскрытие едет за ним и НЕ перезапускается

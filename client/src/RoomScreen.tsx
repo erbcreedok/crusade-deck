@@ -128,6 +128,13 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
+  // Свайп вверх по раскрытому вееру — то же «Растасовать», только жестом. «Сумбур» не
+  // запускаем: движок уже играет выплеск карт, две анимации поверх друг друга не нужны.
+  const onSwipeShuffle = useCallback(() => {
+    if (!canMoveDeck) return;
+    room.send("shuffle_deck");
+  }, [canMoveDeck, room]);
+
   const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
 
   // «Готов/Раздать» — только когда колода в центре и не идёт драг. Вне центра — плейсхолдер.
@@ -175,6 +182,7 @@ export function RoomScreen({
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onCardReorder={onCardReorder}
+        onSwipeShuffle={onSwipeShuffle}
         onDragChange={onDragChange}
         animation={animation}
       />
