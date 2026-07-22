@@ -1,0 +1,29 @@
+client/src/theme.css
+  s_37db134cacf0e4::t_dcf9df45de5c51 616,619,621
+client/src/RoomScreen.tsx
+  s_9520c44c2b8a4c::t_f1e5ecd40f6485 1,4-10,20-21,23,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5404074c109dd5860395cc91e0a17a71798dbf27",
+  "prompts": {},
+  "sessions": {
+    "s_37db134cacf0e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03b1f681-cda9-4fe8-a514-164c453fec68",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_9520c44c2b8a4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1423a9ca-4794-4d19-b2cf-4a1718d2279a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
