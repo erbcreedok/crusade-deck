@@ -110,14 +110,26 @@ export class RoomEngine {
   private destroyed = false;
   private mounted = false;
   private awake = false;
-  // Настоящая растасовка: каждая карта летит из старого положения через «разлёт» (далеко
-  // от центра) в новый слот; z-порядок меняем в апексе разлёта, когда карты врозь.
+  // Настоящая растасовка: каждая карта летит из старого положения в новый слот ПО СВОЕЙ
+  // дельте (|new-old|): близкие — коротко/низко/почти незаметно, далёкие — долго/высокой
+  // дугой. z-порядок карты меняем в её апексе (когда она приподнята, далеко от слота).
   private shuffleAnim: {
     t: number;
-    dur: number;
-    zSwapped: boolean;
-    entries: { v: CardVisual; from: ShufflePose; spread: ShufflePose; to: ShufflePose; newZ: number }[];
+    totalDur: number;
+    entries: {
+      v: CardVisual;
+      from: ShufflePose;
+      to: ShufflePose;
+      dur: number; // своя длительность (от дельты)
+      lift: number; // высота дуги (от дельты)
+      lean: number; // крен в сторону движения (знак+амплитуда)
+      newZ: number;
+      zSwapped: boolean;
+    }[];
   } | null = null;
+  // «Сумбур» на время сетевого запроса: карты хаотично меняются местами, пока не пришёл
+  // новый порядок (тогда оседают в него через shuffleAnim). Только у инициатора.
+  private scrambleAnim: { t: number; nextAt: number } | null = null;
 
   // стрелка — стабильная ссылка для ticker.add/remove
   private readonly tick = (ticker: Ticker) => this.onTick(ticker);
@@ -269,8 +281,9 @@ export class RoomEngine {
       [...oldOrder].sort().join("|") === [...newOrder].sort().join("|");
     const changed = oldOrder.join("|") !== newOrder.join("|");
     if (sameSet && changed && shouldPlay(anim.priority.shuffle, this.profile)) {
-      this.startShuffleAnim();
-    } else if (!this.shuffleAnim) {
+      this.scrambleAnim = null; // сумбур закончился — оседаем в реальный порядок
+      this.startShuffleAnim(oldOrder);
+    } else if (!this.shuffleAnim && !this.scrambleAnim) {
       this.cards.forEach((c, i) => {
         c.body.snapTo(this.restTarget(i));
         c.sprite.zIndex = i;
@@ -546,35 +559,74 @@ export class RoomEngine {
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
   }
 
-  // Собрать анимацию настоящей растасовки: из текущего положения карты (старый слот) →
-  // «разлёт» широкой дугой над якорем (карты врозь, далеко от центра) → новый слот
-  // (this.cards уже в новом порядке). z-порядок переставим в апексе разлёта (см. onTick).
-  private startShuffleAnim(): void {
+  // Собрать анимацию настоящей растасовки, ПО ДЕЛЬТЕ каждой карты (|new-old|): близкие
+  // едут коротко/низко/почти незаметно, далёкие — долго высокой дугой с креном в сторону
+  // движения. this.cards уже в новом порядке; oldOrder — прежний (для дельты).
+  private startShuffleAnim(oldOrder: string[]): void {
     const n = this.cards.length;
     if (n === 0) return;
-    const a = this.activeAnchor();
-    const zoneW = this.deckZone === "safe" ? this.layout.safeZone.w : this.layout.centerZone.w;
-    const spreadW = zoneW * 0.82;
-    const lift = this.layout.cardH * 1.15;
+    const oldIndex = new Map<string, number>();
+    oldOrder.forEach((c, i) => oldIndex.set(c, i));
+    const speed = Math.max(1, this.profile.speed);
+    const H = this.layout.cardH;
     const entries = this.cards.map((v, j) => {
+      const oi = oldIndex.get(v.card) ?? j;
+      const nd = n > 1 ? Math.abs(j - oi) / (n - 1) : 0; // 0..1 нормированная дельта
       const to = this.restTarget(j);
-      const t = n > 1 ? j / (n - 1) : 0.5; // 0..1 по новому порядку
-      const s = t * 2 - 1; // -1..1
-      const spread: ShufflePose = {
-        x: a.x + s * spreadW * 0.5 + (this.restJitter[j] ?? 0) * this.layout.cardW,
-        y: a.y - lift - Math.abs(s) * lift * 0.15, // приподняты, лёгкая арка
-        rot: s * 0.5, // веерный наклон при разлёте
-      };
+      const toPose: ShufflePose = { x: to.x ?? 0, y: to.y ?? 0, rot: to.rot ?? 0 };
+      const from: ShufflePose = { x: v.body.px, y: v.body.py, rot: v.body.rotation };
+      const lean = (toPose.x >= from.x ? 1 : -1) * lerp(0.04, 0.5, nd);
       return {
         v,
-        from: { x: v.body.px, y: v.body.py, rot: v.body.rotation },
-        spread,
-        to: { x: to.x ?? a.x, y: to.y ?? a.y, rot: to.rot ?? 0 },
+        from,
+        to: toPose,
+        dur: lerp(0.14, 0.9, nd) / speed, // близкие быстро, далёкие долго
+        lift: lerp(H * 0.12, H * 1.4, nd), // маленькая/большая дуга
+        lean,
         newZ: j,
+        zSwapped: false,
       };
     });
-    // Скорость (1х/2х) масштабирует длительность.
-    this.shuffleAnim = { t: 0, dur: 0.85 / Math.max(1, this.profile.speed), zSwapped: false, entries };
+    const totalDur = entries.reduce((m, e) => Math.max(m, e.dur), 0);
+    this.shuffleAnim = { t: 0, totalDur, entries };
+  }
+
+  // «Сумбур» на время запроса: запускается по нажатию «Растасовать» (до прихода нового
+  // порядка). Карты хаотично меняются местами; когда порядок придёт — оседают в него.
+  startScramble(): void {
+    if (this.destroyed || this.cards.length === 0 || this.shuffleAnim) return;
+    if (!shouldPlay(anim.priority.shuffle, this.profile)) return; // на выкл-анимациях без сумбура
+    this.scrambleAnim = { t: 0, nextAt: 0 };
+    this.wake();
+  }
+
+  // Шаг «сумбура»: раз в ~0.16с раскидываем карты по СЛУЧАЙНОЙ перестановке слотов —
+  // они хаотично меняются местами. Прервётся, когда придёт новый порядок (setDeck).
+  private stepScramble(dt: number): void {
+    const sc = this.scrambleAnim;
+    if (!sc) return;
+    sc.t += dt;
+    if (sc.t >= sc.nextAt) {
+      const n = this.cards.length;
+      const slots = this.cards.map((_, i) => this.restTarget(i));
+      const perm = [...Array(n).keys()];
+      for (let i = n - 1; i > 0; i--) {
+        const k = Math.floor(Math.random() * (i + 1));
+        [perm[i], perm[k]] = [perm[k], perm[i]];
+      }
+      const rise = this.layout.cardH * 0.3;
+      this.cards.forEach((c, i) => {
+        const s = slots[perm[i]];
+        c.body.setTarget({ x: s.x ?? 0, y: (s.y ?? 0) - rise, rot: (s.rot ?? 0) + (Math.random() * 2 - 1) * 0.15 });
+        c.sprite.zIndex = perm[i];
+      });
+      sc.nextAt = sc.t + 0.16;
+    }
+    // Страховка от «вечного» сумбура, если новый порядок так и не пришёл.
+    if (sc.t > 1.4) {
+      this.scrambleAnim = null;
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    }
   }
 
   // Применить пользовательский профиль анимации (уровень + скорость → движок).
@@ -630,6 +682,7 @@ export class RoomEngine {
     if (this.destroyed) return;
     this.destroyed = true;
     this.shuffleAnim = null;
+    this.scrambleAnim = null;
     this.press = null;
     this.dragging = false;
     if (this.app) {
@@ -669,28 +722,27 @@ export class RoomEngine {
       const dt = Math.min(remaining, anim.maxStepSec);
       remaining -= dt;
 
+      if (this.scrambleAnim) this.stepScramble(dt);
+
       if (this.shuffleAnim) {
         const sa = this.shuffleAnim;
         sa.t += dt;
-        const p = Math.min(1, sa.t / sa.dur);
-        const LIFT_END = 0.45; // до этого — разлёт вверх, после — оседание в новый порядок
         for (const e of sa.entries) {
-          let pose: ShufflePose;
-          if (p < LIFT_END) {
-            const u = easeOutQuad(p / LIFT_END);
-            pose = { x: lerp(e.from.x, e.spread.x, u), y: lerp(e.from.y, e.spread.y, u), rot: lerp(e.from.rot, e.spread.rot, u) };
-          } else {
-            const u = easeOutQuad((p - LIFT_END) / (1 - LIFT_END));
-            pose = { x: lerp(e.spread.x, e.to.x, u), y: lerp(e.spread.y, e.to.y, u), rot: lerp(e.spread.rot, e.to.rot, u) };
+          const p = Math.min(1, e.dur > 0 ? sa.t / e.dur : 1);
+          const u = easeOutQuad(p);
+          const arc = Math.sin(Math.PI * p); // 0 → 1 (апекс) → 0
+          e.v.body.setTarget({
+            x: lerp(e.from.x, e.to.x, u),
+            y: lerp(e.from.y, e.to.y, u) - e.lift * arc,
+            rot: lerp(e.from.rot, e.to.rot, u) + e.lean * arc,
+          });
+          // z-порядок карты меняем в ЕЁ апексе (она приподнята над слотом) — без «поп».
+          if (p >= 0.5 && !e.zSwapped) {
+            e.v.sprite.zIndex = e.newZ;
+            e.zSwapped = true;
           }
-          e.v.body.setTarget({ x: pose.x, y: pose.y, rot: pose.rot });
         }
-        // z-порядок меняем В АПЕКСЕ разлёта (карты далеко друг от друга) — без «поп»-эффекта.
-        if (p >= LIFT_END && !sa.zSwapped) {
-          for (const e of sa.entries) e.v.sprite.zIndex = e.newZ;
-          sa.zSwapped = true;
-        }
-        if (sa.t >= sa.dur) {
+        if (sa.t >= sa.totalDur) {
           for (const e of sa.entries) {
             e.v.body.setTarget(e.to);
             e.v.sprite.zIndex = e.newZ;
@@ -722,6 +774,7 @@ export class RoomEngine {
     // включённой idle-анимации цикл не спит (карты постоянно чуть «дышат»).
     if (
       !this.shuffleAnim &&
+      !this.scrambleAnim &&
       !this.press &&
       !this.reject &&
       !this.idleRunning() &&
@@ -753,7 +806,7 @@ export class RoomEngine {
 
     // Лёгкая idle-«дыхалка»: только в покое (не во время растасовки/драга), когда
     // idle разрешён профилем. Наложение поверх пружинного состояния, тело не трогаем.
-    if (this.idleEnabled && !this.shuffleAnim && !this.press && !this.reject && this.deckZone !== "away" && c.body.isResting()) {
+    if (this.idleEnabled && !this.shuffleAnim && !this.scrambleAnim && !this.press && !this.reject && this.deckZone !== "away" && c.body.isResting()) {
       rot += anim.idle.rotAmp * Math.sin(this.idleT * anim.idle.rotFreq + c.phase);
       scale *= 1 + anim.idle.scaleAmp * Math.sin(this.idleT * anim.idle.scaleFreq + c.phase);
     }
@@ -770,8 +823,8 @@ export class RoomEngine {
     const s = this.deckShadow;
     if (!s) return;
     const base = this.cards[0];
-    if (!base || this.shuffleAnim || this.deckZone === "away" || !this.profile.shadows) {
-      s.visible = false; // при растасовке карты разлетаются — общей тени нет
+    if (!base || this.shuffleAnim || this.scrambleAnim || this.deckZone === "away" || !this.profile.shadows) {
+      s.visible = false; // при растасовке/сумбуре карты разлетаются — общей тени нет
       return;
     }
     s.visible = true;

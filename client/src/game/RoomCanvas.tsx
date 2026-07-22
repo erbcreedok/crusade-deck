@@ -9,6 +9,7 @@ interface Props {
   deckDraggable: boolean;
   fourColor: boolean;
   faceUp: boolean;
+  shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает «сумбур» до ответа
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onDragChange: (active: boolean) => void;
@@ -25,6 +26,7 @@ export function RoomCanvas({
   deckDraggable,
   fourColor,
   faceUp,
+  shuffleSignal,
   onDeckDoubleClick,
   onDeckDrop,
   onDragChange,
@@ -76,6 +78,9 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setDeckFaceUp(faceUp);
   }, [faceUp]);
+  useEffect(() => {
+    if (shuffleSignal > 0) engineRef.current?.startScramble();
+  }, [shuffleSignal]);
   useEffect(() => {
     engineRef.current?.setOnDeckDoubleClick(onDeckDoubleClick);
   }, [onDeckDoubleClick]);

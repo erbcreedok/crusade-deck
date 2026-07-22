@@ -40,6 +40,7 @@ export function RoomScreen({
   const [deckZone, setDeckZone] = useState<DeckZone>("center");
   const [draggingDeck, setDraggingDeck] = useState(false);
   const [faceUp, setFaceUp] = useState(false);
+  const [shuffleSignal, setShuffleSignal] = useState(0);
 
   useEffect(() => {
     const sync = () => {
@@ -157,6 +158,7 @@ export function RoomScreen({
         deckDraggable={canMoveDeck}
         fourColor={fourColor}
         faceUp={faceUp}
+        shuffleSignal={shuffleSignal}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onDragChange={onDragChange}
@@ -172,7 +174,10 @@ export function RoomScreen({
             {amIDealer && (
               <button
                 className="pixel-btn pixel-btn-secondary"
-                onClick={() => room.send("shuffle_deck")}
+                onClick={() => {
+                  room.send("shuffle_deck"); // сервер тасует; новый порядок придёт эхом
+                  setShuffleSignal((s) => s + 1); // «сумбур» на время запроса
+                }}
               >
                 Растасовать
               </button>
