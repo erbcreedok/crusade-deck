@@ -125,6 +125,21 @@ describe("computeLayout с панелью действий внизу", () => {
 // узкой полоской у края и уходит на задний план. Без фокуса — привычные 80/20.
 
 describe("высота полосы руки", () => {
+  it("на узком экране ужимается КАРТА, а не раздувается полоса", () => {
+    const narrow = computeLayout(320, 560);
+    const wide = computeLayout(900, 1200);
+    expect(narrow.cardH).toBeLessThan(wide.cardH);
+    // Полоса не должна съедать больше ~40% высоты — ради этого и режется карта.
+    expect(narrow.handZone.h).toBeLessThanOrEqual(560 * 0.45);
+  });
+
+  it("низкая панель действий тоже ужимает карту, а не полосу", () => {
+    const free = computeLayout(400, 800);
+    const squeezed = computeLayout(400, 800, { top: 0, left: 0, right: 0, bottom: 300 });
+    expect(squeezed.cardH).toBeLessThanOrEqual(free.cardH);
+    expect(squeezed.handZone.h).toBeLessThanOrEqual(free.handZone.h);
+  });
+
   it("вмещает карту и кнопку «сложить руку» под ней, с запасом", () => {
     for (const [w, h] of [[400, 800], [1400, 900], [360, 640]] as const) {
       const l = computeLayout(w, h);

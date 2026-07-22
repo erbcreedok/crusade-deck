@@ -27,8 +27,19 @@ export interface RoomLayout {
 // небольшой запас. Кнопка вписывается в карман под веером (см. collapseButton.ts), и если
 // полоса ниже этой суммы, ей просто негде поместиться — карман схлопывается.
 export function recommendedHandHeight(cardH: number): number {
-  return cardH * (1 + 2 * anim.fan.collapse.hitRatio) + cardH * 0.18;
+  return cardH * HAND_H_RATIO;
 }
+
+// Полоса руки собирается из того, что в ней реально лежит (всё в высотах карты):
+// сама карта + провис дуги веера + диаметр кнопки «сложить руку» + небольшой запас.
+// Раньше полоса брала долю ЭКРАНА (34-40%) и потому на узких экранах выходила
+// неоправданно огромной — теперь её высота равна ровно содержимому.
+const HAND_SAG = 0.55; // сколько дуге нужно на провис, иначе веер вырождается в прямую
+const HAND_SLACK = 0.18;
+const HAND_H_RATIO = 1 + HAND_SAG + 2 * anim.fan.collapse.hitRatio + HAND_SLACK;
+// Потолок: даже в самом тесном случае рука не должна съедать больше этой доли высоты.
+// Если не влезает — уменьшаем КАРТУ, а не раздуваем полосу.
+const HAND_H_SHARE = 0.4;
 
 const CARD_RATIO = 0.7; // ширина / высота игральной карты (~2.5" x 3.5")
 const CARD_MIN_H = 48;
@@ -49,8 +60,14 @@ export interface LayoutInsets {
 const NO_INSETS: LayoutInsets = { top: 0, left: 0, right: 0, bottom: 0 };
 
 export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_INSETS): RoomLayout {
-  // Карта масштабируется от меньшей стороны канваса, с потолком/полом.
-  const cardH = clamp(Math.min(w, h) * 0.16, CARD_MIN_H, CARD_MAX_H);
+  const freeBottomRaw = Math.min(Math.max(0, insets.bottom ?? 0), h * 0.5);
+  // Карта масштабируется от меньшей стороны канваса, с потолком/полом. Но есть второй
+  // ограничитель: полоса руки должна вместить карту с кнопкой и при этом не съесть
+  // пол-экрана. На узком/низком экране режем именно КАРТУ — иначе полоса раздувалась
+  // до трети экрана просто потому, что «так положено по высоте карты».
+  const byScreen = Math.min(w, h) * 0.16;
+  const byHandBand = ((h - freeBottomRaw) * HAND_H_SHARE) / HAND_H_RATIO;
+  const cardH = clamp(Math.min(byScreen, byHandBand), CARD_MIN_H, CARD_MAX_H);
   const cardW = cardH * CARD_RATIO;
 
   // Зоны занимают почти всю ширину (≥80%) — удобнее целиться и дропать.
@@ -64,10 +81,11 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   // Нижняя полоса: одна горизонталь на всю ширину зоны, поделённая по вертикали.
   // Панель действий забирает низ экрана; клампим её вклад, чтобы даже абсурдная панель
   // не схлопнула полосу в ноль.
-  const freeBottom = Math.min(Math.max(0, insets.bottom ?? 0), h * 0.5);
+  const freeBottom = freeBottomRaw;
   const minBandH = recommendedHandHeight(cardH);
   const bandSpace = Math.max(minBandH, h - freeBottom);
-  const bandH = clamp(bandSpace * 0.34, minBandH, Math.max(minBandH, bandSpace * 0.4));
+  // Высота полосы = ровно её содержимое. Потолок оставлен страховкой на абсурдные экраны.
+  const bandH = Math.min(minBandH, Math.max(minBandH, bandSpace * HAND_H_SHARE));
   const bandCy = h - freeBottom - bandH / 2 - h * 0.02;
   const bandLeft = (w - zoneW) / 2;
   // Рука занимает полосу целиком: других личных зон внизу больше нет.
