@@ -1,0 +1,50 @@
+client/Dockerfile
+  s_3b000dfed76439::t_4b38f602395198 1-23
+client/.dockerignore
+  s_3b000dfed76439::t_9b06904d952054 1-3
+docker-compose.yml
+  s_3b000dfed76439::t_23b1f3cdf6824e 1-37
+client/nginx.conf
+  s_3b000dfed76439::t_615b72461c7b5f 1-12
+server/Dockerfile
+  s_3b000dfed76439::t_0ea6a3c52c627c 1-21
+server/.dockerignore
+  s_3b000dfed76439::t_3b024343e39fb6 1-3
+CLAUDE.md
+  s_3b000dfed76439::t_ae17e39ec6b492 3-25,28-30,33-152
+CLAUDE_RU.md
+  s_3b000dfed76439::t_705ceaff26ba58 20
+  s_3b000dfed76439::t_f3f7bde655d0a4 1-19,21-140
+README_RU.md
+  s_3b000dfed76439::t_705ceaff26ba58 10-99
+  s_3b000dfed76439::t_c4b143573e4ef5 101-133,136,138
+  s_3b000dfed76439::t_f227485a4be93a 7-9
+  s_3b000dfed76439::t_242de083afe299 100
+  s_3b000dfed76439::t_6bf78a7ea757cc 134-135
+  s_3b000dfed76439::t_3bce1d1878c93c 137
+  s_3b000dfed76439::t_c1c3a9dff25dcf 139-141
+  s_3b000dfed76439::t_79e1ddfab1f47d 1-6,142-154
+README.md
+  s_3b000dfed76439::t_683e470de4642d 102-134
+  s_3b000dfed76439::t_b051694f983956 3,5-6,8,10,12,18,21,27-28,30-31,40,42,45-46,49,51-54,56,58-59,73,79-80,86-90,92-93,95,97-100,135,141-155
+DEPLOY.md
+  s_3b000dfed76439::t_6921045d26666e 1,3-6,8,10,12-17,19-20,22,24-26,29-30,33-34,36-37,39-40,42,49-50,55-56,61,64,67-69,71,73,79-80,86-87,89,101-102,112,114,119-121,127,129-131,140-141,152-154,160,162,165,168-170,172-174,176,185-186,188-190,192,194-195,201,203-208
+DEPLOY_RU.md
+  s_3b000dfed76439::t_86974fac2b854b 1-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6292d4adf46a8599b39b4124427a0ef031cf7a37",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
