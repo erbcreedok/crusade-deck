@@ -113,7 +113,11 @@ export class RoomEngine {
   private fanJitterPhase = 0; // интегрированная фаза дрожания
   private fanKickT = 0; // время с последнего «толчка» (раскрытие/тык) — для спада энергии
   private fanEnergy = 1; // текущий множитель энергии (boost→1)
-  private poke: { index: number; t: number } | null = null; // локальное «раскрытие» у тыка
+  private poke: { index: number; t: number } | null = null; // локальное «раскрытие» у тыка (тач)
+  // Ховер мышью (десктоп) заменяет тык: раскрытие следует за курсором, держится пока навёл.
+  private hoverIndex = 0;
+  private hoverTarget = 0; // 1 пока курсор над веером, иначе 0
+  private hoverEnv = 0; // сглаженная огибающая ховера (0..1)
   private destroyed = false;
   private mounted = false;
   private awake = false;
@@ -237,6 +241,8 @@ export class RoomEngine {
     hit.zIndex = 10_000; // всегда над картами
     hit.on("pointerdown", (e: FederatedPointerEvent) => this.onDeckDown(e));
     hit.on("pointertap", (e: FederatedPointerEvent) => this.handleDeckTap(e));
+    hit.on("pointermove", (e: FederatedPointerEvent) => this.onDeckHover(e)); // ховер мышью (десктоп)
+    hit.on("pointerout", (e: FederatedPointerEvent) => this.onDeckHoverOut(e));
     this.world.addChild(hit);
     this.deckHit = hit;
     this.positionDeckHit();
@@ -529,8 +535,8 @@ export class RoomEngine {
     this.lastDeckTapMs = isDouble ? 0 : now;
 
     if (this.deckZone === "safe" && this.deckFanned) {
-      // Одиночный тык = «поковырять»: ре-энергия + локально раздвинуть карты у тыка.
-      this.pokeFan(e.global.x);
+      // Одиночный тык = «поковырять» (только тач; на десктопе раскрытие делает ховер).
+      if (e.pointerType !== "mouse") this.pokeFan(e.global.x);
       if (isDouble) this.toggleFan(); // двойной — собрать веер
     } else if (this.deckZone === "safe") {
       if (isDouble) this.toggleFan(); // раскрыть веер
@@ -765,7 +771,11 @@ export class RoomEngine {
     const frameDt = Math.min(ticker.deltaMS / 1000, 0.05);
     if (this.idleRunning()) this.idleT += frameDt;
 
-    // «Червячок» тесного веера + локальный поке.
+    // Сглаживаем огибающую ховера всегда (чтобы плавно гасла после увода курсора).
+    this.hoverEnv += (this.hoverTarget - this.hoverEnv) * Math.min(1, frameDt * 12);
+    if (this.hoverTarget === 0 && this.hoverEnv < 0.002) this.hoverEnv = 0;
+
+    // «Червячок» тесного веера + локальное раскрытие (тык/ховер).
     const wiggle = this.fanWiggleActive();
     if (wiggle) {
       if (!this.fanWiggling) this.fanKickT = 0; // старт — с буста энергии
@@ -784,10 +794,12 @@ export class RoomEngine {
       }
       this.applyFanWave();
     } else if (this.fanWiggling) {
-      // эффект закончился (собрали веер / стало просторно / поке доиграл) — ровный веер
+      // эффект закончился (собрали веер / стало просторно / всё доиграло) — ровный веер
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       this.fanCrowdNow = 0;
       this.poke = null;
+      this.hoverTarget = 0;
+      this.hoverEnv = 0;
     }
     this.fanWiggling = wiggle;
 
@@ -1006,7 +1018,7 @@ export class RoomEngine {
       !this.shuffleAnim &&
       !this.scrambleAnim &&
       !this.press &&
-      (this.fanCrowd() > 0 || this.poke !== null)
+      (this.fanCrowd() > 0 || this.poke !== null || this.hoverTarget === 1 || this.hoverEnv > 0.001)
     );
   }
 
@@ -1028,24 +1040,55 @@ export class RoomEngine {
   // и локальное «раскрытие» ~cards карт вокруг, чтобы прочитать номиналы.
   private pokeFan(x: number): void {
     if (this.deckZone !== "safe" || !this.deckFanned || this.deckCount < 2) return;
-    const n = Math.max(2, this.deckCount);
     const pi = this.nearestFanIndex(x);
     this.poke = { index: pi, t: 0 };
-    this.fanKickT = 0; // ре-энергия
-    // Гребень бегущей волны стартует у точки тыка — «усиленно с того места».
-    this.fanWavePhase = anim.fan.wiggle.cycles * Math.PI * 2 * (pi / (n - 1)) - Math.PI / 2;
+    this.reKickWaveAt(pi);
+  }
+
+  // Ховер мышью (десктоп): раскрытие следует за курсором, пока он над веером.
+  private onDeckHover(e: FederatedPointerEvent): void {
+    if (e.pointerType !== "mouse" || this.press) return; // тач — не ховер; во время драга — нет
+    if (this.deckZone !== "safe" || !this.deckFanned || this.deckCount < 2) {
+      this.hoverTarget = 0;
+      return;
+    }
+    if (this.hoverTarget === 0) this.reKickWaveAt(this.nearestFanIndex(e.global.x)); // заход — толчок
+    this.hoverIndex = this.nearestFanIndex(e.global.x);
+    this.hoverTarget = 1;
     this.wake();
   }
 
-  // Локальный сдвиг карты i из-за поке: карты слева от тыка едут влево, справа — вправо,
-  // раздвигая ~cards карт у точки тыка (в окне — линейно, дальше — постоянный сдвиг).
+  private onDeckHoverOut(e: FederatedPointerEvent): void {
+    if (e.pointerType && e.pointerType !== "mouse") return;
+    this.hoverTarget = 0;
+    this.wake();
+  }
+
+  // Ре-энергия + гребень волны у индекса (общее для тыка и захода ховера).
+  private reKickWaveAt(index: number): void {
+    const n = Math.max(2, this.deckCount);
+    this.fanKickT = 0;
+    this.fanWavePhase = anim.fan.wiggle.cycles * Math.PI * 2 * (index / (n - 1)) - Math.PI / 2;
+    this.wake();
+  }
+
+  // Локальный сдвиг карты i из-за «раскрытия»: карты слева от точки едут влево, справа —
+  // вправо, раздвигая ~cards карт (в окне линейно, дальше — постоянный сдвиг). Источник —
+  // ховер мышью (десктоп, приоритет) либо тык (тач).
   private pokeShiftAt(i: number): number {
-    if (!this.poke) return 0;
     const p = anim.fan.wiggle.poke;
-    const env = pokeEnvelope(this.poke.t, p.in, p.hold, p.out);
+    let env = 0;
+    let index = 0;
+    if (this.hoverEnv > 0.001) {
+      env = this.hoverEnv;
+      index = this.hoverIndex;
+    } else if (this.poke) {
+      env = pokeEnvelope(this.poke.t, p.in, p.hold, p.out);
+      index = this.poke.index;
+    }
     if (env <= 0) return 0;
     const half = p.cards / 2;
-    const s = Math.max(-1, Math.min(1, (i - this.poke.index) / half)); // -1..1 через окно
+    const s = Math.max(-1, Math.min(1, (i - index) / half)); // -1..1 через окно
     return p.amp * env * s * 0.5;
   }
 
