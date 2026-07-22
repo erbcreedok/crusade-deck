@@ -329,10 +329,11 @@ export class RoomEngine {
       if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
         this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
         this.onDeckDrop?.(drop);
-      } else {
-        // Дроп в текущую зону / промах мимо всех зон — сразу уложить у активного якоря.
-        this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       }
+      // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
+      // промахе/дропе в ту же зону). Иначе карты остались бы в точке отпускания — врозь
+      // с хит-зоной колоды (она у якоря), и колоду нельзя было бы снова схватить.
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       this.onDragChange?.(false); // взаимодействие завершено — вернуть кнопки
     }
     this.positionDeckHit();
