@@ -152,6 +152,9 @@ export class RoomEngine {
   private onDeckTap: ((deckId: string) => void) | null = null;
   private onEmptyTap: (() => void) | null = null;
   private selectedDecks: readonly string[] = [];
+  // Рука в фокусе (её колода выделена): веер разъезжается на всю полосу и живёт;
+  // без фокуса — узкий спокойный веер на 80% ширины.
+  private handFocused = false;
   private focusG: Graphics | null = null; // рамка фокуса вокруг выделенного
 
   private cards: CardVisual[] = [];
@@ -309,7 +312,7 @@ export class RoomEngine {
     this.h = Math.max(1, Math.round(h));
     // Отступы (посадка сверху, панель действий снизу) приезжают сразу после mount —
     // см. заливку пропсов в RoomCanvas; здесь берём то, что уже известно.
-    this.layout = computeLayout(this.w, this.h, { ...this.seatInsets, bottom: this.bottomInset });
+    this.rebuildLayout();
 
     const app = new Application();
     await app.init({
@@ -552,8 +555,30 @@ export class RoomEngine {
     const same = ids.length === this.selectedDecks.length && ids.every((id, i) => id === this.selectedDecks[i]);
     if (same) return;
     this.selectedDecks = [...ids];
+    this.applyHandFocus();
     this.drawFocus();
     this.wake();
+  }
+
+  // Фокус на руке = выделена та самая колода, которая в руке лежит. Полоса
+  // перекраивается (рука на всю ширину, сейф — полоской позади), карты едут пружиной.
+  private applyHandFocus(): void {
+    const next = this.deckZone === "hand" && this.selectedDecks.includes(DECK_ID);
+    if (next === this.handFocused) return;
+    this.handFocused = next;
+    this.rebuildLayout();
+    this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    this.positionDeckHit();
+    this.drawZones();
+  }
+
+  private rebuildLayout(): void {
+    this.layout = computeLayout(
+      this.w,
+      this.h,
+      { ...this.seatInsets, bottom: this.bottomInset },
+      { handFocused: this.handFocused },
+    );
   }
 
   // Высота топбара комнаты: он HTML и лежит поверх канваса, движок про него не знает.
@@ -581,7 +606,7 @@ export class RoomEngine {
     );
     this.seatBoxes = placed.seats;
     this.seatInsets = placed.insets;
-    this.layout = computeLayout(this.w, this.h, { ...this.seatInsets, bottom: this.bottomInset });
+    this.rebuildLayout();
     if (!this.app) return; // ещё не смонтированы — нарисуем на mount
     this.drawSeats();
     // Центр уехал/сузился: колода переезжает к новому якорю, за ней — её хит-зона.
@@ -614,14 +639,16 @@ export class RoomEngine {
     g.clear();
     if (!this.selectedDecks.includes(DECK_ID) || this.cards.length === 0) return;
     if (this.deckZone === "away") return;
+    // У руки рамки нет: что она в фокусе, видно и так — веер разъезжается на всю
+    // полосу и оживает. Прямоугольник по периметру тут только мешал.
+    if (this.deckZone === "hand") return;
     const a = this.activeAnchor();
     const scale = deckZoneScale(this.deckZone);
-    // В руке карты лежат веером — рамка охватывает всю дугу, иначе только стопку.
-    const w = this.fanned() ? this.fanGeom().width + this.layout.cardW : this.layout.cardW * scale;
-    const h = this.fanned() ? this.layout.cardH * 2.2 : this.layout.cardH * scale;
+    const w = this.layout.cardW * scale;
+    const h = this.layout.cardH * scale;
     const pad = Math.max(6, this.layout.cardH * 0.12);
-    const x = (this.fanned() ? this.fanGeom().anchor.x : a.x) - w / 2 - pad;
-    const y = (this.fanned() ? this.fanGeom().anchor.y - this.layout.cardH * 0.6 : a.y) - h / 2 - pad;
+    const x = a.x - w / 2 - pad;
+    const y = a.y - h / 2 - pad;
     g.roundRect(x, y, w + pad * 2, h + pad * 2, 14).stroke({ width: 3, color: 0xffe9a8, alpha: 0.95 });
     g.roundRect(x, y, w + pad * 2, h + pad * 2, 14).fill({ color: 0xffe08a, alpha: 0.08 });
   }
@@ -751,6 +778,7 @@ export class RoomEngine {
     if (!away) this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.applyCardTextures(); // в сейфе карты всегда рубашкой вверх — текстуры меняются
+    this.applyHandFocus();
     this.drawFocus();
     this.onFanChange?.(this.fanned());
     this.wake();
@@ -1183,7 +1211,7 @@ export class RoomEngine {
       g.anchor,
       g.width,
       Math.max(1, this.deckCount),
-      anim.fan.maxAngleDeg,
+      g.angleDeg,
       anim.fan.widthFactor,
     );
   }
@@ -1194,7 +1222,7 @@ export class RoomEngine {
     const z = this.layout.handZone;
     if (Math.abs(x - z.cx) <= z.w / 2 && Math.abs(y - z.cy) <= z.h / 2) return true;
     const l = this.layout;
-    return fanBandContains(x, y, this.fanGeom().anchor, this.fanGeom().width, anim.fan.maxAngleDeg, anim.fan.widthFactor, l.cardW, l.cardH, l.cardH * 0.5);
+    return fanBandContains(x, y, this.fanGeom().anchor, this.fanGeom().width, this.fanGeom().angleDeg, anim.fan.widthFactor, l.cardW, l.cardH, l.cardH * 0.5);
   }
 
   // Удержание состоялось — карта под пальцем «прилипает» к нему и выходит из веера.
@@ -1455,7 +1483,7 @@ export class RoomEngine {
       this.deckHit.hitArea = {
         contains: (x: number, y: number) =>
           (Math.abs(x - z.cx) <= z.w / 2 && Math.abs(y - z.cy) <= z.h / 2) ||
-          fanBandContains(x, y, this.fanGeom().anchor, this.fanGeom().width, anim.fan.maxAngleDeg, anim.fan.widthFactor, l.cardW, l.cardH, pad),
+          fanBandContains(x, y, this.fanGeom().anchor, this.fanGeom().width, this.fanGeom().angleDeg, anim.fan.widthFactor, l.cardW, l.cardH, pad),
       };
       return;
     }
@@ -1666,7 +1694,7 @@ export class RoomEngine {
     const placed = layoutSeats(this.seats.map((st) => st.id), this.w, this.h, { topOffset: this.topInset });
     this.seatBoxes = placed.seats;
     this.seatInsets = placed.insets;
-    this.layout = computeLayout(this.w, this.h, { ...this.seatInsets, bottom: this.bottomInset });
+    this.rebuildLayout();
     this.baseScale = this.layout.cardH / TEX_H;
     if (this.destroyed || !this.app) return;
     this.app.renderer.resize(this.w, this.h);
@@ -2195,15 +2223,18 @@ export class RoomEngine {
   // Геометрия веера в руке. Дуга fanCard провисает ВНИЗ от якоря, поэтому якорь стоит у
   // верхнего края зоны, а ширина ограничена так, чтобы провис влез в высоту зоны — иначе
   // крайние карты уезжают за нижний край экрана.
-  private fanGeom(): { anchor: { x: number; y: number }; width: number } {
+  private fanGeom(): { anchor: { x: number; y: number }; width: number; angleDeg: number } {
     const z = this.layout.handZone;
     const cardH = this.layout.cardH;
     const anchor = { x: z.cx, y: z.cy - z.h / 2 + cardH * 0.55 };
-    const maxA = (anim.fan.maxAngleDeg * Math.PI) / 180;
+    // Вне фокуса рука лежит спокойно: дуга площе и веер уже (см. anim.fan.idle).
+    const angleDeg = this.handFocused ? anim.fan.maxAngleDeg : anim.fan.maxAngleDeg * anim.fan.idle.angleScale;
+    const maxA = (angleDeg * Math.PI) / 180;
     const sagMax = Math.max(1, z.h - cardH * 1.15);
     const byHeight = maxA > 0 ? (2 * sagMax * Math.sin(maxA)) / (1 - Math.cos(maxA)) : Infinity;
-    const width = Math.min(z.w, byHeight / anim.fan.widthFactor);
-    return { anchor, width };
+    const fit = Math.min(z.w, byHeight / anim.fan.widthFactor);
+    const width = this.handFocused ? fit : fit * anim.fan.idle.widthScale;
+    return { anchor, width, angleDeg };
   }
 
   // Веер-дуга в руке (чистая математика — см. fan.ts). i может быть дробным
@@ -2215,7 +2246,7 @@ export class RoomEngine {
       Math.max(1, this.deckCount),
       g.anchor,
       g.width,
-      anim.fan.maxAngleDeg,
+      g.angleDeg,
       anim.fan.widthFactor,
     );
     return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
@@ -2431,7 +2462,10 @@ export class RoomEngine {
   private applyFanWave(): void {
     const n = Math.max(2, this.deckCount);
     const w = anim.fan.wiggle;
-    const waveScale = this.fanCrowdNow * w.amp * this.fanEnergy;
+    // Вне фокуса рука почти не «дышит»: остаётся лёгкое шевеление, чтобы она не
+    // выглядела картинкой, но плясать веером она перестаёт.
+    const focusScale = this.handFocused ? 1 : anim.fan.idle.wiggleScale;
+    const waveScale = this.fanCrowdNow * w.amp * this.fanEnergy * focusScale;
     for (let i = 0; i < this.cards.length; i++) {
       const wave = waveScale * Math.sin(w.cycles * Math.PI * 2 * (i / (n - 1)) - this.fanWavePhase);
       const vi = Math.max(0, Math.min(n - 1, i + wave + this.pokeShiftAt(i)));

@@ -145,3 +145,58 @@ describe("computeLayout с панелью действий внизу", () => {
     expect(l.centerZone.h).toBeGreaterThan(0);
   });
 });
+
+// Рука в фокусе (выделена) разъезжается на всю ширину, накрывая сейф: тот остаётся
+// узкой полоской у края и уходит на задний план. Без фокуса — привычные 80/20.
+describe("computeLayout — фокус на руке", () => {
+  const W = 800;
+  const H = 600;
+
+  it("без фокуса рука занимает ~80% полосы, сейф ~20%", () => {
+    const l = computeLayout(W, H);
+    const band = l.handZone.w + l.safeZone.w;
+    expect(l.handZone.w / band).toBeGreaterThan(0.7);
+    expect(l.safeZone.w / band).toBeLessThan(0.3);
+  });
+
+  it("в фокусе рука шире: она забирает всю полосу", () => {
+    const idle = computeLayout(W, H);
+    const focused = computeLayout(W, H, undefined, { handFocused: true });
+    expect(focused.handZone.w).toBeGreaterThan(idle.handZone.w);
+    // рука дотягивается до правого края полосы (там, где кончался сейф)
+    const idleRight = idle.safeZone.cx + idle.safeZone.w / 2;
+    expect(focused.handZone.cx + focused.handZone.w / 2).toBeGreaterThanOrEqual(idleRight - 1);
+  });
+
+  it("сейф в фокусе руки ужимается до узкой полоски (~5% полосы)", () => {
+    const focused = computeLayout(W, H, undefined, { handFocused: true });
+    const idle = computeLayout(W, H);
+    expect(focused.safeZone.w).toBeLessThan(idle.safeZone.w);
+    const band = idle.handZone.w + idle.safeZone.w;
+    expect(focused.safeZone.w / band).toBeLessThan(0.1);
+    expect(focused.safeZone.w).toBeGreaterThan(0); // не исчезает совсем — он ещё нужен
+  });
+
+  it("полоска сейфа остаётся у правого края, а не уезжает за экран", () => {
+    const focused = computeLayout(W, H, undefined, { handFocused: true });
+    expect(focused.safeZone.cx + focused.safeZone.w / 2).toBeLessThanOrEqual(W);
+    expect(focused.safeZone.cx).toBeGreaterThan(W / 2);
+  });
+
+  it("слоты сейфа переезжают вместе с ним и остаются внутри", () => {
+    const focused = computeLayout(W, H, undefined, { handFocused: true });
+    expect(focused.safeSlots.length).toBe(3);
+    for (const slot of focused.safeSlots) {
+      expect(slot.cx).toBeCloseTo(focused.safeZone.cx, 0);
+      expect(slot.w).toBeLessThanOrEqual(focused.safeZone.w);
+    }
+  });
+
+  it("фокус не трогает ни центр, ни высоту полосы — двигается только дележ по ширине", () => {
+    const idle = computeLayout(W, H);
+    const focused = computeLayout(W, H, undefined, { handFocused: true });
+    expect(focused.centerZone).toEqual(idle.centerZone);
+    expect(focused.handZone.cy).toBeCloseTo(idle.handZone.cy, 5);
+    expect(focused.handZone.h).toBeCloseTo(idle.handZone.h, 5);
+  });
+});

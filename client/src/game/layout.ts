@@ -46,7 +46,22 @@ export interface LayoutInsets {
 
 const NO_INSETS: LayoutInsets = { top: 0, left: 0, right: 0, bottom: 0 };
 
-export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_INSETS): RoomLayout {
+export interface LayoutOptions {
+  // Рука выделена: она разъезжается на всю полосу и накрывает сейф. Сам сейф остаётся
+  // узкой полоской у правого края (движок рисует его позади карт руки).
+  handFocused?: boolean;
+}
+
+// Доли полосы под руку: обычно 80%, в фокусе — вся полоса, а сейфу остаётся 5%.
+const HAND_SHARE_IDLE = 0.8;
+const SAFE_SHARE_FOCUSED = 0.05;
+
+export function computeLayout(
+  w: number,
+  h: number,
+  insets: LayoutInsets = NO_INSETS,
+  opts: LayoutOptions = {},
+): RoomLayout {
   // Карта масштабируется от меньшей стороны канваса, с потолком/полом.
   const cardH = clamp(Math.min(w, h) * 0.16, CARD_MIN_H, CARD_MAX_H);
   const cardW = cardH * CARD_RATIO;
@@ -69,12 +84,18 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   const bandCy = h - freeBottom - bandH / 2 - h * 0.02;
   const bandLeft = (w - zoneW) / 2;
   const gap = 10;
-  const handW = Math.max(cardW, zoneW * 0.8 - gap / 2);
-  const safeW = Math.max(cardW * 0.6, zoneW * 0.2 - gap / 2);
+  const focused = !!opts.handFocused;
+  // В фокусе рука забирает полосу целиком; сейф остаётся полоской у правого края и
+  // уходит под карты — он никуда не девается, просто перестаёт мешать вееру.
+  const handW = focused ? zoneW : Math.max(cardW, zoneW * HAND_SHARE_IDLE - gap / 2);
+  const safeW = focused
+    ? Math.max(8, zoneW * SAFE_SHARE_FOCUSED)
+    : Math.max(cardW * 0.6, zoneW * (1 - HAND_SHARE_IDLE) - gap / 2);
 
   const handZone: RoundedRect = { cx: bandLeft + handW / 2, cy: bandCy, w: handW, h: bandH, r };
   const safeZone: RoundedRect = {
-    cx: bandLeft + handW + gap + safeW / 2,
+    // Правый край полосы у сейфа общий в обоих состояниях — он просто ужимается к нему.
+    cx: bandLeft + zoneW - safeW / 2,
     cy: bandCy,
     w: safeW,
     h: bandH,
