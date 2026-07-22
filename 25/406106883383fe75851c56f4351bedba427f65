@@ -1,0 +1,40 @@
+client/src/serverUrl.test.ts
+  s_d242f4bac5a1da::t_b7b965696d726b 1-48
+deploy/Caddyfile
+  s_d242f4bac5a1da::t_c0bdf0911f429a 1-42
+client/src/serverUrl.ts
+  s_d242f4bac5a1da::t_574fba5f57d04c 8-9,11
+  s_d242f4bac5a1da::t_02c43a734cae58 36-37
+  s_d242f4bac5a1da::t_90e32fd692b9ef 1-7,10,12-24,27-35,38-39
+  s_d242f4bac5a1da::t_75e59cecccb375 25-26
+deploy/README.md
+  s_d242f4bac5a1da::t_4d72a1546caed2 1-117
+client/src/colyseus.ts
+  s_d242f4bac5a1da::t_4e2be69819614a 2,4-5
+server/src/index.ts
+  s_d242f4bac5a1da::t_491db479e5f5c4 18-21,23
+  s_d242f4bac5a1da::t_dbfc620bea68c4 93-97
+client/.env.development
+  s_d242f4bac5a1da::t_99d24bb496cdab 1-5
+deploy/crusade-deck.service
+  s_d242f4bac5a1da::t_b07c23803f8a6b 1-31
+client/src/account.ts
+  s_d242f4bac5a1da::t_e7e3e5a999caea 11
+  s_d242f4bac5a1da::t_db7fe46d2f869d 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "25406106883383fe75851c56f4351bedba427f65",
+  "prompts": {},
+  "sessions": {
+    "s_d242f4bac5a1da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89366ff4-08a9-45bb-8339-ef8e9a9d2d5f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
