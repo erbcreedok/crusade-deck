@@ -1,0 +1,26 @@
+client/src/game/fan.ts
+  s_3b000dfed76439::t_b57f9b904210b8 51-82
+client/src/game/fan.test.ts
+  s_3b000dfed76439::t_2331fc81c02c5d 2,110-128,130-156
+  s_3b000dfed76439::t_b40157834a5fcc 129
+  s_3b000dfed76439::t_d8c91137a92a5e 157
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_efb9609411ac6f 563-566,569-575
+  s_3b000dfed76439::t_806e1369ebcae1 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "150d7635301c210616dd0c155a8f1cbe01c591da",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
