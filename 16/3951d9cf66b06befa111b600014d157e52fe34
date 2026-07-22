@@ -1,0 +1,27 @@
+client/src/game/engine/gestureIntent.ts
+  s_7d9a23fba6e8e1::t_cb1a86ca8faa52 1-97
+client/src/game/engine/gestureIntent.test.ts
+  s_7d9a23fba6e8e1::t_4ab08cc55af341 52,56,60,64,70,74,85,89,93,97,101,105,117
+  s_7d9a23fba6e8e1::t_ee58bbf7a0d675 1-51,53-55,57-59,61-63,65-69,71-73,75-84,86-88,90-92,94-96,98-100,102-104,106-116,118-119
+client/src/game/RoomEngine.ts
+  s_7d9a23fba6e8e1::t_b27702a1632b4d 1126,1129-1134,1137-1148,1150-1154,1156-1165
+  s_7d9a23fba6e8e1::t_354d997b19155a 404-429,452,454-455,481,483,485-488,490,493-495,498,505,507,509-511,518-519,523,525,529-531,538-575,586-587
+  s_7d9a23fba6e8e1::t_a38b6466b1df83 2141-2142,2145
+  s_7d9a23fba6e8e1::t_0c6fd28735296d 114,1170,1226,1229-1244,1246-1248,1252,1258-1263,1265,1272,1274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "163951d9cf66b06befa111b600014d157e52fe34",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
