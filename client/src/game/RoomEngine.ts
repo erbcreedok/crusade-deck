@@ -93,7 +93,6 @@ import {
   COLORS,
   DECK_ID,
   DRAG_SCALE,
-  DRAG_THRESHOLD,
   HAND_ID,
   PIXEL_FONT,
   REJECT_TEXT,
@@ -112,6 +111,7 @@ import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMB
 import { canSleep } from "./engine/idleGate";
 import { CardPile } from "./engine/CardPile";
 import { shufflePose, shuffleProgress, shouldSwapZ } from "./engine/shufflePose";
+import { movedEnough, pressIntent, pushSample } from "./engine/gestureIntent";
 
 export { DECK_ID, HAND_ID } from "./engine/constants";
 
@@ -401,11 +401,36 @@ export class RoomEngine {
 
     container.appendChild(app.canvas);
     this.app = app;
+
+    this.buildLayers(app);
+    this.buildOverlays();
+    this.backTex = makeCardBackTexture(app, this.cardBack);
+    this.shadowTex = makeShadowTexture(app);
+    this.baseScale = this.layout.cardH / TEX_H;
+    this.buildTable();
+    this.buildShadows();
+    this.buildHitAreas(app);
+
+    if (this.seats.length > 0) this.applySeats(); // места могли приехать до монтирования
+
+    // Состояние комнаты могло приехать РАНЬШЕ, чем поднялся Pixi (вход в живую комнату,
+    // перезагрузка страницы): setDeck тогда только запомнил порядок и вышел на «ещё не
+    // смонтированы», а повторно его никто не звал — deckKey в RoomCanvas не менялся.
+    // Итог: карт не видно, пока не нажмёшь «Растасовать». Доигрываем отложенный порядок.
+    if (this.deckCards.length > 0) this.setDeck(this.deckCards);
+    if (this.handCards.length > 0) this.setHand(this.handCards);
+
+    app.ticker.add(this.tick);
+    this.applyProfile(); // применить текущий профиль (FPS-кап, tilt) к свежему тикеру/картам
+    this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
+  }
+
+  // Слои мира по zIndex: стол → места игроков → подсветка зон → тени → карты.
+  private buildLayers(app: Application): void {
     this.world = new Container();
     this.world.sortableChildren = true;
     app.stage.addChild(this.world);
 
-    // Слои по zIndex: стол → места игроков → подсветка зон → тени → карты → хит колоды.
     this.tableG = new Graphics();
     this.tableG.zIndex = Z.table;
     this.seatLayer = new Container();
@@ -424,8 +449,10 @@ export class RoomEngine {
     this.cardLayer.zIndex = Z.cards;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
     this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer, this.focusG);
+  }
 
-    // Подписи зон живут в zoneLayer (под тенями/картами) — «водяной» текст на фоне.
+  // Надписи поверх стола: подписи зон «водяным» текстом и крупное «низяяя» при отбое.
+  private buildOverlays(): void {
     (Object.keys(dropZoneRegions(this.layout)) as DropZone[]).forEach((z) => {
       const t = new Text({
         text: zoneTitle(z),
@@ -437,7 +464,6 @@ export class RoomEngine {
       this.zoneLabels[z] = t;
     });
 
-    // «низяяя» — крупный текст поверх карт, всплывает по центру во время отскока.
     this.rejectText = new Text({
       text: REJECT_TEXT,
       style: {
@@ -452,125 +478,62 @@ export class RoomEngine {
     this.rejectText.anchor.set(0.5);
     this.rejectText.visible = false;
     this.rejectText.zIndex = Z.rejectText; // поверх карт (world.sortableChildren)
-    this.world.addChild(this.rejectText);
+    this.world!.addChild(this.rejectText);
     this.styleZoneLabels();
+  }
 
-    this.backTex = makeCardBackTexture(app, this.cardBack);
-    this.shadowTex = makeShadowTexture(app);
-    this.baseScale = this.layout.cardH / TEX_H;
-    this.buildTable();
-
-    // Единственная тень колоды — живёт в shadowLayer под картами.
-    const deckShadow = new Sprite(this.shadowTex);
+  // Тени и «кирпич» колоды. Тень у колоды ОДНА на всю стопку: раньше была тень на карту,
+  // и на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
+  private buildShadows(): void {
+    const deckShadow = new Sprite(this.shadowTex!);
     deckShadow.anchor.set(0.5);
-    this.shadowLayer.addChild(deckShadow);
+    this.shadowLayer!.addChild(deckShadow);
     this.deckShadow = deckShadow;
 
-    // Отдельная тень под ОДНОЙ картой, которую тащат из веера (общая тень колоды в этот
-    // момент лежит под самим веером и «поднятую» карту не показывает).
-    const cardShadow = new Sprite(this.shadowTex);
+    // Отдельная тень под ОДНОЙ картой, которую тащат из веера: общая тень колоды в этот
+    // момент лежит под самим веером и «поднятую» карту не показывает.
+    const cardShadow = new Sprite(this.shadowTex!);
     cardShadow.anchor.set(0.5);
     cardShadow.visible = false;
-    this.shadowLayer.addChild(cardShadow);
+    this.shadowLayer!.addChild(cardShadow);
     this.cardShadow = cardShadow;
 
     // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
     // всё, что под ней, рисуется одной Graphics (см. drawDeckBody).
     const body = new Graphics();
     body.zIndex = Z.deckBody; // над нижней картой (zIndex 0), под всеми остальными
-    this.cardLayer.addChild(body);
+    this.cardLayer!.addChild(body);
     this.deckBody = body;
+  }
 
-    // Карты приедут через setDeck() (порядок из состояния сервера) — на mount их нет.
-
-    // Невидимая интерактивная зона поверх колоды — старт драга + дабл-тап.
+  // Всё интерактивное: хит-зоны колоды и руки, стрелки «сложить», счётчики и сцена целиком.
+  private buildHitAreas(app: Application): void {
+    // Невидимая зона поверх колоды — старт драга и тап по колоде.
     const hit = new Container();
     hit.eventMode = "static";
     hit.cursor = "grab";
     hit.zIndex = Z.deckHit; // всегда над картами
     hit.on("pointerdown", (e: FederatedPointerEvent) => this.onDeckDown(e));
-    // Тап по колоде (нажали и отпустили, не двигая) — выделение. Драг сюда не попадает.
     hit.on("pointertap", (e: FederatedPointerEvent) => {
-      // Гасим всплытие: иначе тот же тап дойдёт до сцены и «тап мимо» снимет
-      // выделение, которое мы только что поставили.
+      // Гасим всплытие: иначе тот же тап дойдёт до сцены и «тап мимо» снимет выделение,
+      // которое мы только что поставили.
       e.stopPropagation();
       this.handleDeckTap(e);
     });
-    hit.on("pointermove", (e: FederatedPointerEvent) => this.onDeckHover(e)); // ховер мышью (десктоп)
+    hit.on("pointermove", (e: FederatedPointerEvent) => this.onDeckHover(e)); // ховер мышью
     hit.on("pointerout", (e: FederatedPointerEvent) => this.onDeckHoverOut(e));
-    this.world.addChild(hit);
+    this.world!.addChild(hit);
     this.deckHit = hit;
     this.positionDeckHit();
 
-    // Стрелки «сложить»: рука — любому; колода на столе — только дилеру (см. syncCollapseButton).
-    const collapse = new Container();
-    collapse.eventMode = "static";
-    collapse.cursor = "pointer";
-    collapse.zIndex = Z.collapseBtn; // ВЫШЕ хит-зоны колоды: иначе её съедала полоса веера
-    collapse.visible = false;
-    collapse.alpha = 0;
-    collapse.addChild(new Graphics());
-    collapse.on("pointerdown", (e: FederatedPointerEvent) => e.stopPropagation());
-    collapse.on("pointertap", (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      this.onFanCollapse?.();
-    });
-    this.world.addChild(collapse);
-    this.collapseBtn = collapse;
-
-    const deckCollapse = new Container();
-    deckCollapse.eventMode = "static";
-    deckCollapse.cursor = "pointer";
-    deckCollapse.zIndex = Z.collapseBtn;
-    deckCollapse.visible = false;
-    deckCollapse.alpha = 0;
-    deckCollapse.addChild(new Graphics());
-    deckCollapse.on("pointerdown", (e: FederatedPointerEvent) => e.stopPropagation());
-    deckCollapse.on("pointertap", (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      this.onDeckFanChange?.(false);
-    });
-    this.world.addChild(deckCollapse);
-    this.deckCollapseBtn = deckCollapse;
+    // Стрелки «сложить»: рука — любому; колода на столе — только дилеру (syncCollapseButton).
+    this.collapseBtn = this.makeCollapseButton(() => this.onFanCollapse?.());
+    this.deckCollapseBtn = this.makeCollapseButton(() => this.onDeckFanChange?.(false));
 
     this.handCounter = this.makeCounterText();
     this.deckCounter = this.makeCounterText();
-
     this.syncCollapseButton();
     this.syncDeckCounter();
-
-    // Move/up ловим на всей сцене — палец может уйти далеко за пределы колоды.
-    app.stage.eventMode = "static";
-    app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
-    app.stage.on("pointermove", (e: FederatedPointerEvent) => this.onPointerMove(e));
-    app.stage.on("pointerup", (e: FederatedPointerEvent) => {
-      const wasDrag = this.dragging || !!this.cardDrag;
-      this.onPointerUp(e);
-      // После настоящего драга тапа не будет — снимаем метку сами, иначе она проглотит
-      // следующий честный тап по пустому месту.
-      if (wasDrag) this.tapStartedOnDeck = false;
-    });
-    // Тап мимо всего — снять выделение. Тап по колоде сюда не доходит: он погашен
-    // на её хит-зоне (stopPropagation выше).
-    app.stage.on("pointertap", () => {
-      // Жест начался на колоде, а палец отпустили мимо зоны — это НЕ «тап по пустому
-      // месту»: рука не должна складываться от касания собственных карт.
-      if (this.tapStartedOnDeck) {
-        this.tapStartedOnDeck = false;
-        return;
-      }
-      this.onEmptyTap?.();
-    });
-    app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
-
-    if (this.seats.length > 0) this.applySeats(); // места могли приехать до монтирования
-
-    // Состояние комнаты могло приехать РАНЬШЕ, чем поднялся Pixi (вход в живую комнату,
-    // перезагрузка страницы): setDeck тогда только запомнил порядок и вышел на «ещё не
-    // смонтированы», а повторно его никто не звал — deckKey в RoomCanvas не менялся.
-    // Итог: карт не видно, пока не нажмёшь «Растасовать». Доигрываем отложенный порядок.
-    if (this.deckCards.length > 0) this.setDeck(this.deckCards);
-    if (this.handCards.length > 0) this.setHand(this.handCards);
 
     // Хит-зона руки — отдельный невидимый слой над полосой handZone.
     const handHit = new Container();
@@ -584,13 +547,54 @@ export class RoomEngine {
     });
     handHit.on("pointermove", (e: FederatedPointerEvent) => this.onHandHover(e));
     handHit.on("pointerout", (e: FederatedPointerEvent) => this.onHandHoverOut(e));
-    this.world.addChild(handHit);
+    this.world!.addChild(handHit);
     this.handHit = handHit;
     this.positionHandHit();
 
-    app.ticker.add(this.tick);
-    this.applyProfile(); // применить текущий профиль (FPS-кап, tilt) к свежему тикеру/картам
-    this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
+    this.bindStageEvents(app);
+  }
+
+  private makeCollapseButton(onTap: () => void): Container {
+    const btn = new Container();
+    btn.eventMode = "static";
+    btn.cursor = "pointer";
+    btn.zIndex = Z.collapseBtn; // ВЫШЕ хит-зоны колоды: иначе её съедала полоса веера
+    btn.visible = false;
+    btn.alpha = 0;
+    btn.addChild(new Graphics());
+    btn.on("pointerdown", (e: FederatedPointerEvent) => e.stopPropagation());
+    btn.on("pointertap", (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      onTap();
+    });
+    this.world!.addChild(btn);
+    return btn;
+  }
+
+  // Move/up ловим на всей сцене — палец может уйти далеко за пределы колоды.
+  private bindStageEvents(app: Application): void {
+    app.stage.eventMode = "static";
+    app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
+    app.stage.on("pointermove", (e: FederatedPointerEvent) => this.onPointerMove(e));
+    app.stage.on("pointerup", (e: FederatedPointerEvent) => {
+      const wasDrag = this.dragging || !!this.cardDrag;
+      this.onPointerUp(e);
+      // После настоящего драга тапа не будет — снимаем метку сами, иначе она проглотит
+      // следующий честный тап по пустому месту.
+      if (wasDrag) this.tapStartedOnDeck = false;
+    });
+    // Тап мимо всего — снять выделение. Тап по колоде сюда не доходит: он погашен на её
+    // хит-зоне (stopPropagation выше).
+    app.stage.on("pointertap", () => {
+      // Жест начался на колоде, а палец отпустили мимо зоны — это НЕ «тап по пустому
+      // месту»: рука не должна складываться от касания собственных карт.
+      if (this.tapStartedOnDeck) {
+        this.tapStartedOnDeck = false;
+        return;
+      }
+      this.onEmptyTap?.();
+    });
+    app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
   }
 
   // Колода и рука: спрайты и порядок живут в стопках, движок только читает их.
@@ -1119,86 +1123,51 @@ export class RoomEngine {
   private onDeckDown(e: FederatedPointerEvent): void {
     this.tapStartedOnDeck = true;
     this.skipNextTap = false; // новый жест — прошлое подавление тапа больше не актуально
+    // Что вообще можно делать этим нажатием, решает dragMode.ts.
     const mode = this.dragMode();
     if (mode === "none") return;
-    // Раздача: стопка → верхняя карта; открытый веер → карта под пальцем/пивотом.
-    if (mode === "topCard") {
-      if (this.cardPress || this.cardDrag || this.cards.length === 0) return;
-      this.dealDrag = true;
-      this.deckPointer = true;
-      this.cardPress = {
-        id: e.pointerId,
-        startX: e.global.x,
-        startY: e.global.y,
-        x: e.global.x,
-        y: e.global.y,
-        index: dealSourceIndex(this.cards.length, this.deckFanned, this.nearestFanIndex(e.global.x)),
-        canGrab: true,
-        fromHand: false,
-        samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
-      };
-      this.wake();
+
+    // Драг колоды целиком: сложенная рука и любая зона, кроме раскрытого веера.
+    if (mode === "deck") {
+      if (this.press) return;
+      this.press = { id: e.pointerId, ...this.pressPoint(e), samples: this.startSamples(e) };
+      if (this.deckHit) this.deckHit.cursor = "grabbing";
       return;
     }
-    // Не-дилер на открытом веере: только глиссандо/тык, без драга и тасовки.
-    if (mode === "peek") {
-      if (this.cardPress || this.cardDrag || this.cards.length === 0) return;
-      this.dealDrag = false;
-      this.deckPointer = true;
-      this.cardPress = {
-        id: e.pointerId,
-        startX: e.global.x,
-        startY: e.global.y,
-        x: e.global.x,
-        y: e.global.y,
-        index: this.nearestFanIndex(e.global.x),
-        canGrab: false,
-        fromHand: false,
-        samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
-      };
-      this.wake();
-      return;
-    }
-    // Рука в фокусе — жест относится к КАРТЕ; сложенная рука и любая другая зона —
-    // к колоде целиком. Правило целиком лежит в dragMode.ts.
-    if (mode === "card") {
-      if (this.cardPress || this.cardDrag) return;
-      const index = this.nearestFanIndex(e.global.x);
-      // Зажатый веер не таскаем: пока карта не показала достаточную полоску, её не за что
-      // взять. Но палец не игнорируем — ведение по вееру раскрывает его под пальцем
-      // («глиссандо», см. onPointerMove), и уже в открытый зазор карту можно брать.
-      const canGrab = this.canGrabAt(index);
-      this.dealDrag = false;
-      this.cardPress = {
-        id: e.pointerId,
-        startX: e.global.x,
-        startY: e.global.y,
-        x: e.global.x,
-        y: e.global.y,
-        index,
-        canGrab,
-        fromHand: false,
-        samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
-      };
-      this.wake();
-      return;
-    }
-    if (this.press) return;
-    this.press = {
+
+    if (this.cardPress || this.cardDrag) return;
+    if (this.cards.length === 0 && mode !== "card") return;
+    // topCard — раздача со стопки/веера: тащим верхнюю (или ту, что под пальцем).
+    // peek — не-дилер на открытом вееере: только глиссандо и тык, без драга и тасовки.
+    // card — рука в фокусе: жест относится к КАРТЕ. Зажатый веер не таскаем, пока карта
+    //        не показала достаточную полоску (canGrabAt) — но палец не игнорируем:
+    //        ведение раскрывает веер под пальцем, и в открытый зазор карту уже можно взять.
+    const nearest = this.nearestFanIndex(e.global.x);
+    this.dealDrag = mode === "topCard";
+    if (mode !== "card") this.deckPointer = true;
+    this.cardPress = {
       id: e.pointerId,
-      startX: e.global.x,
-      startY: e.global.y,
-      x: e.global.x,
-      y: e.global.y,
-      samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
+      ...this.pressPoint(e),
+      index: mode === "topCard" ? dealSourceIndex(this.cards.length, this.deckFanned, nearest) : nearest,
+      canGrab: mode === "topCard" ? true : mode === "peek" ? false : this.canGrabAt(nearest),
+      fromHand: false,
+      samples: this.startSamples(e),
     };
-    if (this.deckHit) this.deckHit.cursor = "grabbing";
+    this.wake();
+  }
+
+  /** Точка нажатия: старт жеста и его текущая позиция — поначалу одно и то же. */
+  private pressPoint(e: FederatedPointerEvent): { startX: number; startY: number; x: number; y: number } {
+    return { startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y };
+  }
+
+  private startSamples(e: FederatedPointerEvent): SwipeSample[] {
+    return [{ x: e.global.x, y: e.global.y, t: performance.now() }];
   }
 
   private onPointerMove(e: FederatedPointerEvent): void {
     if (this.cardDrag && e.pointerId === this.cardDrag.id) {
-      this.cardDrag.samples.push({ x: e.global.x, y: e.global.y, t: performance.now() });
-      if (this.cardDrag.samples.length > 12) this.cardDrag.samples.shift();
+      pushSample(this.cardDrag.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
       // Резкий бросок ВНИЗ прерывает драг: карта возвращается на место, рука складывается.
       // При раздаче верхней карты свайп вниз просто отменяет жест (без сворачивания руки).
       const v = swipeVelocity(this.cardDrag.samples, anim.swipe.windowMs);
@@ -1254,64 +1223,55 @@ export class RoomEngine {
     }
     if (this.cardPress && e.pointerId === this.cardPress.id) {
       const p = this.cardPress;
-      p.samples.push({ x: e.global.x, y: e.global.y, t: performance.now() });
-      if (p.samples.length > 12) p.samples.shift();
+      pushSample(p.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
       p.x = e.global.x;
       p.y = e.global.y;
-      const dx = p.x - p.startX;
-      const dy = p.y - p.startY;
-      if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return; // ещё тык, не жест
+      const v = swipeVelocity(p.samples, anim.swipe.windowMs);
+      // Что этот жест значит — решает engine/gestureIntent.ts (правила там же и проверены).
+      const intent = pressIntent({
+        dx: p.x - p.startX,
+        dy: p.y - p.startY,
+        vx: v.vx,
+        vy: v.vy,
+        travelUp: p.startY - p.y,
+        travelDown: p.y - p.startY,
+        cardH: this.layout.cardH,
+        fromHand: p.fromHand,
+        dealDrag: this.dealDrag,
+        canGrab: p.canGrab,
+        swipeable: this.fanOpen() && this.deckCount >= 2,
+        canShuffle: this.canDeal || !this.dealMode,
+      });
 
-      // Раздача верхней карты — сразу в драг; тап после этого не откроет веер.
-      if (this.dealDrag) {
-        this.skipNextTap = true;
+      if (intent === "wait") return;
+      if (intent === "deal") {
+        this.skipNextTap = true; // после драга верхней карты тап не откроет веер
         this.beginCardDrag();
         return;
       }
-
-      // Резкий бросок ВВЕРХ по вееру — это «перемешать». Медленное ведение (скролл/
-      // глиссандо) сюда не проходит: нужна и скорость по окну, и пройденный путь вверх.
-      const v = swipeVelocity(p.samples, anim.swipe.windowMs);
-      // Свайп ВНИЗ по вееру РУКИ складывает руку. По колоде — нет (сворачивает стрелка дилера).
-      if (
-        p.fromHand &&
-        isSwipeDown(v.vx, v.vy) &&
-        p.y - p.startY >= this.layout.cardH * anim.swipe.minTravel
-      ) {
+      if (intent === "collapse-hand") {
         this.cardPress = null;
         this.dealDrag = false;
         this.onFanCollapse?.();
         return;
       }
-      // Тасовка колоды — только дилер; не-дилер на peek продолжает глиссандо.
-      if (this.isSwipeUp(v.vx, v.vy, p.startY - p.y)) {
-        if (!p.fromHand && (this.canDeal || !this.dealMode)) {
-          this.startSwipeShuffle(v.vx, v.vy, p.index);
-          this.cardPress = null;
-          this.dealDrag = false;
-          this.deckPointer = false;
-          return;
-        }
-        if (!p.fromHand && !this.canDeal) {
-          this.glissandoTo(e.global.x);
-          return;
-        }
+      if (intent === "shuffle") {
+        this.startSwipeShuffle(v.vx, v.vy, p.index);
+        this.cardPress = null;
+        this.dealDrag = false;
+        this.deckPointer = false;
+        return;
       }
-      // Захват МГНОВЕННЫЙ: ждём не время, а само движение. Если же в момент нажатия веер
-      // был зажат — ведение пальцем раскрывает его под пальцем, как глиссандо по клавишам.
-      if (this.cardPress.canGrab) this.beginCardDrag();
+      if (intent === "grab") this.beginCardDrag();
       else this.glissandoTo(e.global.x);
       return;
     }
     if (!this.press || e.pointerId !== this.press.id) return;
     this.press.x = e.global.x;
     this.press.y = e.global.y;
-    this.press.samples.push({ x: e.global.x, y: e.global.y, t: performance.now() });
-    if (this.press.samples.length > 12) this.press.samples.shift();
+    pushSample(this.press.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
     if (!this.dragging) {
-      const dx = this.press.x - this.press.startX;
-      const dy = this.press.y - this.press.startY;
-      if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return; // ещё тап, не драг
+      if (!movedEnough(this.press.x - this.press.startX, this.press.y - this.press.startY)) return; // ещё тап
       this.dragging = true;
       this.onDragChange?.(true); // React прячет кнопки действий на время драга
     }
@@ -2175,18 +2135,14 @@ export class RoomEngine {
     this.skipNextTap = false;
     if (!this.handFocused) return; // сложенная рука — только тап (выделение), без драга карт
     if (this.cardPress || this.cardDrag) return;
-    const index = this.nearestHandFanIndex(e.global.x);
     this.dealDrag = false;
     this.cardPress = {
       id: e.pointerId,
-      startX: e.global.x,
-      startY: e.global.y,
-      x: e.global.x,
-      y: e.global.y,
-      index,
+      ...this.pressPoint(e),
+      index: this.nearestHandFanIndex(e.global.x),
       canGrab: true,
       fromHand: true,
-      samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
+      samples: this.startSamples(e),
     };
     this.wake();
   }
@@ -3250,19 +3206,6 @@ export class RoomEngine {
     this.poke = { index: pi, target: pi, t: 0 };
     this.reKickWaveAt(pi, this.cards.length);
     this.wake();
-  }
-
-  // Свайп вверх: быстрое движение, у которого вертикальная составляющая направлена вверх
-  // и весома. Наклон вбок допускаем (он потом задаёт сторону разлёта) — не пускаем только
-  // движения вниз и «горизонтальные протяжки», которые на деле глиссандо.
-  private isSwipeUp(vx: number, vy: number, travelUp: number): boolean {
-    if (!this.fanOpen() || this.deckCount < 2) return false;
-    if (vy >= 0) return false; // вниз — не тот жест
-    if (-vy < Math.abs(vx) * anim.swipe.upBias) return false; // почти горизонтально — не свайп
-    // Путь вверх обязателен: он отсекает медленное ведение и мелкое дрожание пальца,
-    // на которых одна только скорость иногда даёт ложный свайп.
-    if (travelUp < this.layout.cardH * anim.swipe.minTravel) return false;
-    return swipeStrength(vx, vy) > 0;
   }
 
   // Выплеск: несколько карт вылетают из веера в стороны и возвращаются. Сам порядок тасует
