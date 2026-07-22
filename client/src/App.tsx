@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { MotionConfig } from "framer-motion";
 import { useAuth } from "./useAuth";
@@ -25,6 +25,15 @@ export default function App() {
   const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
   // Фон и Framer Motion движутся только при полной анимации; в умеренной — статичны.
   const fullMotion = animation.level === "full";
+
+  // Обрыв связи (свернул вкладку, сон iOS, потеря сети) — возвращаем в лобби, где есть
+  // кнопка «↩ Вернуться». Сервер держит игрока «на паузе», так что возврат разморозит его.
+  useEffect(() => {
+    if (!room) return;
+    const backToLobby = () => setRoom(null);
+    room.onLeave(backToLobby);
+    room.onError(backToLobby);
+  }, [room]);
 
   return (
     <MotionConfig reducedMotion={fullMotion ? "never" : "always"}>

@@ -15,8 +15,7 @@ vi.mock("./accounts.js", () => ({
 // Короткие таймауты — тесты не ждут реальные секунды. CardRoom читает их «лениво»
 // (при каждом обращении) из process.env, ровно ради тестируемости.
 process.env.VOTE_TIMEOUT_MS = "150";
-process.env.RECONNECT_SECONDS = "0.2"; // окно переподключения
-process.env.EMPTY_ROOM_TTL_MS = "300"; // сколько живёт опустевшая комната
+process.env.EMPTY_ROOM_TTL_MS = "300"; // сколько живёт опустевшая (все на паузе) комната
 
 function createGameServer() {
   const server = new Server({ transport: new WebSocketTransport() });
@@ -279,6 +278,48 @@ describe("CardRoom", () => {
     const a2 = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-rejoin" });
     const restored = [...room.state.players.get(a2.sessionId)!.hand];
     expect(restored).toEqual(handBefore);
+  });
+
+  it("keeps a disconnected player in the room, just paused (not removed)", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const a = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-pause-a" });
+    await colyseus.connectTo(room, { name: "Bob", accountId: "acc-pause-b" }); // держит комнату
+
+    await a.leave();
+    await new Promise((r) => setTimeout(r, 100));
+
+    const paused = [...room.state.players.values()].find((p) => p.id === "acc-pause-a");
+    expect(paused).toBeDefined(); // остался в комнате
+    expect(paused!.connected).toBe(false); // на паузе
+  });
+
+  it("a disconnected dealer keeps the dealer badge (no auto-transfer)", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const a = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-deal-a" }); // дилер
+    const b = await colyseus.connectTo(room, { name: "Bob", accountId: "acc-deal-b" });
+
+    await a.leave();
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(room.state.players.get(b.sessionId)?.isDealer).toBe(false); // не передали
+    const pausedA = [...room.state.players.values()].find((p) => p.id === "acc-deal-a");
+    expect(pausedA?.isDealer).toBe(true); // остался дилером
+  });
+
+  it("re-activates the player and keeps dealer on return", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const a = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-ret-a" }); // дилер
+    await colyseus.connectTo(room, { name: "Bob", accountId: "acc-ret-b" });
+
+    await a.leave();
+    await new Promise((r) => setTimeout(r, 100));
+
+    const a2 = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-ret-a" });
+    const back = room.state.players.get(a2.sessionId);
+    expect(back?.connected).toBe(true); // снова активен
+    expect(back?.isDealer).toBe(true); // всё ещё дилер
+    // один игрок на аккаунт — старый sessionId убран
+    expect([...room.state.players.values()].filter((p) => p.id === "acc-ret-a").length).toBe(1);
   });
 
   it("keeps an emptied room alive until TTL, then disposes and forgets it", async () => {

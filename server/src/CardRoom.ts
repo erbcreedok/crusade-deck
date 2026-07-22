@@ -8,15 +8,6 @@ import { findAccountById } from "./accounts.js";
 import { setPublicRoom, updatePublicRoomCount, removePublicRoom } from "./publicRooms.js";
 import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
 
-// Снимок состояния игрока по аккаунту — чтобы восстановить руку при повторном входе
-// (в т.ч. из нового браузера) после того, как его Player удалён из стейта.
-interface AccountSnapshot {
-  name: string;
-  hand: string[];
-  isDealer: boolean;
-  hadDeckInSafe: boolean;
-}
-
 interface JoinOptions {
   token?: string;
   accountId?: string;
@@ -46,12 +37,6 @@ function getVoteTimeoutMs(): number {
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 10_000;
 }
 
-// Секунды окна переподключения (allowReconnection). Лениво из env — тесты ставят короткое.
-function getReconnectSeconds(): number {
-  const fromEnv = Number(process.env.RECONNECT_SECONDS);
-  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 30;
-}
-
 // Сколько живёт опустевшая комната перед диспоузом (даёт вернуться «в последнюю игру»).
 function getEmptyRoomTtlMs(): number {
   const fromEnv = Number(process.env.EMPTY_ROOM_TTL_MS);
@@ -62,7 +47,6 @@ export class CardRoom extends Room<GameState> {
   maxClients = 32;
   private proposalTimeout: Delayed | null = null;
   private disposeTimer: Delayed | null = null;
-  private accountSnapshots = new Map<string, AccountSnapshot>();
 
   onCreate(options: JoinOptions) {
     // Комната не диспоузится сразу при опустошении — держим её живой TTL, чтобы игрок
@@ -165,35 +149,27 @@ export class CardRoom extends Room<GameState> {
     player.id = accountId;
     player.name = options.name || "Player";
 
-    // Есть ли прежнее состояние этого аккаунта: (a) ещё висящий отключённый Player
-    // (вход из нового браузера в окне переподключения) или (b) сохранённый снапшот.
-    const lingering = [...this.state.players.entries()].find(
-      ([sid, p]) => p.id === accountId && !p.connected && sid !== client.sessionId,
+    // Уже есть игрок этого аккаунта (на паузе после обрыва ИЛИ висящий) — это ВОЗВРАТ.
+    // Переносим его состояние на новый sessionId (рука, дилерство, готовность) и
+    // «размораживаем». Один игрок на аккаунт — старую запись убираем.
+    const existing = [...this.state.players.entries()].find(
+      ([sid, p]) => p.id === accountId && sid !== client.sessionId,
     );
-    const snap = this.accountSnapshots.get(accountId);
-    const prior = lingering
-      ? { name: lingering[1].name, hand: [...lingering[1].hand] as string[], isDealer: lingering[1].isDealer, oldSid: lingering[0] as string }
-      : snap
-        ? { name: snap.name, hand: snap.hand, isDealer: snap.isDealer, oldSid: undefined }
-        : null;
-
-    if (prior) {
-      player.name = prior.name || player.name;
-      prior.hand.forEach((c) => player.hand.push(c));
-      // Дилерство возвращаем только если сейчас дилера нет — иначе не плодим второго.
-      const hasDealer = [...this.state.players.values()].some((p) => p.isDealer);
-      player.isDealer = prior.isDealer && !hasDealer;
-      // Колода была в сейф-зоне этого игрока — перецепляем на новый sessionId.
-      const hadDeckInSafe = lingering ? this.state.deckLocation === prior.oldSid : !!snap?.hadDeckInSafe;
-      if (hadDeckInSafe) this.state.deckLocation = client.sessionId;
-      if (prior.oldSid) this.state.players.delete(prior.oldSid);
-      this.accountSnapshots.delete(accountId);
+    if (existing) {
+      const [oldSid, old] = existing;
+      player.name = old.name || player.name;
+      ([...old.hand] as string[]).forEach((c) => player.hand.push(c));
+      player.isDealer = old.isDealer; // дилер остаётся дилером
+      player.isReady = old.isReady;
+      if (this.state.deckLocation === oldSid) this.state.deckLocation = client.sessionId;
+      this.state.players.delete(oldSid);
     } else {
       player.isDealer = wasEmpty;
     }
+    player.connected = true;
 
     this.state.players.set(client.sessionId, player);
-    this.cancelDisposeTimer(); // комната снова не пуста
+    this.cancelDisposeTimer(); // комната снова активна
     setLastRoom(accountId, {
       roomId: this.roomId,
       inviteCode: this.state.inviteCode,
@@ -204,39 +180,17 @@ export class CardRoom extends Room<GameState> {
     }
   }
 
+  // Обрыв связи (свернул вкладку, ушёл сон iOS и т.п.) — НЕ выкидываем из комнаты.
+  // Игрок остаётся «на паузе» (connected=false), дилерство сохраняется; вернётся —
+  // onJoin разморозит его тем же аккаунтом. Комната диспоузится, только если ВСЕ
+  // отключились и прошёл TTL пустой комнаты.
   onLeave(client: Client) {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     player.connected = false;
-
-    if (player.isDealer) {
-      const next = [...this.state.players.values()].find((p) => p.connected && p !== player);
-      if (next) next.isDealer = true;
-    }
-
     this.cancelProposalInvolving(client.sessionId);
     this.tallyAndResolve();
-    this.maybeScheduleDisposeTimer(); // все отключились → завести таймер жизни пустой комнаты
-
-    // Окно переподключения; по его истечении — снапшот состояния и удаление игрока.
-    this.allowReconnection(client, getReconnectSeconds())
-      .then(() => {
-        player.connected = true;
-        this.cancelDisposeTimer();
-      })
-      .catch(() => {
-        // Сохраняем руку/дилерство по аккаунту, чтобы восстановить при возврате.
-        this.accountSnapshots.set(player.id, {
-          name: player.name,
-          hand: [...player.hand] as string[],
-          isDealer: player.isDealer,
-          hadDeckInSafe: this.state.deckLocation === client.sessionId,
-        });
-        if (this.state.deckLocation === client.sessionId) this.state.deckLocation = "center";
-        this.state.players.delete(client.sessionId);
-        if (this.state.isPublic) updatePublicRoomCount(this.roomId, this.state.players.size);
-        this.maybeScheduleDisposeTimer();
-      });
+    this.maybeScheduleDisposeTimer();
   }
 
   onDispose() {
