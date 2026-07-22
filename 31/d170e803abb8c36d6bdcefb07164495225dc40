@@ -1,0 +1,29 @@
+client/src/game/choreo/shuffle.ts
+  s_ec6e8b45d5a2ab::t_a5fba6fbc95d6f 12-20,26-30,32-35,41,44-47,50-53,55-58,60-70,74-81,87,97-100,103-105
+client/src/game/RoomEngine.ts
+  s_ec6e8b45d5a2ab::t_cd6e58c3d23639 119-125
+  s_ec6e8b45d5a2ab::t_776061e81f5eac 73
+  s_ec6e8b45d5a2ab::t_206a15245e7664 180-183
+  s_ec6e8b45d5a2ab::t_35b19d115705ad 211
+client/src/game/choreo/shuffle.test.ts
+  s_ec6e8b45d5a2ab::t_ec3791e6e9e9ec 12,14-15,40,44-53,64-92
+  s_ec6e8b45d5a2ab::t_0bed194700c48a 93
+client/src/game/anim/config.ts
+  s_ec6e8b45d5a2ab::t_f7c7a38af1e3a1 33-34,36-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "31d170e803abb8c36d6bdcefb07164495225dc40",
+  "prompts": {},
+  "sessions": {
+    "s_ec6e8b45d5a2ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1cea3f64-56d6-401e-b236-6542679f0d74",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
