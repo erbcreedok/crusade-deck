@@ -1,0 +1,57 @@
+client/src/useAnimationSettings.ts
+  s_4864baaac43e63::t_e7dafd1e4b40cf 12
+  s_4864baaac43e63::t_3842c79a732129 34-40,44,48,50-51
+client/src/game/anim/config.ts
+  s_4864baaac43e63::t_6e6a02704fbf7b 48-57
+client/src/AppMenu.test.tsx
+  s_4864baaac43e63::t_f8bee048784c95 20
+client/src/App.tsx
+  s_4864baaac43e63::t_e5e794cc301b20 25
+  s_4864baaac43e63::t_0ebdedc354f29a 119
+client/src/game/anim/animationSettings.ts
+  s_4864baaac43e63::t_bc7d9932adb8fe 11-13,19
+  s_4864baaac43e63::t_096cdaf98ae611 30,40
+  s_4864baaac43e63::t_962b5cd2736fc3 48-49,54,57
+client/src/game/RoomEngine.ts
+  s_4864baaac43e63::t_d66181d26aa236 477,480-489,492-494,496-507,509-513
+  s_4864baaac43e63::t_a182925fc0f4a2 48-51
+  s_4864baaac43e63::t_dae48d6745a6f9 463,467-469,474-476
+  s_4864baaac43e63::t_98e813462b0b28 518,528,534,536
+  s_4864baaac43e63::t_d2ab51d196ee3b 367,372-380,384
+  s_4864baaac43e63::t_e08bae4b297fb5 581-583,586,588,591
+  s_4864baaac43e63::t_746910ad622668 30
+  s_4864baaac43e63::t_5c07028f0a446d 78-79
+  s_4864baaac43e63::t_1d335e2f419810 199
+  s_4864baaac43e63::t_ed38a84639398d 138-144
+  s_4864baaac43e63::t_6860334624220f 465
+  s_4864baaac43e63::t_b9f62767907e04 381-383
+  s_4864baaac43e63::t_1b3d5b8c4d3b5d 402
+  s_4864baaac43e63::t_67fc8f76de1a5d 423
+  s_4864baaac43e63::t_2099a3a6d3569b 478
+client/src/game/anim/animationSettings.test.ts
+  s_4864baaac43e63::t_edc3fd4b21cc92 33-44
+client/src/AppMenu.tsx
+  s_4864baaac43e63::t_ea9d6dfec9e7c6 149-155
+  s_4864baaac43e63::t_6b462c6856710e 25,35
+client/src/useAnimationSettings.test.ts
+  s_4864baaac43e63::t_83dd0fd60e3a51 18,21-39
+  s_4864baaac43e63::t_ea0ab9d20417b0 79
+  s_4864baaac43e63::t_3d952156a1aa19 69
+  s_4864baaac43e63::t_2c5dae1599acd6 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e0b71c0607193b4671e932e673d1437d0ad3979f",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
