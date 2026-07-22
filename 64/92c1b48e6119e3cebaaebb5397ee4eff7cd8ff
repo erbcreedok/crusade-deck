@@ -1,0 +1,24 @@
+client/src/game/anim/animationSettings.test.ts
+  s_ec6e8b45d5a2ab::t_ce56ef80a01510 21,26-29
+  s_ec6e8b45d5a2ab::t_9f61351f6fca97 30
+client/src/game/anim/animationSettings.ts
+  s_ec6e8b45d5a2ab::t_40d409706591e8 38-40,44-47
+client/src/AppMenu.tsx
+  s_ec6e8b45d5a2ab::t_79c807e678db6a 115-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6492c1b48e6119e3cebaaebb5397ee4eff7cd8ff",
+  "prompts": {},
+  "sessions": {
+    "s_ec6e8b45d5a2ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1cea3f64-56d6-401e-b236-6542679f0d74",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
