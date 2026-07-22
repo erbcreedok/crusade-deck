@@ -1,0 +1,45 @@
+client/src/useCardBack.test.ts
+  s_3b000dfed76439::t_c5e1839f34a3af 1-31
+client/src/useCardBack.ts
+  s_3b000dfed76439::t_c5e1839f34a3af 1-17
+client/src/RoomScreen.tsx
+  s_3b000dfed76439::t_0bc9f141680bdc 5,30,35
+  s_3b000dfed76439::t_404fc2cbba61db 172
+client/src/App.tsx
+  s_3b000dfed76439::t_12aec7ba04f86f 11,41,215-216,222
+client/src/AppMenu.tsx
+  s_3b000dfed76439::t_4f3a88893072e1 4,17-23,35-36,49-50,104,111,117-119,133-135,137-157,189-201
+  s_3b000dfed76439::t_a8eee0faa0e900 202
+client/src/theme.css
+  s_3b000dfed76439::t_be291491aa810a 592-623
+client/src/AppMenu.test.tsx
+  s_3b000dfed76439::t_60c40424c7cd13 11,23-24,27,32-33,35-36,65-95
+  s_3b000dfed76439::t_d3aa5d802d4bdb 34
+  s_3b000dfed76439::t_3d5b34f1c8f0e0 96
+client/src/game/cardBack.ts
+  s_3b000dfed76439::t_ba2625cd1fa005 1-103
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_5a0284897063b5 29-35,106,372-383,1460,1462,1465-1486
+client/src/game/RoomCanvas.tsx
+  s_3b000dfed76439::t_486e65d27c7f86 5,12,31
+  s_3b000dfed76439::t_404fc2cbba61db 84-85
+  s_3b000dfed76439::t_1ce932775f9637 83
+client/src/game/cardBack.test.ts
+  s_3b000dfed76439::t_bdaf1ac55ba02f 1-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "49b71ab40fb33ac0ab718224c70c47ac1e0c7ba7",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
