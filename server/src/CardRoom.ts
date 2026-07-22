@@ -11,7 +11,11 @@ import { moveCard, isPermutationOf } from "./deckOrder.js";
 import { flipWholeDeck, flippedFacing } from "./deckFacing.js";
 import { sanitizeDeckFx, FxRateLimiter } from "./deckFx.js";
 import { flipRejectReason } from "./rejections.js";
-import { collectHands, dealCardTo, collectOrder, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import { collectHands, dealCardTo, collectOrder } from "./handRules.js";
+import { buildDeck, normalizeDeckType } from "./deckBuild.js";
+import { getEmptyRoomTtlMs, getShuffleLockMs, getVoteTimeoutMs, KICK_CODE, TAKEOVER_CODE } from "./roomConfig.js";
+import { addSeat, removeSeat, replaceSeat, seatIdsInOrder } from "./seatRing.js";
+import { outcome, outcomeOnTimeout, tally, totalWeight } from "./voteTally.js";
 
 interface JoinOptions {
   token?: string;
@@ -19,44 +23,6 @@ interface JoinOptions {
   name?: string;
   deckType?: "36" | "52";
   isPrivate?: boolean;
-}
-
-// Код закрытия для соединения, которое перехватил новый вход тем же аккаунтом.
-// 4000+ — свободный диапазон WebSocket-кодов для приложения.
-const TAKEOVER_CODE = 4001;
-
-const SUITS = ["♠", "♥", "♦", "♣"];
-const RANKS_36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
-const RANKS_52 = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
-
-function buildDeck(deckType: "36" | "52"): string[] {
-  const ranks = deckType === "52" ? RANKS_52 : RANKS_36;
-  const deck: string[] = [];
-  for (const suit of SUITS) {
-    for (const rank of ranks) deck.push(rank + suit);
-  }
-  return deck;
-}
-
-// Читаем при каждом обращении (а не один раз при загрузке модуля), чтобы
-// тесты могли подставить короткий таймаут через process.env без реального
-// ожидания 10 секунд.
-function getVoteTimeoutMs(): number {
-  const fromEnv = Number(process.env.VOTE_TIMEOUT_MS);
-  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 10_000;
-}
-
-// Сколько держится «замок» сессии тасовки без вестей от клиента (он мог отвалиться
-// посреди жеста). Читается лениво — ради коротких таймаутов в тестах.
-function getShuffleLockMs(): number {
-  const fromEnv = Number(process.env.SHUFFLE_LOCK_MS);
-  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 5_000;
-}
-
-// Сколько живёт опустевшая комната перед диспоузом (даёт вернуться «в последнюю игру»).
-function getEmptyRoomTtlMs(): number {
-  const fromEnv = Number(process.env.EMPTY_ROOM_TTL_MS);
-  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 30 * 60_000; // 30 минут
 }
 
 export class CardRoom extends Room<GameState> {
@@ -72,7 +38,7 @@ export class CardRoom extends Room<GameState> {
     // мог вернуться «в последнюю игру» с восстановленными картами (см. disposeTimer).
     this.autoDispose = false;
     this.setState(new GameState());
-    this.state.deckType = options.deckType === "52" ? "52" : "36";
+    this.state.deckType = normalizeDeckType(options.deckType);
     buildDeck(this.state.deckType).forEach((card) => {
       this.state.deck.push(card);
       this.state.faceUp.set(card, false); // свежая колода лежит рубашкой вверх
@@ -496,37 +462,26 @@ export class CardRoom extends Room<GameState> {
     removePublicRoom(this.roomId);
   }
 
-  /** Круг мест: дилер в голову, остальные — в хвост. */
-  private addToSeatOrder(sessionId: string, asDealer: boolean): void {
-    const cur = this.state.seatOrder.toArray();
-    if (cur.includes(sessionId)) return;
-    const next = asDealer ? [sessionId, ...cur] : [...cur, sessionId];
+  /** Круг мест: правила — в seatRing.ts, здесь только запись в схему. */
+  private writeSeatOrder(next: readonly string[]): void {
     this.state.seatOrder.clear();
     next.forEach((id) => this.state.seatOrder.push(id));
+  }
+
+  private addToSeatOrder(sessionId: string, asDealer: boolean): void {
+    this.writeSeatOrder(addSeat(this.state.seatOrder.toArray(), sessionId, asDealer));
   }
 
   private replaceSeatOrder(oldSid: string, newSid: string): void {
-    const cur = this.state.seatOrder.toArray();
-    const i = cur.indexOf(oldSid);
-    if (i >= 0) cur[i] = newSid;
-    else if (!cur.includes(newSid)) cur.push(newSid);
-    this.state.seatOrder.clear();
-    cur.forEach((id) => this.state.seatOrder.push(id));
+    this.writeSeatOrder(replaceSeat(this.state.seatOrder.toArray(), oldSid, newSid));
   }
 
   private removeFromSeatOrder(sessionId: string): void {
-    const next = this.state.seatOrder.toArray().filter((id) => id !== sessionId);
-    this.state.seatOrder.clear();
-    next.forEach((id) => this.state.seatOrder.push(id));
+    this.writeSeatOrder(removeSeat(this.state.seatOrder.toArray(), sessionId));
   }
 
   private seatIdsInOrder(): string[] {
-    const ordered = this.state.seatOrder.toArray().filter((id) => this.state.players.has(id));
-    // На всякий: кто есть в players, но выпал из seatOrder — в хвост.
-    this.state.players.forEach((_, sid) => {
-      if (!ordered.includes(sid)) ordered.push(sid);
-    });
-    return ordered;
+    return seatIdsInOrder(this.state.seatOrder.toArray(), [...this.state.players.keys()]);
   }
 
   // Считаем только живых: боты «подключены» всегда, и если их учитывать, опустевшая
@@ -551,8 +506,6 @@ export class CardRoom extends Room<GameState> {
     this.disposeTimer = null;
   }
 
-  // Сторожевой таймер сессии тасовки: клиент мог закрыть вкладку прямо посреди жеста,
-  // и колода осталась бы «занятой» навсегда.
   // Принять запись, только если её номер новее текущего: дилер пишет мгновенно и мог
   // прислать несколько изменений подряд, а порядок доставки не гарантирован. Без номера
   // (старый клиент) считаем запись валидной и двигаем ревизию сами.
@@ -572,6 +525,8 @@ export class CardRoom extends Room<GameState> {
     return out;
   }
 
+  // Сторожевой таймер сессии тасовки: клиент мог закрыть вкладку прямо посреди жеста,
+  // и колода осталась бы «занятой» навсегда.
   private armShuffleLockTimer() {
     this.shuffleLockTimer?.clear();
     this.shuffleLockTimer = this.clock.setTimeout(() => this.clearShuffleLock(), getShuffleLockMs());
@@ -627,50 +582,18 @@ export class CardRoom extends Room<GameState> {
   private forceResolveOnTimeout() {
     const proposal = this.state.activeProposal;
     if (!proposal || !proposal.proposerId) return;
-
-    let yes = 0;
-    let no = 0;
-    proposal.votes.forEach((value, sessionId) => {
-      const weight = this.weightOf(sessionId);
-      if (value) yes += weight;
-      else no += weight;
-    });
-
-    this.resolveProposal(proposal, yes > no);
+    this.resolveProposal(proposal, outcomeOnTimeout(this.tallyVotes(proposal)));
   }
 
-  private totalWeight(): number {
-    let total = 0;
-    this.state.players.forEach((p) => {
-      if (p.connected) total += p.isDealer ? DEALER_VOTE_WEIGHT : 1;
-    });
-    return total;
-  }
-
-  private weightOf(sessionId: string): number {
-    const p = this.state.players.get(sessionId);
-    if (!p || !p.connected) return 0;
-    return p.isDealer ? DEALER_VOTE_WEIGHT : 1;
+  private tallyVotes(proposal: Proposal) {
+    return tally(proposal.votes.entries(), (sid) => this.state.players.get(sid));
   }
 
   private tallyAndResolve() {
     const proposal = this.state.activeProposal;
     if (!proposal) return;
-
-    const total = this.totalWeight();
-    let yes = 0;
-    let no = 0;
-    proposal.votes.forEach((value, sessionId) => {
-      const weight = this.weightOf(sessionId);
-      if (value) yes += weight;
-      else no += weight;
-    });
-
-    if (total > 0 && yes > total / 2) {
-      this.resolveProposal(proposal, true);
-    } else if (no >= total / 2) {
-      this.resolveProposal(proposal, false);
-    }
+    const result = outcome(this.tallyVotes(proposal), totalWeight(this.state.players.values()));
+    if (result !== "pending") this.resolveProposal(proposal, result === "passed");
   }
 
   private resolveProposal(proposal: Proposal, passed: boolean) {
@@ -690,7 +613,7 @@ export class CardRoom extends Room<GameState> {
         this.state.players.delete(proposal.targetId);
         this.removeFromSeatOrder(proposal.targetId);
         if (this.state.isPublic) updatePublicRoomCount(this.roomId, this.state.players.size);
-        targetClient?.leave(4000, "kicked");
+        targetClient?.leave(KICK_CODE, "kicked");
       }
     }
     this.state.activeProposal = undefined;
