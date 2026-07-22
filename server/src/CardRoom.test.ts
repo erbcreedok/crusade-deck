@@ -3,6 +3,8 @@ import { boot, ColyseusTestServer } from "@colyseus/testing";
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { CardRoom } from "./CardRoom.js";
+import { TestRoom } from "./TestRoom.js";
+import { BOT_COUNT } from "./bots.js";
 import { getLastRoom } from "./lastRooms.js";
 
 // Любой непустой accountId в тестах считаем валидным аккаунтом, чтобы onAuth вернул

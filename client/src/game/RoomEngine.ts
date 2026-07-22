@@ -135,12 +135,10 @@ export class RoomEngine {
   // Сторона КАЖДОЙ карты (карта → лицом ли вверх) — приходит из состояния сервера.
   // Единого «колода лицом вверх» больше нет: карты переворачиваются по одной.
   private facing: Record<string, boolean> = {};
+  private authoritative = false; // этот клиент сам решает, как лежит колода (дилер в лобби)
   // Какие карты в этот момент показывают ОБРАТНУЮ сторону, потому что переворот уже
   // перевалил через ребро, а состояние ещё не пришло/анимация ещё идёт.
-  // Оптимистично показанная сторона: карта → какой стороной она уже повёрнута на экране.
-  // Живёт до прихода состояния (тогда снимается как подтверждённая) или до таймаута —
-  // данные всегда побеждают анимацию.
-  private flipExpect = new Map<string, { up: boolean; until: number }>();
+
   // Переворот: карты + задержка старта (стопка переворачивается волной).
   private flipAnim: {
     t: number;
@@ -490,14 +488,24 @@ export class RoomEngine {
 
   // Стороны карт из состояния сервера — ЕДИНСТВЕННЫЙ источник правды. Анимации переворота
   // только показывают процесс; если данные разойдутся с анимацией, побеждают данные.
-  setCardFacing(facing: Record<string, boolean>): void {
-    this.facing = facing;
-    // Пришли настоящие данные: всё, что они уже подтверждают, перестаёт быть «оптимизмом».
-    for (const [card, exp] of this.flipExpect) {
-      if (facing[card] === exp.up) this.flipExpect.delete(card);
+  // Стороны карт от сервера. Для ДИЛЕРА это эхо собственных действий — он источник
+  // правды и уже всё показал, поэтому ничего не переигрывает. Для остальных это событие:
+  // изменившиеся карты переворачиваются анимацией, а не подменяются рывком.
+  setCardFacing(next: Record<string, boolean>): void {
+    const changed = this.cards.filter((c) => !!this.facing[c.card] !== !!next[c.card]);
+    this.facing = next;
+    if (changed.length > 0 && !this.authoritative) {
+      this.startFlip(changed, Math.PI / 2, anim.flip.cardDur, false, changed.length === this.cards.length);
+    } else {
+      this.applyCardTextures();
     }
-    this.applyCardTextures();
     this.wake();
+  }
+
+  // Может ли этот клиент менять колоду сам (дилер в лобби). Он же — источник правды:
+  // применяет изменения мгновенно, не дожидаясь сервера, и не переигрывает своё же эхо.
+  setAuthoritative(v: boolean): void {
+    this.authoritative = v;
   }
 
   // Зона колоды с точки зрения локального игрока (см. deckZone.ts). "center"/"safe"
@@ -797,6 +805,9 @@ export class RoomEngine {
     this.flipAnim = { t: 0, dur, angle, entries, reverseAtEdge: wholeDeck, reversed: false };
     this.flipMap = new Map(entries.map((e) => [e.v, { delay: e.delay }]));
     this.flipByCard = new Map(entries.map((e) => [e.v.card, e]));
+    // Своё действие применяем В ТОТ ЖЕ МИГ: дилер — источник правды, ждать сервер незачем.
+    // Сервер получит результат и разошлёт его остальным.
+    if (emit) this.flipFacingNow(cards);
     if (emit) {
       const total = Math.round((dur + entries[entries.length - 1].delay) * 1000);
       if (wholeDeck) {
@@ -864,7 +875,6 @@ export class RoomEngine {
   rejectFlip(cards: string[], text: string): void {
     if (this.destroyed) return;
     const affected = cards.length > 0 ? this.cards.filter((c) => cards.includes(c.card)) : [...this.cards];
-    const optimistic = affected.filter((c) => this.flipExpect.has(c.card));
     const wholeDeck = cards.length === 0;
     if (wholeDeck && this.flipAnim?.reversed) {
       // Переворот стопки мы применили локально (порядок реверснут) — раз сервер отказал,
@@ -874,8 +884,11 @@ export class RoomEngine {
     this.flipAnim = null; // прерываем незавершённый переворот — он больше не про правду
     this.flipMap.clear();
     this.flipByCard.clear();
-    if (optimistic.length > 0) {
-      this.startFlip(optimistic, -Math.PI / 2, anim.flip.cardDur, false, false);
+    if (affected.length > 0) {
+      // Возвращаем тем же движением: модель переворачивается обратно, экран догоняет
+      // её на «ребре» — правда не появляется рывком, игрок видит, что откатилось.
+      this.startFlip(affected, -Math.PI / 2, anim.flip.cardDur, false, false);
+      this.flipFacingNow(affected);
     }
     this.showNotice(text);
   }
@@ -1600,7 +1613,7 @@ export class RoomEngine {
             fa.reversed = true;
             this.applyOrderLocally([...this.deckCards].reverse());
           }
-          this.expectFlipped([e.v]);
+          this.flipByCard.get(e.v.card)!.swapped = true;
         }
       }
       if (done) {
@@ -1632,19 +1645,6 @@ export class RoomEngine {
       }
     }
 
-    // Оптимистичная сторона живёт ограниченное время: если данные так и не пришли,
-    // возвращаемся к тому, что говорит сервер. Правда всегда сильнее анимации.
-    if (this.flipExpect.size > 0) {
-      const now = performance.now();
-      let changed = false;
-      for (const [card, exp] of this.flipExpect) {
-        if (exp.until <= now) {
-          this.flipExpect.delete(card);
-          changed = true;
-        }
-      }
-      if (changed) this.applyCardTextures();
-    }
 
     if (this.reject) {
       this.reject.t += frameDt;
@@ -1833,22 +1833,17 @@ export class RoomEngine {
     return up && card ? this.faceTexFor(card) : this.backTex!;
   }
 
-  // Какой стороной карта считается повёрнутой: оптимистично показанной (ждём ответа
-  // сервера) либо, если ответ уже учтён, той, что в состоянии.
   private shownSide(card: string): boolean {
-    const exp = this.flipExpect.get(card);
-    return exp ? exp.up : !!this.facing[card];
+    return !!this.facing[card];
   }
 
   // Показать карту другой стороной СРАЗУ, не дожидаясь сервера. Снимется, когда придут
   // данные (подтверждение) или отказ (откат). Таймер — только страховка на случай, когда
   // ответа не будет вовсе (обрыв связи), а не нормальный путь.
-  private expectFlipped(cards: CardVisual[]): void {
-    const until = performance.now() + anim.flip.optimisticMs;
-    for (const c of cards) {
-      const cur = this.flipExpect.get(c.card);
-      this.flipExpect.set(c.card, { up: !(cur ? cur.up : !!this.facing[c.card]), until });
-    }
+  // Перевернуть карты В МОДЕЛИ немедленно: у дилера это и есть правда, ждать нечего.
+  // На экране смена стороны произойдёт на «ребре» анимации (см. flipByCard.from).
+  private flipFacingNow(cards: CardVisual[]): void {
+    for (const c of cards) this.facing[c.card] = !this.facing[c.card];
     this.applyCardTextures();
   }
 
@@ -2074,7 +2069,7 @@ export class RoomEngine {
     // Рассыпанные карты меняют сторону в верхней точке полёта — как настоящие, в воздухе.
     if (sa.flipMid && !sa.flipped && p >= 0.5) {
       sa.flipped = true;
-      this.expectFlipped(sa.flipMid);
+      this.flipFacingNow(sa.flipMid);
     }
     const u = easeOutQuad(p); // база едет из старого места в новый слот
     const arc = Math.sin(Math.PI * p); // вылет в сторону и обратно

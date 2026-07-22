@@ -111,7 +111,7 @@ export class CardRoom extends Room<GameState> {
 
     // Переворот колоды целиком: кнопкой (когда колода НЕ в вее­ре) или свайпом по стопке.
     // Порядок реверсится, каждая карта меняет сторону — как у настоящей стопки в руке.
-    this.onMessage("flip_deck", (client) => {
+    this.onMessage("flip_deck", (client, message: { rev?: number }) => {
       const player = this.state.players.get(client.sessionId);
       const deck = this.state.deck.toArray();
       const reason = flipRejectReason(player, this.state.phase, deck, []);
@@ -121,6 +121,7 @@ export class CardRoom extends Room<GameState> {
         client.send("action_rejected", { action: "flip_deck", reason, cards: [] });
         return;
       }
+      if (!this.acceptRev(message?.rev)) return; // устаревшее/повторное — молча пропускаем
       const out = flipWholeDeck(this.state.deck.toArray(), this.facingRecord());
       out.order.forEach((c, i) => this.state.deck.setAt(i, c));
       for (const [card, up] of Object.entries(out.facing)) this.state.faceUp.set(card, up);
@@ -128,7 +129,7 @@ export class CardRoom extends Room<GameState> {
 
     // Переворот отдельных карт на месте (жесты по вееру: свайп вниз по карте, случайные
     // перевороты при сильной тасовке). Порядок колоды не трогается.
-    this.onMessage("flip_cards", (client, message: { cards?: string[] }) => {
+    this.onMessage("flip_cards", (client, message: { cards?: string[]; rev?: number }) => {
       const player = this.state.players.get(client.sessionId);
       const raw = message?.cards;
       const cards = Array.isArray(raw) ? raw.filter((c): c is string => typeof c === "string") : [];
@@ -138,6 +139,7 @@ export class CardRoom extends Room<GameState> {
         client.send("action_rejected", { action: "flip_cards", reason, cards });
         return;
       }
+      if (!this.acceptRev(message?.rev)) return;
       const next = flippedFacing(this.facingRecord(), cards);
       for (const [card, up] of Object.entries(next)) this.state.faceUp.set(card, up);
     });
@@ -158,7 +160,7 @@ export class CardRoom extends Room<GameState> {
     // Готовый порядок колоды от клиента (свайп по вееру: карты выплёскиваются и врезаются
     // обратно). Тасует КЛИЕНТ — так его анимация точна и не ждёт сети; сервер принимает
     // результат, но проверяет, что это именно перестановка текущей колоды.
-    this.onMessage("set_deck_order", (client, message: { order?: string[]; final?: boolean }) => {
+    this.onMessage("set_deck_order", (client, message: { order?: string[]; final?: boolean; rev?: number }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer || this.state.phase !== "lobby") return;
       // Чужую сессию не перебиваем: пока колода «в руках» у другого игрока, его порядок
@@ -167,6 +169,7 @@ export class CardRoom extends Room<GameState> {
       const order = message?.order;
       if (!Array.isArray(order) || !order.every((c) => typeof c === "string")) return;
       if (!isPermutationOf(order, this.state.deck.toArray())) return;
+      if (!this.acceptRev(message?.rev)) return;
       order.forEach((c, i) => this.state.deck.setAt(i, c));
       if (message?.final) this.clearShuffleLock();
       else this.armShuffleLockTimer(); // промежуточный прогресс продлевает сессию
@@ -331,6 +334,19 @@ export class CardRoom extends Room<GameState> {
 
   // Сторожевой таймер сессии тасовки: клиент мог закрыть вкладку прямо посреди жеста,
   // и колода осталась бы «занятой» навсегда.
+  // Принять запись, только если её номер новее текущего: дилер пишет мгновенно и мог
+  // прислать несколько изменений подряд, а порядок доставки не гарантирован. Без номера
+  // (старый клиент) считаем запись валидной и двигаем ревизию сами.
+  private acceptRev(rev: unknown): boolean {
+    if (typeof rev !== "number" || !Number.isFinite(rev)) {
+      this.state.deckRev += 1;
+      return true;
+    }
+    if (rev <= this.state.deckRev) return false;
+    this.state.deckRev = rev;
+    return true;
+  }
+
   private facingRecord(): Record<string, boolean> {
     const out: Record<string, boolean> = {};
     this.state.faceUp.forEach((up, card) => (out[card] = up));

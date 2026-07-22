@@ -49,6 +49,14 @@ export function RoomScreen({
   const [facing, setFacing] = useState<Record<string, boolean>>({});
   const [fanned, setFanned] = useState(false); // веер раскрыт (кнопки переворота тогда нет)
   const [shuffleSignal, setShuffleSignal] = useState(0);
+  // Номер последней НАШЕЙ записи в колоду. Дилер пишет мгновенно и может успеть прислать
+  // несколько изменений подряд — по номеру сервер отбрасывает устаревшие, а мы не
+  // принимаем эхо, которое старше того, что уже показали.
+  const revRef = useRef(0);
+  const nextRev = useCallback(() => {
+    revRef.current += 1;
+    return revRef.current;
+  }, []);
   const [flipSignal, setFlipSignal] = useState(0);
   // Последний пришедший чужой эффект — движок его просто показывает.
   const [incomingFx, setIncomingFx] = useState<DeckFxIncoming | null>(null);
@@ -71,10 +79,17 @@ export function RoomScreen({
       setInviteCode(room.state.inviteCode);
       setIsPublic(room.state.isPublic);
       setPhase(room.state.phase);
-      setDeck(room.state.deck ? [...room.state.deck] : []);
-      const nextFacing: Record<string, boolean> = {};
-      room.state.faceUp?.forEach((up: boolean, card: string) => (nextFacing[card] = up));
-      setFacing(nextFacing);
+      // Устаревшее эхо собственных действий не принимаем: на экране уже показано более
+      // новое состояние, и откатывать его назад — тот самый «тупняк».
+      const rev = room.state.deckRev ?? 0;
+      const stale = rev < revRef.current; // это эхо старее того, что мы уже показали
+      revRef.current = Math.max(revRef.current, rev);
+      if (!stale) {
+        setDeck(room.state.deck ? [...room.state.deck] : []);
+        const nextFacing: Record<string, boolean> = {};
+        room.state.faceUp?.forEach((up: boolean, card: string) => (nextFacing[card] = up));
+        setFacing(nextFacing);
+      }
       setDeckZone(deckZoneFor(room.state.deckLocation ?? "center", room.sessionId));
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
@@ -146,13 +161,13 @@ export function RoomScreen({
   // на клиенте. Состояние вернётся схемой и перекроет любую местную оптимистичность.
   const onFlipDeck = useCallback(() => {
     if (!canMoveDeck) return;
-    room.send("flip_deck");
+    room.send("flip_deck", { rev: nextRev() });
   }, [canMoveDeck, room]);
 
   const onFlipCards = useCallback(
     (cards: string[]) => {
       if (!canMoveDeck || cards.length === 0) return;
-      room.send("flip_cards", { cards });
+      room.send("flip_cards", { cards, rev: nextRev() });
     },
     [canMoveDeck, room],
   );
@@ -179,7 +194,7 @@ export function RoomScreen({
       if (!canMoveDeck || order.length === 0) return;
       const out = sessionRef.current!.push(order, Date.now());
       if (out.start) room.send("shuffle_start");
-      if (out.send) room.send("set_deck_order", { order: out.send });
+      if (out.send) room.send("set_deck_order", { order: out.send, rev: nextRev() });
     },
     [canMoveDeck, room],
   );
@@ -214,7 +229,7 @@ export function RoomScreen({
   useEffect(() => {
     const id = setInterval(() => {
       const out = sessionRef.current!.tick(Date.now());
-      if (out.send) room.send("set_deck_order", { order: out.send, final: out.final });
+      if (out.send) room.send("set_deck_order", { order: out.send, final: out.final, rev: nextRev() });
     }, 100);
     return () => clearInterval(id);
   }, [room]);

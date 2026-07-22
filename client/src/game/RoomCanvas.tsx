@@ -93,6 +93,9 @@ export function RoomCanvas({
   }, [deckZone]);
   useEffect(() => {
     engineRef.current?.setDeckDraggable(deckDraggable);
+    // Дилер в лобби — источник правды: применяет изменения мгновенно и не переигрывает
+    // собственное эхо с сервера.
+    engineRef.current?.setAuthoritative(deckDraggable);
   }, [deckDraggable]);
   useEffect(() => {
     engineRef.current?.setFourColor(fourColor);
