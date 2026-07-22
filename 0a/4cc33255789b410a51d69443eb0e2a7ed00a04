@@ -1,0 +1,24 @@
+client/src/game/focusPick.test.ts
+  s_45aab95818ff9f::t_59879184492323 1-52
+client/src/game/focusPick.ts
+  s_45aab95818ff9f::t_d0959530f82b58 1-35
+client/src/game/RoomEngine.ts
+  s_45aab95818ff9f::t_0c3346b6b30c7b 19,956,1525,2360-2361,2375-2388,2525-2527,2529
+  s_45aab95818ff9f::t_710c81e8fa28a0 2394,2505,2513
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0a4cc33255789b410a51d69443eb0e2a7ed00a04",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
