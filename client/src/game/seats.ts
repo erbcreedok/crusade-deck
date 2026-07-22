@@ -11,6 +11,11 @@ export interface Seat {
   connected: boolean;
 }
 
+// То же место, но с тем, что нужно нарисовать в его прямоугольнике.
+export interface SeatView extends Seat {
+  handCount: number;
+}
+
 export interface TableSummary {
   total: number; // сидят за столом сейчас
   ready: number;

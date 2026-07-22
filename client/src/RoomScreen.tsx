@@ -4,7 +4,7 @@ import { ProposalBanner } from "./ProposalBanner";
 import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
-import { tableSummary } from "./game/seats";
+import { tableSummary, type SeatView } from "./game/seats";
 import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
 import { rejectionText } from "./game/rejections";
@@ -19,6 +19,7 @@ interface RoomPlayer {
   isReady: boolean;
   isBot: boolean;
   connected: boolean;
+  handCount: number;
 }
 
 interface ActiveProposal {
@@ -48,7 +49,9 @@ export function RoomScreen({
   const [phase, setPhase] = useState<"lobby" | "playing" | "finished">("lobby");
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deck, setDeck] = useState<string[]>([]);
-  const [deckZone, setDeckZone] = useState<DeckZone>("center");
+  // Где лежит колода по мнению сервера ("center" или id держателя). В зону для движка
+  // переводим ниже — для этого нужно знать, кто сейчас сидит за столом.
+  const [deckLocation, setDeckLocation] = useState<string>("center");
   const [draggingDeck, setDraggingDeck] = useState(false);
   // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
   const [facing, setFacing] = useState<Record<string, boolean>>({});
@@ -80,6 +83,7 @@ export function RoomScreen({
           isReady: p.isReady,
           isBot: !!p.isBot,
           connected: p.connected,
+          handCount: p.hand?.length ?? 0,
         });
       });
       setPlayers(list);
@@ -97,7 +101,7 @@ export function RoomScreen({
         room.state.faceUp?.forEach((up: boolean, card: string) => (nextFacing[card] = up));
         setFacing(nextFacing);
       }
-      setDeckZone(deckZoneFor(room.state.deckLocation ?? "center", room.sessionId));
+      setDeckLocation(room.state.deckLocation ?? "center");
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -136,7 +140,29 @@ export function RoomScreen({
   const targetName = players.find((p) => p.id === proposal?.targetId)?.name || "?";
   const myVote = proposal ? proposal.votes[room.sessionId] : undefined;
   const amIDealer = players.find((p) => p.id === room.sessionId)?.isDealer ?? false;
-  const seats = tableSummary(players);
+  const summary = tableSummary(players);
+
+  // Топбар — HTML поверх канваса, и его высота зависит от контента (бейджи переносятся
+  // на узком экране). Меряем её и отдаём движку, иначе места игроков сядут под бейджи.
+  const topbarRef = useRef<HTMLDivElement>(null);
+  const [topInset, setTopInset] = useState(0);
+  useEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return;
+    const apply = () => setTopInset(el.getBoundingClientRect().height + 8);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Чужие игроки — те, кого рисуем за столом (посадка «П»). Своё место не рисуем:
+  // низ экрана — мои сейф-зона и рука.
+  const seats: SeatView[] = players.filter((p) => p.id !== room.sessionId);
+  const seatedIds = new Set(seats.map((s) => s.id));
+  const deckZone = deckZoneFor(deckLocation, room.sessionId, (id) => seatedIds.has(id));
+  // Держатель колоды — только если это чужое место; своё — это уже "safe".
+  const deckHolder = deckZone === "seat" ? deckLocation : null;
 
   // Колоду двигает только дилер и только в лобби (во время раздачи).
   const canMoveDeck = amIDealer && phase === "lobby";
@@ -152,6 +178,15 @@ export function RoomScreen({
     (zone: "center" | "safe") => {
       if (!canMoveDeck) return;
       room.send("move_deck", { zone });
+    },
+    [canMoveDeck, room],
+  );
+
+  // Колоду бросили на место игрока (его зона — прямоугольная дроп-зона): отдаём колоду ему.
+  const onDeckDropToSeat = useCallback(
+    (playerId: string) => {
+      if (!canMoveDeck) return;
+      room.send("move_deck", { zone: "player", targetId: playerId });
     },
     [canMoveDeck, room],
   );
@@ -255,7 +290,7 @@ export function RoomScreen({
 
   return (
     <div className="table-screen">
-      <div className="table-topbar">
+      <div className="table-topbar" ref={topbarRef}>
         {inviteCode && (
           <div className="table-badge">
             код: <span className="pixel-invite-code">{inviteCode}</span>
@@ -264,8 +299,8 @@ export function RoomScreen({
         <div className="table-badge">{isPublic ? "🌐 паблик" : "🔒 приват"}</div>
         {/* Пока стол не нарисован, это единственный признак, что за ним кто-то есть. */}
         <div className="table-badge">
-          за столом: {seats.total} · готовы: {seats.ready}
-          {seats.bots > 0 && ` · 🤖 ${seats.bots}`}
+          за столом: {summary.total} · готовы: {summary.ready}
+          {summary.bots > 0 && ` · 🤖 ${summary.bots}`}
         </div>
       </div>
 
@@ -285,6 +320,10 @@ export function RoomScreen({
 
       <RoomCanvas
         deck={deck}
+        seats={seats}
+        deckHolder={deckHolder}
+        onDeckDropToSeat={onDeckDropToSeat}
+        topInset={topInset}
         deckZone={deckZone}
         deckDraggable={canMoveDeck}
         fourColor={fourColor}

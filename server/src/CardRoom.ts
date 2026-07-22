@@ -178,11 +178,18 @@ export class CardRoom extends Room<GameState> {
     // Дилер притягивает колоду в свою сейф-зону (zone "safe") или возвращает в
     // центр (zone "center"). Только дилер и только в лобби (во время раздачи).
     // Карты не раздаются — колода целиком меняет зону, рубашкой вверх.
-    this.onMessage("move_deck", (client, message: { zone?: "center" | "safe" }) => {
+    this.onMessage("move_deck", (client, message: { zone?: "center" | "safe" | "player"; targetId?: string }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer || this.state.phase !== "lobby") return;
       if (message?.zone === "safe") this.state.deckLocation = client.sessionId;
       else if (message?.zone === "center") this.state.deckLocation = "center";
+      // Колоду бросили на место другого игрока за столом (его зона — дроп-зона).
+      // Бот тут ничем не отличается от человека: он такой же игрок в комнате.
+      else if (message?.zone === "player") {
+        const targetId = message?.targetId;
+        if (typeof targetId !== "string" || !this.state.players.has(targetId)) return;
+        this.state.deckLocation = targetId;
+      }
     });
 
     this.onMessage("start_game", (client) => {

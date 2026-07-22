@@ -122,6 +122,11 @@ describe("deckZoneScale", () => {
     expect(deckZoneScale("safe")).toBe(1);
   });
 
+  it("на месте игрока колода мельче — она должна помещаться в его прямоугольник", () => {
+    expect(deckZoneScale("seat")).toBeLessThan(1);
+    expect(deckZoneScale("seat")).toBeGreaterThan(0);
+  });
+
   it("скрытая колода (чужая сейф-зона) масштаб не меняет", () => {
     expect(deckZoneScale("away")).toBe(1);
   });

@@ -57,3 +57,39 @@ describe("computeLayout", () => {
     expect(l.cardH).toBeGreaterThan(0);
   });
 });
+
+// Чужие места (посадка «П») отжимают центр стола: сверху — полоса, по бокам — колонки.
+describe("computeLayout с посадкой игроков", () => {
+  const insets = { top: 80, left: 120, right: 120 };
+
+  it("центр ужимается по ширине под боковые колонки", () => {
+    const free = computeLayout(900, 700);
+    const squeezed = computeLayout(900, 700, insets);
+    expect(squeezed.centerZone.w).toBeLessThan(free.centerZone.w);
+    expect(squeezed.centerZone.cx - squeezed.centerZone.w / 2).toBeGreaterThanOrEqual(insets.left - 1);
+    expect(squeezed.centerZone.cx + squeezed.centerZone.w / 2).toBeLessThanOrEqual(900 - insets.right + 1);
+  });
+
+  it("центр не залезает под верхнюю полосу мест", () => {
+    const l = computeLayout(900, 700, insets);
+    expect(l.centerZone.cy - l.centerZone.h / 2).toBeGreaterThanOrEqual(insets.top - 1);
+  });
+
+  it("мои зоны (сейф и рука) от чужой посадки не зависят", () => {
+    const free = computeLayout(900, 700);
+    const squeezed = computeLayout(900, 700, insets);
+    expect(squeezed.safeZone).toEqual(free.safeZone);
+    expect(squeezed.handZone).toEqual(free.handZone);
+  });
+
+  it("якорь колоды едет вместе с ужатым центром", () => {
+    const l = computeLayout(900, 700, insets);
+    expect(l.deckAnchor).toEqual({ x: l.centerZone.cx, y: l.centerZone.cy });
+  });
+
+  it("абсурдные отступы не дают отрицательный центр", () => {
+    const l = computeLayout(300, 500, { top: 400, left: 400, right: 400 });
+    expect(l.centerZone.w).toBeGreaterThan(0);
+    expect(l.centerZone.h).toBeGreaterThan(0);
+  });
+});

@@ -11,9 +11,11 @@ import {
   type Ticker,
 } from "pixi.js";
 import { CardBody, type CardTargets } from "./CardBody";
-import { computeLayout, type RoomLayout } from "./layout";
+import { computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
 import type { DeckZone } from "./deckZone";
-import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
+import { dropZoneRegions, pickDropZone, pickSeat, type DropZone } from "./dropZones";
+import { layoutSeats, type SeatBox } from "./seatLayout";
+import type { SeatView } from "./seats";
 import {
   fanCard,
   fanCrowd,
@@ -128,6 +130,19 @@ export class RoomEngine {
   private shadowTex: Texture | null = null;
   private faceCache = new Map<string, Texture>(); // лицевые текстуры по ключу card|fourColor
   private warmTimer: ReturnType<typeof setTimeout> | null = null; // фоновой прогрев текстур
+
+  // Чужие игроки за столом: данные (кто) + геометрия мест (где), см. seatLayout.ts.
+  // Место игрока — прямоугольник и он же его дроп-зона.
+  private seats: SeatView[] = [];
+  private seatBoxes: SeatBox[] = [];
+  private seatInsets: LayoutInsets = { top: 0, left: 0, right: 0 };
+  private topInset = 0; // высота HTML-топбара над канвасом — места начинаются под ним
+  private seatLayer: Container | null = null;
+  private seatG: Graphics | null = null; // рамки/заливки мест
+  private seatTexts: Text[] = []; // имя + счётчик карт на каждое место
+  private hoverSeat: string | null = null; // место под курсором во время драга колоды
+  private deckHolder: string | null = null; // чьё место держит колоду (deckZone === "seat")
+  private onDeckDropToSeat: ((playerId: string) => void) | null = null;
 
   private cards: CardVisual[] = [];
   private layout: RoomLayout = computeLayout(1, 1);
@@ -308,9 +323,13 @@ export class RoomEngine {
     this.world.sortableChildren = true;
     app.stage.addChild(this.world);
 
-    // Слои по zIndex: стол → подсветка зон → тени → карты → невидимый хит колоды.
+    // Слои по zIndex: стол → места игроков → подсветка зон → тени → карты → хит колоды.
     this.tableG = new Graphics();
     this.tableG.zIndex = 0;
+    this.seatLayer = new Container();
+    this.seatLayer.zIndex = 0.5; // под зонами и картами: места — часть «стола»
+    this.seatG = new Graphics();
+    this.seatLayer.addChild(this.seatG);
     this.zoneLayer = new Graphics();
     this.zoneLayer.zIndex = 1;
     this.shadowLayer = new Container();
@@ -318,7 +337,7 @@ export class RoomEngine {
     this.cardLayer = new Container();
     this.cardLayer.zIndex = 3;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
-    this.world.addChild(this.tableG, this.zoneLayer, this.shadowLayer, this.cardLayer);
+    this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer);
 
     // Подписи зон живут в zoneLayer (под тенями/картами) — «водяной» текст на фоне.
     (Object.keys(ZONE_LABELS) as DropZone[]).forEach((z) => {
@@ -398,6 +417,8 @@ export class RoomEngine {
     app.stage.on("pointerup", (e: FederatedPointerEvent) => this.onPointerUp(e));
     app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
 
+    if (this.seats.length > 0) this.applySeats(); // места могли приехать до монтирования
+
     // Состояние комнаты могло приехать РАНЬШЕ, чем поднялся Pixi (вход в живую комнату,
     // перезагрузка страницы): setDeck тогда только запомнил порядок и вышел на «ещё не
     // смонтированы», а повторно его никто не звал — deckKey в RoomCanvas не менялся.
@@ -472,6 +493,130 @@ export class RoomEngine {
     this.syncDeckShadow();
     this.warmFaceTextures(); // чтобы первый переворот не генерил все лица разом
     this.wake();
+  }
+
+  // Чужие игроки за столом. Их посадка («П», см. seatLayout) отжимает центр стола, поэтому
+  // раскладка пересчитывается целиком, а колода переезжает к новому якорю.
+  setSeats(seats: SeatView[]): void {
+    this.seats = seats;
+    this.applySeats();
+  }
+
+  // Чьё место держит колоду (deckZone === "seat"). null — колода не у чужого места.
+  setDeckHolder(playerId: string | null): void {
+    if (playerId === this.deckHolder) return;
+    this.deckHolder = playerId;
+    if (this.deckZone === "seat") {
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      this.positionDeckHit();
+      this.wake();
+    }
+  }
+
+  setOnDeckDropToSeat(fn: ((playerId: string) => void) | null): void {
+    this.onDeckDropToSeat = fn;
+  }
+
+  // Высота топбара комнаты: он HTML и лежит поверх канваса, движок про него не знает.
+  setTopInset(px: number): void {
+    const next = Math.max(0, Math.round(px));
+    if (next === this.topInset) return;
+    this.topInset = next;
+    this.applySeats();
+  }
+
+  private applySeats(): void {
+    const placed = layoutSeats(
+      this.seats.map((s) => s.id),
+      this.w,
+      this.h,
+      { topOffset: this.topInset },
+    );
+    this.seatBoxes = placed.seats;
+    this.seatInsets = placed.insets;
+    this.layout = computeLayout(this.w, this.h, this.seatInsets);
+    if (!this.app) return; // ещё не смонтированы — нарисуем на mount
+    this.drawSeats();
+    // Центр уехал/сузился: колода переезжает к новому якорю, за ней — её хит-зона.
+    this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    this.positionDeckHit();
+    this.drawZones();
+    this.wake();
+  }
+
+  // Подсветка места под курсором. Перерисовываем, только когда оно реально сменилось —
+  // drawSeats пересоздаёт тексты, дёргать его каждый кадр драга нельзя.
+  private setHoverSeat(id: string | null): void {
+    if (id === this.hoverSeat) return;
+    this.hoverSeat = id;
+    this.drawSeats();
+  }
+
+  private seatBox(id: string | null): SeatBox | null {
+    if (!id) return null;
+    return this.seatBoxes.find((b) => b.id === id) ?? null;
+  }
+
+  // Место игрока: прямоугольник с именем, числом карт и метками (дилер/готов/бот/пауза).
+  // Во время драга колоды место подсвечивается как дроп-зона — бросок отдаёт колоду ему.
+  private drawSeats(): void {
+    const g = this.seatG;
+    const layer = this.seatLayer;
+    if (!g || !layer) return;
+    g.clear();
+    this.seatTexts.forEach((t) => t.destroy());
+    this.seatTexts = [];
+
+    const dragging = this.dragging || !!this.cardDrag;
+    const fontSize = Math.min(20, Math.max(11, this.layout.cardH * 0.22));
+
+    for (const box of this.seatBoxes) {
+      const seat = this.seats.find((s) => s.id === box.id);
+      if (!seat) continue;
+      const { cx, cy, w, h, r } = box.rect;
+      const x = cx - w / 2;
+      const y = cy - h / 2;
+      const hot = dragging && this.hoverSeat === seat.id;
+      // Отключённый игрок («на паузе») — приглушён; дилер — золотая рамка.
+      const border = hot ? 0xffe9a8 : seat.isDealer ? 0xf2c14e : seat.connected ? 0x8fa39a : 0x5d6b64;
+      const alpha = seat.connected ? 1 : 0.45;
+
+      g.roundRect(x, y, w, h, r).fill({ color: hot ? 0xffe08a : 0x000000, alpha: hot ? 0.14 : 0.18 });
+      g.roundRect(x, y, w, h, r).stroke({ width: hot ? 4 : 2, color: border, alpha: hot ? 0.95 : 0.5 * alpha });
+
+      const marks = [seat.isBot ? "🤖" : "", seat.isDealer ? "♦" : "", seat.isReady ? "✓" : ""]
+        .filter(Boolean)
+        .join(" ");
+      const label = new Text({
+        text: marks ? `${seat.name} ${marks}` : seat.name,
+        style: {
+          fontFamily: "VT323, monospace",
+          fontSize,
+          fill: seat.connected ? 0xf5ead0 : 0x9aa8a2,
+          letterSpacing: 1,
+          align: "center",
+          wordWrap: true,
+          wordWrapWidth: Math.max(20, w - 10),
+        },
+      });
+      // Имя — к верхнему краю, счётчик — к нижнему: середину места занимает колода,
+      // когда её отдали этому игроку, и она не должна закрывать подписи.
+      label.anchor.set(0.5, 0);
+      label.x = cx;
+      label.y = y + 4;
+      layer.addChild(label);
+      this.seatTexts.push(label);
+
+      const count = new Text({
+        text: seat.handCount > 0 ? `🂠 ${seat.handCount}` : "—",
+        style: { fontFamily: "VT323, monospace", fontSize, fill: 0xcdb98f, letterSpacing: 1 },
+      });
+      count.anchor.set(0.5, 1);
+      count.x = cx;
+      count.y = y + h - 4;
+      layer.addChild(count);
+      this.seatTexts.push(count);
+    }
   }
 
   // Скин рубашки: перерисовываем текстуру и раздаём её картам (лица не трогаем).
@@ -625,7 +770,13 @@ export class RoomEngine {
 
   // Якорь, у которого сейчас покоится колода: центр или своя сейф-зона.
   private activeAnchor(): { x: number; y: number } {
-    return this.deckZone === "safe" ? this.layout.safeAnchor : this.layout.deckAnchor;
+    if (this.deckZone === "safe") return this.layout.safeAnchor;
+    // Колода лежит на месте другого игрока — её якорь и есть центр его прямоугольника.
+    if (this.deckZone === "seat") {
+      const box = this.seatBox(this.deckHolder);
+      if (box) return { x: box.rect.cx, y: box.rect.cy };
+    }
+    return this.layout.deckAnchor;
   }
 
   // ——— драг колоды ———
@@ -720,6 +871,8 @@ export class RoomEngine {
       this.onDragChange?.(true); // React прячет кнопки действий на время драга
     }
     this.hoverZone = pickDropZone(this.press.x, this.press.y, this.layout);
+    // Место игрока под курсором подсвечивается так же, как обычная дроп-зона.
+    this.setHoverSeat(pickSeat(this.press.x, this.press.y, this.seatBoxes));
     this.applyDragTargets();
     this.drawZones();
     this.wake();
@@ -745,6 +898,7 @@ export class RoomEngine {
     if (this.handleDeckSwipe(v.vx, v.vy)) {
       this.dragging = false;
       this.hoverZone = null;
+      this.setHoverSeat(null);
       if (this.deckHit) this.deckHit.cursor = this.deckDraggable ? "grab" : "pointer";
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i))); // колода на месте
       this.drawZones();
@@ -754,11 +908,33 @@ export class RoomEngine {
     }
     this.dragging = false;
     this.hoverZone = null;
+    this.setHoverSeat(null);
     if (this.deckHit) this.deckHit.cursor = this.deckDraggable ? "grab" : "pointer";
     this.drawZones();
 
     // Не было смещения — это тап, дабл-клик обработает pointertap. Ничего не двигаем.
     if (!wasDragging) {
+      this.wake();
+      return;
+    }
+
+    // Место игрока — тоже дроп-зона, и оно вне центра/сейфа, поэтому проверяется первым:
+    // бросок туда отдаёт колоду этому игроку (сервер подтвердит эхом deckLocation).
+    const seatDrop = pickSeat(px, py, this.seatBoxes);
+    if (seatDrop) {
+      this.hoverSeat = null;
+      this.deckZone = "seat";
+      this.deckHolder = seatDrop; // оптимистично: колода уже на его месте
+      if (this.deckFanned) {
+        this.deckFanned = false; // веер живёт только в моей сейф-зоне
+        this.onFanChange?.(false);
+      }
+      this.onDeckDropToSeat?.(seatDrop);
+      this.alignCards(this.cards.map((_, i) => i));
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      this.onDragChange?.(false);
+      this.drawSeats();
+      this.positionDeckHit();
       this.wake();
       return;
     }
@@ -1461,7 +1637,10 @@ export class RoomEngine {
     if (nw === this.w && nh === this.h) return; // без реальной смены размера — ничего не делаем (гасит ResizeObserver-петли)
     this.w = nw;
     this.h = nh;
-    this.layout = computeLayout(this.w, this.h);
+    const placed = layoutSeats(this.seats.map((st) => st.id), this.w, this.h, { topOffset: this.topInset });
+    this.seatBoxes = placed.seats;
+    this.seatInsets = placed.insets;
+    this.layout = computeLayout(this.w, this.h, this.seatInsets);
     this.baseScale = this.layout.cardH / TEX_H;
     if (this.destroyed || !this.app) return;
     this.app.renderer.resize(this.w, this.h);
@@ -1475,6 +1654,7 @@ export class RoomEngine {
     this.syncDeckShadow();
     this.positionDeckHit();
     this.styleZoneLabels();
+    this.drawSeats();
     this.drawZones();
     this.wake();
   }
@@ -1500,6 +1680,10 @@ export class RoomEngine {
     this.tableG = null;
     this.zoneLayer = null;
     this.zoneLabels = {};
+    // Тексты мест уничтожил app.destroy({children:true}) — просто отпускаем ссылки.
+    this.seatTexts = [];
+    this.seatLayer = null;
+    this.seatG = null;
     this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;

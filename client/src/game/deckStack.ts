@@ -22,9 +22,12 @@ export function stackOffset(i: number, count: number): Offset {
 }
 
 // Масштаб колоды по зоне: в центре стола она общая и крупная, в личной сейф-зоне —
-// обычного размера (там же она раскрывается веером, и увеличение только мешало бы).
+// обычного размера (там же она раскрывается веером, и увеличение только мешало бы),
+// на чужом месте — мелкая: место игрока небольшое, колода должна в него помещаться.
 export function deckZoneScale(zone: DeckZone): number {
-  return zone === "center" ? anim.deck.centerScale : 1;
+  if (zone === "center") return anim.deck.centerScale;
+  if (zone === "seat") return anim.deck.seatScale;
+  return 1;
 }
 
 // Какие карты стопки рисовать «полосками» торцов в блоке колоды. Смещение на карту —

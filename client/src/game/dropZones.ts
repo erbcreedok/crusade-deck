@@ -1,4 +1,5 @@
 import type { RoomLayout, RoundedRect } from "./layout";
+import type { SeatBox } from "./seatLayout";
 
 // Дроп-зоны на столе. center/safe — куда колоду бросать МОЖНО, hand (зона руки у
 // нижнего края) пока НЕДОСТУПНА (дроп → «ударная» анимация возврата). Геометрия —
@@ -16,6 +17,13 @@ export function dropZoneRegions(layout: RoomLayout): Record<DropZone, ZoneDef> {
     safe: { rect: layout.safeZone, droppable: true },
     hand: { rect: layout.handZone, droppable: false },
   };
+}
+
+// Место игрока целиком — дроп-зона: бросок колоды туда отдаёт её этому игроку.
+// Возвращает id игрока под точкой или null. Места между собой не пересекаются
+// (см. seatLayout), поэтому берём первое попадание.
+export function pickSeat(x: number, y: number, seats: SeatBox[]): string | null {
+  return seats.find((s) => inRect(s.rect, x, y))?.id ?? null;
 }
 
 function inRect(r: RoundedRect, x: number, y: number): boolean {

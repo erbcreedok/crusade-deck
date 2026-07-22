@@ -183,6 +183,37 @@ describe("CardRoom", () => {
     expect(room.state.deckLocation).toBe("center");
   });
 
+  // Место игрока за столом — прямоугольная дроп-зона: бросок колоды на него отдаёт
+  // колоду ему (deckLocation = его id). Работает и для ботов — они такие же игроки.
+  it("move_deck 'player' hands the deck to that player's seat", async () => {
+    const room = await colyseus.createRoom("test_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice", accountId: "acc-seat-1" });
+    const botId = [...room.state.players.entries()].find(([, p]) => p.isBot)![0];
+
+    const waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "player", targetId: botId });
+    await waiter;
+
+    expect(room.state.deckLocation).toBe(botId);
+    expect(room.state.deck.length).toBe(36); // колода просто сменила место
+  });
+
+  it("ignores move_deck 'player' for an unknown target and from a non-dealer", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const other = await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "player", targetId: "no-such-player" });
+    await waiter;
+    expect(room.state.deckLocation).toBe("center");
+
+    waiter = room.waitForMessage("move_deck");
+    other.send("move_deck", { zone: "player", targetId: dealer.sessionId });
+    await waiter;
+    expect(room.state.deckLocation).toBe("center");
+  });
+
   it("ignores move_deck from a non-dealer", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     await colyseus.connectTo(room, { name: "Alice" });

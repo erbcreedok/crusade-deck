@@ -2,11 +2,16 @@ import { useEffect, useRef } from "react";
 import { RoomEngine } from "./RoomEngine";
 import { resolveProfile, type AnimationSettings } from "./anim/animationSettings";
 import type { DeckZone } from "./deckZone";
+import type { SeatView } from "./seats";
 import type { CardBackId } from "./cardBack";
 import type { DeckFxMessage, DeckFxIncoming } from "./deckFxClient";
 
 interface Props {
   deck: string[]; // порядок колоды ["10♠",…] — для лицевых текстур
+  seats: SeatView[]; // чужие игроки за столом (посадка «П»), каждый — своя дроп-зона
+  deckHolder: string | null; // чьё место держит колоду (при deckZone === "seat")
+  onDeckDropToSeat: (playerId: string) => void; // колоду бросили на место игрока
+  topInset: number; // высота топбара комнаты: места садятся под ним, а не под бейджами
   deckZone: DeckZone;
   deckDraggable: boolean;
   fourColor: boolean;
@@ -34,6 +39,10 @@ interface Props {
 // анимирует реордер, когда приходит новый порядок колоды (setDeck).
 export function RoomCanvas({
   deck,
+  seats,
+  deckHolder,
+  onDeckDropToSeat,
+  topInset,
   deckZone,
   deckDraggable,
   fourColor,
@@ -58,6 +67,17 @@ export function RoomCanvas({
   const wrapRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RoomEngine | null>(null);
 
+  // Свежий движок ничего не знает о комнате, а React переприменяет пропсы только когда
+  // они МЕНЯЮТСЯ. Пересоздали движок (первый вход, ремоунт, HMR) — и всё, что уже стояло
+  // в неизменном виде (зона колоды, держатель, места, скины), в него никогда не попадёт.
+  // Поэтому держим актуальные пропсы в ref и разом заливаем их сразу после mount.
+  const latest = useRef({
+    deck, seats, deckHolder, deckZone, deckDraggable, fourColor, cardBack, facing, topInset, animation,
+  });
+  latest.current = {
+    deck, seats, deckHolder, deckZone, deckDraggable, fourColor, cardBack, facing, topInset, animation,
+  };
+
   // Создать движок один раз. Движок сам создаёт свежий <canvas> внутри wrap.
   // Cleanup гарантирует безопасный teardown (см. RoomEngine.destroy).
   useEffect(() => {
@@ -67,7 +87,21 @@ export function RoomCanvas({
     const engine = new RoomEngine();
     engineRef.current = engine;
     const rect = wrap.getBoundingClientRect();
-    void engine.mount(wrap, rect.width, rect.height);
+    void engine.mount(wrap, rect.width, rect.height).then(() => {
+      if (engineRef.current !== engine) return; // успели размонтировать, пока поднимался Pixi
+      const p = latest.current;
+      engine.setTopInset(p.topInset);
+      engine.setSeats(p.seats);
+      engine.setAnimationProfile(resolveProfile(p.animation));
+      engine.setFourColor(p.fourColor);
+      engine.setCardBack(p.cardBack);
+      engine.setDeckDraggable(p.deckDraggable);
+      engine.setAuthoritative(p.deckDraggable);
+      engine.setDeck(p.deck);
+      engine.setCardFacing(p.facing);
+      engine.setDeckHolder(p.deckHolder);
+      engine.setDeckZone(p.deckZone);
+    });
 
     const ro = new ResizeObserver((entries) => {
       const cr = entries[0].contentRect;
@@ -91,6 +125,22 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setDeckZone(deckZone);
   }, [deckZone]);
+  // Посадка меняется редко (вход/выход, готовность, раздача) — сигнатурой гасим лишние
+  // пересчёты: каждый sync пересоздаёт массив, а перерисовка мест не бесплатна.
+  const seatsKey = seats.map((s) => `${s.id}:${s.name}:${s.handCount}:${+s.isReady}:${+s.isDealer}:${+s.connected}`).join("|");
+  useEffect(() => {
+    engineRef.current?.setSeats(seats);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seatsKey]);
+  useEffect(() => {
+    engineRef.current?.setTopInset(topInset);
+  }, [topInset]);
+  useEffect(() => {
+    engineRef.current?.setDeckHolder(deckHolder);
+  }, [deckHolder]);
+  useEffect(() => {
+    engineRef.current?.setOnDeckDropToSeat(onDeckDropToSeat);
+  }, [onDeckDropToSeat]);
   useEffect(() => {
     engineRef.current?.setDeckDraggable(deckDraggable);
     // Дилер в лобби — источник правды: применяет изменения мгновенно и не переигрывает
