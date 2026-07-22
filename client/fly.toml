@@ -1,0 +1,27 @@
+# Fly.io config for the static client. Deploy from THIS directory (client/), and
+# only AFTER the server is deployed — the build args below bake the server's Fly
+# hostname into the bundle:
+#   fly launch --copy-config --no-deploy   (pick a free unique app name if taken)
+#   fly deploy
+#
+# If server/fly.toml's app name changes (because "crusade-deck-server" was taken),
+# update build.args below to match before deploying.
+
+app = "crusade-deck-client"
+primary_region = "fra"
+
+[build]
+  [build.args]
+    VITE_SERVER_URL = "wss://crusade-deck-server.fly.dev"
+    VITE_HTTP_URL = "https://crusade-deck-server.fly.dev"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

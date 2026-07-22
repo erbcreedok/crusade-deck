@@ -1,0 +1,42 @@
+# Fly.io config for the game server. Deploy from THIS directory (server/):
+#   fly launch --copy-config --no-deploy   (first time, to create the app — pick a
+#                                            free unique app name if this one is taken)
+#   fly volumes create crusade_data --region fra --size 1
+#   fly deploy
+#
+# auto_stop/min_machines_running=0 matches the project's own rule: rooms and games
+# live only in memory, a restart already kicks everyone out (see DEPLOY.md) — so
+# letting the machine sleep between visits is free and costs nothing extra in
+# gameplay guarantees. Fly machines wake in ~1-2s, well before a WS handshake times
+# out. Bump min_machines_running to 1 later if cold starts become annoying.
+
+app = "crusade-deck-server"
+primary_region = "fra"  # closest Fly region to Central Asia is a guess — see README
+
+[build]
+
+[env]
+  PORT = "2567"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[mounts]
+  source = "crusade_data"
+  destination = "/app/data"
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "15s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
