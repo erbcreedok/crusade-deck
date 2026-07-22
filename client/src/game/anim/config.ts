@@ -32,7 +32,7 @@ export const anim = {
   // stackD* — смещение в пикселях НА КАРТУ; shadow.* — доли высоты карты.
   deck: {
     stackDx: 0.55,
-    stackDy: -0.35,
+    stackDy: -0.175,
     shadow: { dx: 0.04, dy: 0.06, dxLift: 0.5, dyLift: 0.75 },
   },
 
