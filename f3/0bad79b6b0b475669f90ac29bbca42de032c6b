@@ -1,0 +1,39 @@
+client/src/game/cardFocus.ts
+  s_45aab95818ff9f::t_c14b0c9332ef2b 1-58
+client/src/game/cardFocus.test.ts
+  s_45aab95818ff9f::t_2019cc2cd162ab 1-102
+client/src/game/barActions.test.ts
+  s_45aab95818ff9f::t_f2071a511a6ec8 39-42
+  s_45aab95818ff9f::t_1a857360a9235d 6
+client/src/RoomScreen.tsx
+  s_45aab95818ff9f::t_96f08ce9beccbc 164-167,170,409,411
+client/src/game/RoomEngine.ts
+  s_45aab95818ff9f::t_e37ccfea24800a 584,1530,2047-2051,2065-2066,2090-2091,2093-2094,2309-2311,2549-2559
+  s_45aab95818ff9f::t_684d4c76c47962 580,582,667,1920
+  s_45aab95818ff9f::t_8ab655f837998d 19-26,164-167,569-578,581,583,662-666,668-680,1312,1521-1529,2390,2511,2518
+  s_45aab95818ff9f::t_145e030cce5f89 579,603-607
+  s_45aab95818ff9f::t_0c2b448542dcaf 585
+client/src/game/RoomCanvas.tsx
+  s_45aab95818ff9f::t_96f08ce9beccbc 16-17,51,53,85,89,94,96,126,128,185-192
+client/src/game/selection.ts
+  s_45aab95818ff9f::t_daef05d2fa25cd 7-8,20-30,48-53
+client/src/game/selection.test.ts
+  s_45aab95818ff9f::t_194d11cf560e27 87-88,91
+  s_45aab95818ff9f::t_daef05d2fa25cd 2-9,34,37-38,42-46,64,92-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f30bad79b6b0b475669f90ac29bbca42de032c6b",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
