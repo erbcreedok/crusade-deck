@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
 import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
+import { ShuffleSession } from "./game/shuffleSession";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
 interface RoomPlayer {
@@ -128,16 +129,31 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
-  // Свайп вверх по раскрытому вееру. Новый порядок считает КЛИЕНТ (движок уже играет по
-  // нему точную раскладку), сервер принимает готовое и проверяет, что это перестановка.
-  // «Сумбур» не запускаем — выплеск и есть анимация жеста.
-  const onSwipeShuffle = useCallback(
+  // Сетевой протокол ЛЮБОЙ тасовки (кнопка, свайп, будущие жесты). Порядок считает и
+  // анимирует клиент, а сюда он приходит готовым: открываем сессию (shuffle_start),
+  // шлём прогресс не чаще пары раз в секунду и обязательный финал по затишью — им же
+  // на сервере снимается «замок» колоды. Логика сессии — в ShuffleSession (тестируется).
+  const sessionRef = useRef<ShuffleSession | null>(null);
+  if (!sessionRef.current) sessionRef.current = new ShuffleSession();
+
+  const onShuffleChange = useCallback(
     (order: string[]) => {
       if (!canMoveDeck || order.length === 0) return;
-      room.send("set_deck_order", { order });
+      const out = sessionRef.current!.push(order, Date.now());
+      if (out.start) room.send("shuffle_start");
+      if (out.send) room.send("set_deck_order", { order: out.send });
     },
     [canMoveDeck, room],
   );
+
+  // Тик сессии: отпускает накопленный прогресс и закрывает сессию финалом.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const out = sessionRef.current!.tick(Date.now());
+      if (out.send) room.send("set_deck_order", { order: out.send, final: out.final });
+    }, 100);
+    return () => clearInterval(id);
+  }, [room]);
 
   const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
 
@@ -186,7 +202,7 @@ export function RoomScreen({
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onCardReorder={onCardReorder}
-        onSwipeShuffle={onSwipeShuffle}
+        onShuffleChange={onShuffleChange}
         onDragChange={onDragChange}
         animation={animation}
       />
@@ -217,10 +233,8 @@ export function RoomScreen({
           <>
             <button
               className="pixel-btn pixel-btn-secondary"
-              onClick={() => {
-                room.send("shuffle_deck"); // сервер тасует; новый порядок придёт эхом
-                setShuffleSignal((s) => s + 1); // «сумбур» на время запроса
-              }}
+              // Тасует движок (порядок + анимация), сеть узнаёт через onShuffleChange.
+              onClick={() => setShuffleSignal((s) => s + 1)}
             >
               Растасовать
             </button>

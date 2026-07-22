@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveCard, scatterCards } from "./deckOrder";
+import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
 
 const deck = ["A♠", "2♠", "3♠", "4♠", "5♠"];
 
@@ -58,5 +58,27 @@ describe("scatterCards", () => {
     expect(scatterCards(src, [], rng(0.5))).toEqual(deck);
     expect(scatterCards(src, ["K♦"], rng(0.5))).toEqual(deck);
     expect(src).toEqual(deck);
+  });
+});
+
+describe("shuffleOrder", () => {
+  it("сохраняет набор карт и длину", () => {
+    const out = shuffleOrder(deck, () => 0.5);
+    expect([...out].sort()).toEqual([...deck].sort());
+    expect(out.length).toBe(deck.length);
+  });
+
+  it("реально меняет порядок", () => {
+    let i = 0;
+    const out = shuffleOrder(deck, () => [0.1, 0.9, 0.3, 0.7, 0.5][i++ % 5]);
+    expect(out).not.toEqual(deck);
+  });
+
+  it("исходный массив не мутируется, вырожденные входы безопасны", () => {
+    const src = [...deck];
+    shuffleOrder(src, () => 0.3);
+    expect(src).toEqual(deck);
+    expect(shuffleOrder([], () => 0.3)).toEqual([]);
+    expect(shuffleOrder(["A♠"], () => 0.99)).toEqual(["A♠"]);
   });
 });

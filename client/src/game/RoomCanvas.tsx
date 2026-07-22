@@ -11,11 +11,11 @@ interface Props {
   fourColor: boolean;
   cardBack: CardBackId; // скин рубашки (меню → Графика)
   faceUp: boolean;
-  shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает «сумбур» до ответа
+  shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает тасовку в движке
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
-  onSwipeShuffle: (cards: string[]) => void; // свайп вверх: выброшенные карты врезать обратно
+  onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
   onDragChange: (active: boolean) => void;
   animation: AnimationSettings;
 }
@@ -35,7 +35,7 @@ export function RoomCanvas({
   onDeckDoubleClick,
   onDeckDrop,
   onCardReorder,
-  onSwipeShuffle,
+  onShuffleChange,
   onDragChange,
   animation,
 }: Props) {
@@ -88,8 +88,10 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setDeckFaceUp(faceUp);
   }, [faceUp]);
+  // Кнопка «Растасовать»: порядок считает и анимирует движок, сеть узнаёт через
+  // onShuffleChange — как и у жестов.
   useEffect(() => {
-    if (shuffleSignal > 0) engineRef.current?.startScramble();
+    if (shuffleSignal > 0) engineRef.current?.shuffleAll();
   }, [shuffleSignal]);
   useEffect(() => {
     engineRef.current?.setOnDeckDoubleClick(onDeckDoubleClick);
@@ -103,8 +105,8 @@ export function RoomCanvas({
   }, [onCardReorder]);
 
   useEffect(() => {
-    engineRef.current?.setOnSwipeShuffle(onSwipeShuffle);
-  }, [onSwipeShuffle]);
+    engineRef.current?.setOnShuffleChange(onShuffleChange);
+  }, [onShuffleChange]);
   useEffect(() => {
     engineRef.current?.setOnDragChange(onDragChange);
   }, [onDragChange]);

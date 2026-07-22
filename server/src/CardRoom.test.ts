@@ -16,6 +16,7 @@ vi.mock("./accounts.js", () => ({
 // (при каждом обращении) из process.env, ровно ради тестируемости.
 process.env.VOTE_TIMEOUT_MS = "150";
 process.env.EMPTY_ROOM_TTL_MS = "300"; // сколько живёт опустевшая (все на паузе) комната
+process.env.SHUFFLE_LOCK_MS = "300"; // сторож сессии тасовки, если клиент отвалился
 
 function createGameServer() {
   const server = new Server({ transport: new WebSocketTransport() });
@@ -74,52 +75,6 @@ describe("CardRoom", () => {
   it("builds a full 52-card deck for deckType '52'", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "52" });
     expect(room.state.deck.length).toBe(52);
-  });
-
-  it("shuffle_deck (dealer) keeps the same cards, only reorders them", async () => {
-    const room = await colyseus.createRoom("card_room", { deckType: "36" });
-    const dealer = await colyseus.connectTo(room, { name: "Alice" });
-    const before = [...room.state.deck].sort();
-
-    const waiter = room.waitForMessage("shuffle_deck");
-    dealer.send("shuffle_deck");
-    await waiter;
-
-    const after = [...room.state.deck].sort();
-    expect(after).toEqual(before);
-    expect(room.state.deck.length).toBe(36);
-  });
-
-  it("shuffle_deck works while the deck is in the dealer's safe zone", async () => {
-    const room = await colyseus.createRoom("card_room", { deckType: "36" });
-    const dealer = await colyseus.connectTo(room, { name: "Alice" });
-
-    let waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "safe" });
-    await waiter;
-    const before = [...room.state.deck].sort();
-
-    waiter = room.waitForMessage("shuffle_deck");
-    dealer.send("shuffle_deck");
-    await waiter;
-
-    expect([...room.state.deck].sort()).toEqual(before); // те же карты, другой порядок
-    expect(room.state.deck.length).toBe(36);
-    expect(room.state.deckLocation).toBe(dealer.sessionId); // колода осталась в сейф-зоне
-  });
-
-  it("ignores shuffle_deck from a non-dealer", async () => {
-    const room = await colyseus.createRoom("card_room", { deckType: "36" });
-    await colyseus.connectTo(room, { name: "Alice" });
-    const second = await colyseus.connectTo(room, { name: "Bob" });
-    const before = [...room.state.deck];
-
-    const waiter = room.waitForMessage("shuffle_deck");
-    second.send("shuffle_deck");
-    await waiter;
-
-    // Порядок не должен был поменяться — сообщение проигнорировано.
-    expect([...room.state.deck]).toEqual(before);
   });
 
   it("start_game deals the full deck evenly and moves phase to 'playing'", async () => {
@@ -443,5 +398,50 @@ describe("CardRoom", () => {
     second.send("set_deck_order", { order: [...before].reverse() });
     await waiter;
     expect([...room.state.deck]).toEqual(before);
+  });
+
+  // Сессия тасовки: порядок считает клиент, сервер держит «замок» и валидирует результат.
+  it("shuffle_start marks who is shuffling, final set_deck_order releases the lock", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    let waiter = room.waitForMessage("shuffle_start");
+    dealer.send("shuffle_start");
+    await waiter;
+    expect(room.state.shufflingBy).toBe(dealer.sessionId);
+
+    const next = [...room.state.deck].reverse();
+    waiter = room.waitForMessage("set_deck_order");
+    dealer.send("set_deck_order", { order: next, final: true });
+    await waiter;
+
+    expect([...room.state.deck]).toEqual(next);
+    expect(room.state.shufflingBy).toBe(""); // сессия закрыта
+  });
+
+  it("releases a stuck shuffle lock by timeout (client vanished mid-gesture)", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    const waiter = room.waitForMessage("shuffle_start");
+    dealer.send("shuffle_start");
+    await waiter;
+    expect(room.state.shufflingBy).toBe(dealer.sessionId);
+
+    await new Promise((r) => setTimeout(r, 500)); // дольше SHUFFLE_LOCK_MS
+    expect(room.state.shufflingBy).toBe("");
+  });
+
+  it("releases the lock when the shuffling player leaves", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    await colyseus.connectTo(room, { name: "Bob" });
+
+    const waiter = room.waitForMessage("shuffle_start");
+    dealer.send("shuffle_start");
+    await waiter;
+
+    await dealer.leave();
+    expect(room.state.shufflingBy).toBe("");
   });
 });

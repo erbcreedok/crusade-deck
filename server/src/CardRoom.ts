@@ -38,6 +38,13 @@ function getVoteTimeoutMs(): number {
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 10_000;
 }
 
+// Сколько держится «замок» сессии тасовки без вестей от клиента (он мог отвалиться
+// посреди жеста). Читается лениво — ради коротких таймаутов в тестах.
+function getShuffleLockMs(): number {
+  const fromEnv = Number(process.env.SHUFFLE_LOCK_MS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 5_000;
+}
+
 // Сколько живёт опустевшая комната перед диспоузом (даёт вернуться «в последнюю игру»).
 function getEmptyRoomTtlMs(): number {
   const fromEnv = Number(process.env.EMPTY_ROOM_TTL_MS);
@@ -47,6 +54,7 @@ function getEmptyRoomTtlMs(): number {
 export class CardRoom extends Room<GameState> {
   maxClients = 32;
   private proposalTimeout: Delayed | null = null;
+  private shuffleLockTimer: Delayed | null = null;
   private disposeTimer: Delayed | null = null;
 
   onCreate(options: JoinOptions) {
@@ -66,10 +74,15 @@ export class CardRoom extends Room<GameState> {
       if (player) player.isReady = !player.isReady;
     });
 
-    this.onMessage("shuffle_deck", (client) => {
+    // Начало СЕССИИ тасовки (любой: кнопка, свайп по вееру, будущие жесты). Порядок
+    // считает клиент — он же и анимирует, — а сервер держит «замок»: пока сессия открыта,
+    // все видят, кто тасует. Замок снимается финальным set_deck_order, уходом игрока или
+    // сторожевым таймером (клиент мог закрыть вкладку посреди жеста).
+    this.onMessage("shuffle_start", (client) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer || this.state.phase !== "lobby") return;
-      this.shuffleDeck();
+      this.state.shufflingBy = client.sessionId;
+      this.armShuffleLockTimer();
     });
 
     // Дилер перетащил одну карту в раскрытом веере на новое место — порядок колоды
@@ -87,13 +100,18 @@ export class CardRoom extends Room<GameState> {
     // Готовый порядок колоды от клиента (свайп по вееру: карты выплёскиваются и врезаются
     // обратно). Тасует КЛИЕНТ — так его анимация точна и не ждёт сети; сервер принимает
     // результат, но проверяет, что это именно перестановка текущей колоды.
-    this.onMessage("set_deck_order", (client, message: { order?: string[] }) => {
+    this.onMessage("set_deck_order", (client, message: { order?: string[]; final?: boolean }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer || this.state.phase !== "lobby") return;
+      // Чужую сессию не перебиваем: пока колода «в руках» у другого игрока, его порядок
+      // главный (замок держится сервером и снимается сам, если тот отвалился).
+      if (this.state.shufflingBy && this.state.shufflingBy !== client.sessionId) return;
       const order = message?.order;
       if (!Array.isArray(order) || !order.every((c) => typeof c === "string")) return;
       if (!isPermutationOf(order, this.state.deck.toArray())) return;
       order.forEach((c, i) => this.state.deck.setAt(i, c));
+      if (message?.final) this.clearShuffleLock();
+      else this.armShuffleLockTimer(); // промежуточный прогресс продлевает сессию
     });
 
     // Дилер притягивает колоду в свою сейф-зону (zone "safe") или возвращает в
@@ -213,6 +231,7 @@ export class CardRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     player.connected = false;
+    if (this.state.shufflingBy === client.sessionId) this.clearShuffleLock(); // не оставляем колоду занятой
     this.cancelProposalInvolving(client.sessionId);
     this.tallyAndResolve();
     this.maybeScheduleDisposeTimer();
@@ -220,6 +239,7 @@ export class CardRoom extends Room<GameState> {
 
   onDispose() {
     this.disposeTimer?.clear();
+    this.shuffleLockTimer?.clear();
     clearLastRoomByRoomId(this.roomId);
     if (this.state.inviteCode) releaseInviteCode(this.state.inviteCode);
     removePublicRoom(this.roomId);
@@ -245,15 +265,17 @@ export class CardRoom extends Room<GameState> {
     this.disposeTimer = null;
   }
 
-  private shuffleDeck() {
-    const deck = this.state.deck;
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const a = deck.at(i)!;
-      const b = deck.at(j)!;
-      deck.setAt(i, b);
-      deck.setAt(j, a);
-    }
+  // Сторожевой таймер сессии тасовки: клиент мог закрыть вкладку прямо посреди жеста,
+  // и колода осталась бы «занятой» навсегда.
+  private armShuffleLockTimer() {
+    this.shuffleLockTimer?.clear();
+    this.shuffleLockTimer = this.clock.setTimeout(() => this.clearShuffleLock(), getShuffleLockMs());
+  }
+
+  private clearShuffleLock() {
+    this.shuffleLockTimer?.clear();
+    this.shuffleLockTimer = null;
+    this.state.shufflingBy = "";
   }
 
   private dealCards() {

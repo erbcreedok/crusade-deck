@@ -24,7 +24,7 @@ import {
   fanSpreadShift,
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
-import { moveCard, scatterCards } from "./deckOrder";
+import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
 import {
   swipeStrength,
   swipeCardCount,
@@ -162,7 +162,11 @@ export class RoomEngine {
     dur: number;
     entries: { v: CardVisual; from: ShufflePose; dir: Dir; dist: number; spin: number }[];
   } | null = null;
-  private onSwipeShuffle: ((cards: string[]) => void) | null = null;
+  // Любая тасовка (кнопка, свайп, будущие жесты) сообщает наверх НОВЫЙ порядок — сеть
+  // разбирается сама (открыть сессию, редкий прогресс, финал). Движок о сети не знает.
+  private onShuffleChange: ((order: string[]) => void) | null = null;
+  // Отложенное применение порядка: «сумбур» как лид-ин, затем настоящая раскладка.
+  private pendingShuffle: { order: string[]; t: number; delay: number } | null = null;
 
   // «Кирпич» колоды: торцы карт под верхней, одной Graphics вместо полусотни спрайтов.
   private deckBody: Graphics | null = null;
@@ -465,10 +469,25 @@ export class RoomEngine {
     this.onCardReorder = fn;
   }
 
-  // Свайп вверх по вееру: движок играет выплеск, React шлёт на сервер список выброшенных
-  // карт (scatter_cards) — врезаются обратно только они.
-  setOnSwipeShuffle(fn: ((cards: string[]) => void) | null): void {
-    this.onSwipeShuffle = fn;
+  // Колбэк на ЛЮБУЮ тасовку: наверх уходит готовый порядок колоды.
+  setOnShuffleChange(fn: ((order: string[]) => void) | null): void {
+    this.onShuffleChange = fn;
+  }
+
+  // Кнопка «Растасовать». Порядок считаем здесь же (как и у свайпа): сначала короткий
+  // «сумбур» как лид-ин, затем настоящая раскладка по посчитанному порядку. Сеть узнаёт
+  // порядок сразу — анимация её не ждёт.
+  shuffleAll(): void {
+    if (this.cards.length < 2 || this.destroyed) return;
+    const next = shuffleOrder(this.deckCards, Math.random);
+    if (shouldPlay(anim.priority.shuffle, this.profile)) {
+      this.startScramble();
+      this.pendingShuffle = { order: next, t: 0, delay: anim.shuffle.leadIn };
+    } else {
+      this.applyOrderLocally(next);
+    }
+    this.onShuffleChange?.(next);
+    this.wake();
   }
 
   // Можно ли уронить ОДНУ карту в зоны (центр/рука). Во время раздачи — нельзя (отскок).
@@ -1131,6 +1150,7 @@ export class RoomEngine {
     this.shuffleAnim = null;
     this.scrambleAnim = null;
     this.splashAnim = null;
+    this.pendingShuffle = null;
     this.press = null;
     this.cardPress = null;
     this.cardDrag = null;
@@ -1177,6 +1197,19 @@ export class RoomEngine {
 
       if (this.scrambleAnim) this.stepScramble(dt);
       if (this.splashAnim) this.stepSplash(dt);
+
+      // Лид-ин кнопочной тасовки доиграл — раскладываем по настоящему порядку.
+      if (this.pendingShuffle) {
+        this.pendingShuffle.t += dt;
+        if (this.pendingShuffle.t >= this.pendingShuffle.delay) {
+          const order = this.pendingShuffle.order;
+          this.pendingShuffle = null;
+          const oldOrder = this.cards.map((c) => c.card);
+          this.scrambleAnim = null;
+          this.applyOrderLocally(order);
+          this.startShuffleAnim(oldOrder);
+        }
+      }
 
       if (this.shuffleAnim) {
         const sa = this.shuffleAnim;
@@ -1279,6 +1312,7 @@ export class RoomEngine {
       !this.shuffleAnim &&
       !this.scrambleAnim &&
       !this.splashAnim &&
+      !this.pendingShuffle &&
       !this.press &&
       !this.cardPress &&
       !this.cardDrag &&
@@ -1601,7 +1635,7 @@ export class RoomEngine {
     this.splashAnim = { t: 0, dur: s.dur, entries };
     this.poke = null;
     this.hoverTarget = 0;
-    this.onSwipeShuffle?.(nextOrder); // сервер принимает уже готовый порядок
+    this.onShuffleChange?.(nextOrder); // наверх уходит готовый порядок; сеть шлёт его сама
     this.wake();
   }
 

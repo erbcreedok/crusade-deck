@@ -30,3 +30,14 @@ export function scatterCards(order: readonly string[], cards: readonly string[],
   }
   return next;
 }
+
+// Полная перетасовка (Фишер–Йетс). Тоже на клиенте: он и анимирует, и шлёт результат
+// на сервер, который проверит, что это перестановка. rand — инъекция ради тестов.
+export function shuffleOrder(order: readonly string[], rand: () => number): string[] {
+  const next = [...order];
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.min(i, Math.floor(rand() * (i + 1)));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
