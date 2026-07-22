@@ -78,6 +78,7 @@ export class RoomEngine {
   private deckCount = 0;
   private deckZone: DeckZone = "center";
   private deckFanned = false; // колода в сейф-зоне раскрыта веером (дабл-клик тоглит)
+  private deckFaceUp = false; // колода перевёрнута лицом вверх (кнопка «Перевернуть»)
   private deckHit: Container | null = null;
   private lastDeckTapMs = 0;
   private onDeckDoubleClick: (() => void) | null = null;
@@ -250,6 +251,14 @@ export class RoomEngine {
     this.wake();
   }
 
+  // Перевернуть колоду лицом вверх / рубашкой вверх (кнопка). Не зависит от веера/зоны.
+  setDeckFaceUp(v: boolean): void {
+    if (v === this.deckFaceUp) return;
+    this.deckFaceUp = v;
+    this.applyCardTextures();
+    this.wake();
+  }
+
   // Зона колоды с точки зрения локального игрока (см. deckZone.ts). "center"/"safe"
   // — рисуем у соответствующего якоря; "away" (чужая сейф-зона) — колода прячется.
   setDeckZone(zone: DeckZone): void {
@@ -257,7 +266,6 @@ export class RoomEngine {
     this.deckZone = zone;
     if (zone !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
     const away = zone === "away";
-    this.applyCardTextures();
     this.updateVisibility();
     if (this.deckHit) this.deckHit.eventMode = away ? "none" : "static";
     // Не «away» — карты плавно летят к новому якорю (setTarget, а не snap).
@@ -347,7 +355,6 @@ export class RoomEngine {
       if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
         this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
         if (drop !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
-        this.applyCardTextures();
         this.onDeckDrop?.(drop);
       }
       // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
@@ -469,7 +476,6 @@ export class RoomEngine {
       // В центре дабл-клик переносит колоду в сейф-зону и СРАЗУ раскрывает веер.
       this.deckZone = "safe";
       this.deckFanned = true;
-      this.applyCardTextures();
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       this.positionDeckHit();
       this.onDeckDoubleClick?.(); // сервер подтвердит перенос эхом
@@ -479,7 +485,6 @@ export class RoomEngine {
 
   private toggleFan(): void {
     this.deckFanned = !this.deckFanned;
-    this.applyCardTextures();
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.wake();
@@ -748,12 +753,11 @@ export class RoomEngine {
     this.syncDeckShadow();
   }
 
-  // Лицо или рубашка на каждой карте: лица показываем только у раскрытого веера в сейф-зоне,
-  // иначе рубашка. Рубашка/лицо — сменяемые текстуры (стиль колоды).
+  // Лицо или рубашка на каждой карте — по флагу deckFaceUp (кнопка «Перевернуть»).
+  // Не зависит от веера/зоны. Рубашка/лицо — сменяемые текстуры (стиль колоды).
   private applyCardTextures(): void {
-    const showFaces = this.deckZone === "safe" && this.deckFanned;
     for (const c of this.cards) {
-      c.sprite.texture = showFaces && c.card ? this.faceTexFor(c.card) : this.backTex!;
+      c.sprite.texture = this.deckFaceUp && c.card ? this.faceTexFor(c.card) : this.backTex!;
     }
   }
 

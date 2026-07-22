@@ -39,6 +39,7 @@ export function RoomScreen({
   const [deck, setDeck] = useState<string[]>([]);
   const [deckZone, setDeckZone] = useState<DeckZone>("center");
   const [draggingDeck, setDraggingDeck] = useState(false);
+  const [faceUp, setFaceUp] = useState(false);
   const canvasRef = useRef<RoomCanvasHandle>(null);
 
   useEffect(() => {
@@ -122,6 +123,9 @@ export function RoomScreen({
   const deckInCenter = deckZone === "center";
   const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
   const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
+  // «Перевернуть карты» — пока доступна дилеру и в центре, и в сейф-зоне (не при драге).
+  const showFlip =
+    phase === "lobby" && amIDealer && !draggingDeck && (deckZone === "center" || deckZone === "safe");
 
   return (
     <div className="table-screen">
@@ -154,6 +158,7 @@ export function RoomScreen({
         deckZone={deckZone}
         deckDraggable={canMoveDeck}
         fourColor={fourColor}
+        faceUp={faceUp}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onDragChange={onDragChange}
@@ -189,6 +194,12 @@ export function RoomScreen({
         {showDeckPlaceholder && amIDealer && (
           <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("move_deck", { zone: "center" })}>
             ↩ Вернуть колоду в центр
+          </button>
+        )}
+
+        {showFlip && (
+          <button className="pixel-btn pixel-btn-secondary" onClick={() => setFaceUp((v) => !v)}>
+            {faceUp ? "🂠 Рубашкой вверх" : "🎴 Перевернуть карты"}
           </button>
         )}
       </div>

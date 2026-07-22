@@ -12,6 +12,7 @@ interface Props {
   deckZone: DeckZone;
   deckDraggable: boolean;
   fourColor: boolean;
+  faceUp: boolean;
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onDragChange: (active: boolean) => void;
@@ -22,7 +23,7 @@ interface Props {
 // управление императивному RoomEngine. React больше не трогает содержимое канваса —
 // только прокидывает пропсы (deckCount/animation) в движок и вызывает shuffle() через ref.
 export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanvas(
-  { deck, deckZone, deckDraggable, fourColor, onDeckDoubleClick, onDeckDrop, onDragChange, animation },
+  { deck, deckZone, deckDraggable, fourColor, faceUp, onDeckDoubleClick, onDeckDrop, onDragChange, animation },
   ref,
 ) {
   const deckKey = deck.join(",");
@@ -70,6 +71,9 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
   useEffect(() => {
     engineRef.current?.setFourColor(fourColor);
   }, [fourColor]);
+  useEffect(() => {
+    engineRef.current?.setDeckFaceUp(faceUp);
+  }, [faceUp]);
   useEffect(() => {
     engineRef.current?.setOnDeckDoubleClick(onDeckDoubleClick);
   }, [onDeckDoubleClick]);
