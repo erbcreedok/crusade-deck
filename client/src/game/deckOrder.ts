@@ -41,3 +41,11 @@ export function shuffleOrder(order: readonly string[], rand: () => number): stri
   }
   return next;
 }
+
+// Одна ли это стопка, только в другом порядке. Нужна там, где клиент показывает свой
+// порядок оптимистично и должен понять, подтвердил ли его сервер: пришёл тот же набор —
+// ждём дальше своего порядка, пришёл другой (карту раздали/забрали) — правда важнее.
+export function isPermutationOf(next: readonly string[], cur: readonly string[]): boolean {
+  if (next.length !== cur.length) return false;
+  return [...next].sort().join("|") === [...cur].sort().join("|");
+}

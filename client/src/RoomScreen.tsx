@@ -13,7 +13,7 @@ import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
 import { rejectionText } from "./game/rejections";
 import { topCard } from "./game/topCard";
-import { moveCard } from "./game/deckOrder";
+import { moveCard, isPermutationOf } from "./game/deckOrder";
 import { sortBySuit, sortByRank } from "./game/sortHand";
 import { dealOrder, autoDealPlan, AUTO_DEAL_INTERVAL_MS } from "./game/dealing";
 import { seatsForViewer } from "./game/seatOrder";
@@ -68,6 +68,8 @@ export function RoomScreen({
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deck, setDeck] = useState<string[]>([]);
   const [myHand, setMyHand] = useState<string[]>([]);
+  // Свой порядок руки, ещё не подтверждённый сервером (см. обработчик состояния).
+  const pendingHandOrderRef = useRef<string[] | null>(null);
   const [dealMode, setDealMode] = useState(true);
   const [deckFanned, setDeckFanned] = useState(false);
   // Где лежит колода по мнению сервера ("center" или id держателя). В зону для движка
@@ -141,7 +143,20 @@ export function RoomScreen({
       setDealMode(room.state.dealMode !== false);
       setDeckFanned(!!room.state.deckFanned);
       const me = room.state.players.get(room.sessionId);
-      setMyHand(me?.hand ? [...me.hand] : []);
+      const serverHand = me?.hand ? [...me.hand] : [];
+      // Свой порядок руки (сортировка, перетаскивание карты) применяется сразу, а эхо
+      // приходит позже. Любой ЧУЖОЙ патч между делом (кто-то нажал «Готов», прилетела
+      // карта соседу) перерисовывал бы руку серверным — ещё не отсортированным — порядком,
+      // и она дёргалась бы туда-обратно. Пока состав руки тот же, держим свой порядок;
+      // как только состав изменился (карту раздали/забрали) — правда сервера важнее.
+      const pending = pendingHandOrderRef.current;
+      if (pending && isPermutationOf(pending, serverHand)) {
+        if (pending.join("|") === serverHand.join("|")) pendingHandOrderRef.current = null;
+        setMyHand(pending);
+      } else {
+        pendingHandOrderRef.current = null;
+        setMyHand(serverHand);
+      }
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -294,6 +309,7 @@ export function RoomScreen({
         if (handFrom >= 0) {
           const next = moveCard(myHand, card, to);
           room.send("set_hand_order", { order: next });
+          pendingHandOrderRef.current = next;
           setMyHand(next);
           return;
         }
@@ -533,6 +549,7 @@ export function RoomScreen({
       onClick: () => {
         const order = sortBySuit(myHand);
         room.send("set_hand_order", { order });
+        pendingHandOrderRef.current = order;
         setMyHand(order);
       },
     });
@@ -541,6 +558,7 @@ export function RoomScreen({
       onClick: () => {
         const order = sortByRank(myHand);
         room.send("set_hand_order", { order });
+        pendingHandOrderRef.current = order;
         setMyHand(order);
       },
     });

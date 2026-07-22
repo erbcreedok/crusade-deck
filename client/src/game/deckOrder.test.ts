@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
+import { moveCard, scatterCards, shuffleOrder, isPermutationOf } from "./deckOrder";
 
 const deck = ["A♠", "2♠", "3♠", "4♠", "5♠"];
 
@@ -80,5 +80,18 @@ describe("shuffleOrder", () => {
     expect(src).toEqual(deck);
     expect(shuffleOrder([], () => 0.3)).toEqual([]);
     expect(shuffleOrder(["A♠"], () => 0.99)).toEqual(["A♠"]);
+  });
+});
+
+describe("isPermutationOf", () => {
+  it("та же стопка в другом порядке — перестановка", () => {
+    expect(isPermutationOf(["3♠", "A♠"], ["A♠", "3♠"])).toBe(true);
+    expect(isPermutationOf([], [])).toBe(true);
+  });
+
+  it("другой состав или длина — нет", () => {
+    expect(isPermutationOf(["A♠"], ["A♠", "3♠"])).toBe(false);
+    expect(isPermutationOf(["A♠", "K♦"], ["A♠", "3♠"])).toBe(false);
+    expect(isPermutationOf(["A♠", "A♠"], ["A♠", "3♠"])).toBe(false);
   });
 });
