@@ -1,0 +1,21 @@
+CLAUDE.md
+  s_7d9a23fba6e8e1::t_f9892de5a4225d 29,46-47,79-94,176-180
+CLAUDE_RU.md
+  s_7d9a23fba6e8e1::t_4742f5cf8549ec 26,43-44,76-91,165-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c71c1a8fa1f845eba341ff61059422ec4755997f",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
