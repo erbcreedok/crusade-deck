@@ -87,7 +87,7 @@ import {
   type AnimationProfile,
 } from "./anim/animationSettings";
 import { easeOutQuad } from "./anim/easing";
-import { lerp, nearestIndexByX } from "./mathUtil";
+import { clamp01, lerp, nearestIndexByX } from "./mathUtil";
 import {
   CARD_EDGE,
   COLORS,
@@ -111,6 +111,7 @@ import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReve
 import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
 import { canSleep } from "./engine/idleGate";
 import { CardPile } from "./engine/CardPile";
+import { shufflePose, shuffleProgress, shouldSwapZ } from "./engine/shufflePose";
 
 export { DECK_ID, HAND_ID } from "./engine/constants";
 
@@ -2559,12 +2560,28 @@ export class RoomEngine {
 
   // ——— внутреннее ———
 
+  // Кадр целиком: физика сабстепами, затем эффекты, затем синхронизация сцены и сон.
+  // Каждая фаза — отдельный метод: раньше это была одна простыня на 228 строк, в которой
+  // порядок шагов (кто кого перетирает) приходилось вычитывать целиком.
   private onTick(ticker: Ticker): void {
     if (this.destroyed || !this.app) return;
+    const frameDt = Math.min(ticker.deltaMS / 1000, 0.05);
 
-    // Скорость (1х/2х/3х) масштабирует время. Интегрируем сабстепами не крупнее maxStepSec —
-    // иначе на 3х пружина «взрывается». Реальный лаг кадра тоже клампим (защита от фризов вкладки).
-    let remaining = Math.min(ticker.deltaMS / 1000, 0.05) * this.profile.speed;
+    this.stepPhysics(frameDt);
+    if (this.idleRunning()) this.idleT += frameDt;
+    this.stepFanWiggle(frameDt);
+    this.stepDraggedCard();
+    this.stepFlipAnim(frameDt);
+    this.stepOverlays(frameDt);
+    this.syncScene(frameDt);
+    this.maybeSleep();
+  }
+
+  // Пружины и полёты. Скорость (1х/2х/3х) масштабирует время, поэтому интегрируем
+  // сабстепами не крупнее maxStepSec — иначе на 3х пружина «взрывается». Реальный лаг
+  // кадра тоже клампим (защита от фризов вкладки).
+  private stepPhysics(frameDt: number): void {
+    let remaining = frameDt * this.profile.speed;
     do {
       const dt = Math.min(remaining, anim.maxStepSec);
       remaining -= dt;
@@ -2572,70 +2589,64 @@ export class RoomEngine {
       if (this.scrambleAnim) this.stepScramble(dt);
       if (this.splashAnim) this.stepSplash(dt);
       this.stepCardFlights(dt);
-
-      // Лид-ин кнопочной тасовки доиграл — раскладываем по настоящему порядку.
-      if (this.pendingShuffle) {
-        this.pendingShuffle.t += dt;
-        if (this.pendingShuffle.t >= this.pendingShuffle.delay) {
-          const order = this.pendingShuffle.order;
-          this.pendingShuffle = null;
-          const oldOrder = this.cards.map((c) => c.card);
-          this.scrambleAnim = null;
-          this.applyOrderLocally(order);
-          this.startShuffleAnim(oldOrder);
-        }
-      }
-
-      if (this.shuffleAnim) {
-        const sa = this.shuffleAnim;
-        sa.t += dt;
-        for (const e of sa.entries) {
-          const local = sa.t - e.delay;
-          if (local < 0) {
-            e.v.body.setTarget(e.from); // ждёт своей очереди в каскаде — стоит на месте
-            continue;
-          }
-          const p = Math.min(1, e.dur > 0 ? local / e.dur : 1);
-          const u = easeOutQuad(p);
-          const arc = Math.sin(Math.PI * p); // 0 → 1 (апекс) → 0
-          e.v.body.setTarget({
-            x: lerp(e.from.x, e.to.x, u) + e.bulge * arc,
-            y: lerp(e.from.y, e.to.y, u) - e.lift * arc,
-            rot: lerp(e.from.rot, e.to.rot, u) + e.lean * arc,
-          });
-          // z-порядок карты меняем в ЕЁ апексе (она приподнята над слотом) — без «поп».
-          if (p >= 0.5 && !e.zSwapped) {
-            e.v.sprite.zIndex = e.newZ;
-            e.zSwapped = true;
-          }
-        }
-        if (sa.t >= sa.totalDur) {
-          for (const e of sa.entries) {
-            e.v.body.setTarget(e.to);
-            e.v.sprite.zIndex = e.newZ;
-          }
-          this.shuffleAnim = null;
-        }
-      }
+      this.stepPendingShuffle(dt);
+      if (this.shuffleAnim) this.stepShuffleAnim(dt);
 
       for (const c of this.cards) c.body.step(dt);
       for (const c of this.hand) c.body.step(dt);
     } while (remaining > 0);
+  }
 
-    const frameDt = Math.min(ticker.deltaMS / 1000, 0.05);
-    if (this.idleRunning()) this.idleT += frameDt;
+  // Лид-ин кнопочной тасовки доиграл — раскладываем по настоящему порядку.
+  private stepPendingShuffle(dt: number): void {
+    const ps = this.pendingShuffle;
+    if (!ps) return;
+    ps.t += dt;
+    if (ps.t < ps.delay) return;
+    this.pendingShuffle = null;
+    const oldOrder = this.cards.map((c) => c.card);
+    this.scrambleAnim = null;
+    this.applyOrderLocally(ps.order);
+    this.startShuffleAnim(oldOrder);
+  }
 
-    // Сглаживаем огибающую ховера всегда (чтобы плавно гасла после увода курсора).
+  // Настоящая растасовка: каждая карта летит по своей дуге (см. engine/shufflePose.ts).
+  private stepShuffleAnim(dt: number): void {
+    const sa = this.shuffleAnim;
+    if (!sa) return;
+    sa.t += dt;
+    for (const e of sa.entries) {
+      const p = shuffleProgress(sa.t, e.delay, e.dur);
+      if (p < 0) {
+        e.v.body.setTarget(e.from); // ждёт своей очереди в каскаде — стоит на месте
+        continue;
+      }
+      e.v.body.setTarget(shufflePose(e, p));
+      if (shouldSwapZ(p) && !e.zSwapped) {
+        e.v.sprite.zIndex = e.newZ;
+        e.zSwapped = true;
+      }
+    }
+    if (sa.t < sa.totalDur) return;
+    for (const e of sa.entries) {
+      e.v.body.setTarget(e.to);
+      e.v.sprite.zIndex = e.newZ;
+    }
+    this.shuffleAnim = null;
+  }
+
+  // «Червячок» тесного веера плюс локальное раскрытие под пальцем/курсором.
+  // На просторном веере (мало карт) эффект не включаем — иначе средняя карта «колбасится».
+  private stepFanWiggle(frameDt: number): void {
+    // Огибающую ховера сглаживаем всегда, чтобы она плавно гасла после увода курсора.
     this.hoverEnv += (this.hoverTarget - this.hoverEnv) * Math.min(1, frameDt * 12);
     if (this.hoverTarget === 0 && this.hoverEnv < 0.002) this.hoverEnv = 0;
 
-    // «Червячок» тесного веера + локальное раскрытие (тык/ховер).
-    // На просторном веере ховер/тык не включаем — иначе при 2–3 картах средняя колбасится.
     const live = this.liveFan();
     const wantsReveal = this.poke !== null || this.hoverTarget === 1 || this.hoverEnv > 0.001;
     const wiggle =
-      live !== null &&
-      (this.fanCrowd() > 0 || (wantsReveal && this.fanRevealScaleNow() > 0.001));
+      live !== null && (this.fanCrowd() > 0 || (wantsReveal && this.fanRevealScaleNow() > 0.001));
+
     if (wiggle && live) {
       if (!this.fanWiggling) this.fanKickT = 0; // старт — с буста энергии
       const w = anim.fan.wiggle;
@@ -2645,17 +2656,10 @@ export class RoomEngine {
       const baseFreq = this.profile.tilt ? w.freq : w.moderateFreq; // умеренная медленнее
       this.fanWavePhase += baseFreq * this.fanEnergy * frameDt; // быстрее при высокой энергии
       this.fanJitterPhase += w.jitterFreq * this.fanEnergy * frameDt;
-      if (this.poke) {
-        this.poke.t += frameDt;
-        const follow = this.cardPress ? w.poke.followDrag : w.poke.follow;
-        this.poke.index += (this.poke.target - this.poke.index) * Math.min(1, frameDt * follow);
-        if (pokeEnvelope(this.poke.t, w.poke.in, w.poke.hold, w.poke.out) <= 0 && this.poke.t > w.poke.in) {
-          this.poke = null;
-        }
-      }
+      this.stepPoke(frameDt);
       this.applyFanWave(live);
     } else if (this.fanWiggling) {
-      // эффект закончился — ровные веера (оба могут быть открыты)
+      // Эффект закончился — оба веера снова ровные.
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       if (this.dealMode) this.hand.forEach((c, i) => c.body.setTarget(this.handRestTarget(i)));
       this.fanCrowdNow = 0;
@@ -2664,50 +2668,70 @@ export class RoomEngine {
       this.hoverEnv = 0;
     }
     this.fanWiggling = wiggle;
+  }
 
-    if (this.cardDrag && (!this.dealDrag || this.deckFanned)) this.applyCardDragTargets();
-    if (this.cardDrag && this.dealDrag && !this.deckFanned) {
-      // Стопка: только верхняя карта за пальцем; кирпич не трогаем.
-      this.cardDrag.v.body.setTarget({
-        x: this.cardDrag.x,
-        y: this.cardDrag.y,
-        rot: 0,
-        scale: DRAG_SCALE,
-      });
+  // Локальное раскрытие от тыка: точка раскрытия ПЕРЕЕЗЖАЕТ к цели, а не прыгает.
+  private stepPoke(frameDt: number): void {
+    const p = this.poke;
+    if (!p) return;
+    const w = anim.fan.wiggle;
+    p.t += frameDt;
+    const follow = this.cardPress ? w.poke.followDrag : w.poke.follow;
+    p.index += (p.target - p.index) * Math.min(1, frameDt * follow);
+    if (pokeEnvelope(p.t, w.poke.in, w.poke.hold, w.poke.out) <= 0 && p.t > w.poke.in) {
+      this.poke = null;
+    }
+  }
+
+  // Карта под пальцем каждый кадр едет за ним; веер вокруг неё раступается.
+  private stepDraggedCard(): void {
+    const d = this.cardDrag;
+    if (!d) return;
+    if (!this.dealDrag || this.deckFanned) {
+      this.applyCardDragTargets();
+      return;
+    }
+    // Раздача со стопки: за пальцем идёт только верхняя карта, кирпич не трогаем.
+    d.v.body.setTarget({ x: d.x, y: d.y, rot: 0, scale: DRAG_SCALE });
+  }
+
+  // Переворот: у каждой карты своя задержка (стопка идёт волной). Ровно на «ребре»
+  // подменяем текстуру — это единственный момент, когда подмену не видно.
+  private stepFlipAnim(frameDt: number): void {
+    const fa = this.flipAnim;
+    if (!fa) return;
+    fa.t += frameDt;
+
+    // Порядок колоды реверсится на ПОСЛЕДНЕМ ребре: до него стопка просто крутится,
+    // и менять, кто наверху, рано.
+    const lastEdge = (fa.halfTurns - 0.5) / fa.halfTurns;
+    if (fa.reverseAtEdge && !fa.reversed && fa.t / fa.dur >= lastEdge) {
+      fa.reversed = true;
+      this.applyOrderLocally([...this.deckCards].reverse());
     }
 
-    // Переворот: у каждой карты своя задержка (стопка идёт волной). Ровно на «ребре»
-    // подменяем текстуру — момент, когда подмену не видно.
-    if (this.flipAnim) {
-      const fa = this.flipAnim;
-      fa.t += frameDt;
-      let done = true;
-      // Порядок колоды реверсится на ПОСЛЕДНЕМ ребре: до этого стопка просто крутится,
-      // и менять, кто наверху, рано.
-      const lastEdge = (fa.halfTurns - 0.5) / fa.halfTurns;
-      if (fa.reverseAtEdge && !fa.reversed && fa.t / fa.dur >= lastEdge) {
-        fa.reversed = true;
-        this.applyOrderLocally([...this.deckCards].reverse());
-      }
-      for (const e of fa.entries) {
-        const p = (fa.t - e.delay) / fa.dur;
-        if (p < 1) done = false;
-        // Сторона переключается на каждом ребре вращения, а не один раз: полтора оборота
-        // — это три ребра, и на каждом карта честно показывает следующую сторону.
-        const other = spinShowsOther(spinAngle(Math.max(0, Math.min(1, p)), fa.halfTurns));
-        if (e.swapped !== other) {
-          e.swapped = other;
-          e.v.sprite.texture = this.textureFor(e.v.card);
-        }
-      }
-      if (done) {
-        this.flipAnim = null;
-        this.flipMap.clear();
-        this.flipByCard.clear();
-        this.applyCardTextures(); // теперь показываем ровно то, что говорит состояние
+    let done = true;
+    for (const e of fa.entries) {
+      const p = (fa.t - e.delay) / fa.dur;
+      if (p < 1) done = false;
+      // Сторона переключается на КАЖДОМ ребре вращения, а не один раз: полтора оборота —
+      // это три ребра, и на каждом карта честно показывает следующую сторону.
+      const other = spinShowsOther(spinAngle(clamp01(p), fa.halfTurns));
+      if (e.swapped !== other) {
+        e.swapped = other;
+        e.v.sprite.texture = this.textureFor(e.v.card);
       }
     }
+    if (!done) return;
+    this.flipAnim = null;
+    this.flipMap.clear();
+    this.flipByCard.clear();
+    this.applyCardTextures(); // теперь показываем ровно то, что говорит состояние
+  }
 
+  // Короткоживущие эффекты поверх стола: надпись-объяснение, резиновая тянучка
+  // запрещённого жеста и «ударный» отбой.
+  private stepOverlays(frameDt: number): void {
     if (this.notice) {
       this.notice.t += frameDt;
       if (this.notice.t >= this.notice.dur) {
@@ -2716,7 +2740,6 @@ export class RoomEngine {
       }
     }
 
-    // Тянучка запрещённого жеста.
     if (this.stretchAnim) {
       const st = this.stretchAnim;
       st.t += frameDt;
@@ -2729,7 +2752,6 @@ export class RoomEngine {
       }
     }
 
-
     if (this.reject) {
       this.reject.t += frameDt;
       if (this.reject.t >= this.reject.dur) {
@@ -2741,6 +2763,10 @@ export class RoomEngine {
         this.onDragChange?.(false);
       }
     }
+  }
+
+  // Перенести состояние движка на сцену: тряска, видимость, счётчики, спрайты, тени.
+  private syncScene(frameDt: number): void {
     this.shake = this.rejectShake();
     this.updateVisibility(); // режим «кирпич/отдельные карты» может смениться прямо в тике
     this.syncCollapseButton();
@@ -2753,11 +2779,12 @@ export class RoomEngine {
     this.syncDeckShadow();
     this.syncCardShadow();
     this.syncRejectText();
+  }
 
-    // Всё осело, нет растасовки/драга/отбоя И нет живой idle → усыпляем цикл. При
-    // включённой idle-анимации цикл не спит (карты постоянно чуть «дышат»).
-    // Список активностей — в engine/idleGate.ts: новая непрерывная анимация обязана
-    // появиться там, иначе цикл либо уснёт под ней, либо больше не заснёт никогда.
+  // Всё осело и ничего не движется → усыпляем цикл. Список активностей — в
+  // engine/idleGate.ts: новая непрерывная анимация обязана появиться там, иначе цикл
+  // либо уснёт под ней, либо больше не заснёт никогда.
+  private maybeSleep(): void {
     if (
       canSleep({
         shuffle: !!this.shuffleAnim,
