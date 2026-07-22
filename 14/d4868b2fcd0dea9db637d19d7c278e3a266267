@@ -1,0 +1,42 @@
+server/src/bots.test.ts
+  s_45aab95818ff9f::t_55b3175563d010 1-30
+client/src/RoomScreen.tsx
+  s_3b000dfed76439::t_db10aca3a0fb9b 52-59,82-84,86,88-92,164,170,197,232
+  s_3b000dfed76439::t_da58b5101c2d1d 85,87
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_98b62f24e9477d 808-810,887-891
+  s_3b000dfed76439::t_805351caac0d14 138,141,491-500,505-508,1616,1837,1843-1846,2072
+  s_3b000dfed76439::t_7fd83e4513154a 509-510
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_e18ecc8b8fb37c 114,124,132,142,163,172,337-349
+client/src/game/RoomCanvas.tsx
+  s_3b000dfed76439::t_db10aca3a0fb9b 96-98
+server/src/CardRoom.test.ts
+  s_45aab95818ff9f::t_6272f1c1004103 6-7
+server/src/GameState.ts
+  s_3b000dfed76439::t_e18ecc8b8fb37c 44-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "14d4868b2fcd0dea9db637d19d7c278e3a266267",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
