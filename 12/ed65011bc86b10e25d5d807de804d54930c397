@@ -1,0 +1,23 @@
+client/src/game/layout.ts
+  s_3b000dfed76439::t_3dca0217d8e5bb 33-41,87-88
+  s_3b000dfed76439::t_d5be985a4cf26f 30,42-43,63-70
+  s_3b000dfed76439::t_33266eca6fe49c 84
+client/src/game/layout.test.ts
+  s_3b000dfed76439::t_33266eca6fe49c 128-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "12ed65011bc86b10e25d5d807de804d54930c397",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
