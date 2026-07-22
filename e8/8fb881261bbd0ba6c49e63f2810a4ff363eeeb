@@ -1,0 +1,36 @@
+client/src/game/dropZones.test.ts
+  s_4864baaac43e63::t_77121ff45c6ce2 16-17,24,28
+client/src/game/layout.test.ts
+  s_4864baaac43e63::t_e262867e52c66d 19,22,24-28
+client/src/game/RoomEngine.ts
+  s_4864baaac43e63::t_164185dd30062f 7
+  s_4864baaac43e63::t_6db86743805560 41-47
+  s_4864baaac43e63::t_f234c1620a4f34 349-354,356,369-375,379-380,382-385
+  s_4864baaac43e63::t_76ea2d2e82f825 381
+  s_4864baaac43e63::t_361ec020ca14ba 481
+  s_4864baaac43e63::t_29159d5f3e50b0 56
+  s_4864baaac43e63::t_9833ab8ffc3129 147-159
+  s_4864baaac43e63::t_e3a7c419118786 500
+  s_4864baaac43e63::t_2034685b49a3de 386-387
+client/src/game/dropZones.ts
+  s_4864baaac43e63::t_3127633ff7af3c 3-4,6,17
+client/src/game/layout.ts
+  s_4864baaac43e63::t_8394dfe5b346ed 14-16
+  s_4864baaac43e63::t_119ee93b4565e9 36-40,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e88fb881261bbd0ba6c49e63f2810a4ff363eeeb",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
