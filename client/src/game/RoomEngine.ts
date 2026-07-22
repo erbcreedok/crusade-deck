@@ -54,6 +54,7 @@ export class RoomEngine {
   private tableG: Graphics | null = null;
   private zoneLayer: Graphics | null = null; // подсветка дроп-зон при драге
   private zoneLabels: Partial<Record<DropZone, Text>> = {}; // текстовые подписи зон
+  private rejectText: Text | null = null; // «низяяя» по центру во время отскока
   private shadowLayer: Container | null = null; // слой под картами
   // ОДНА тень на всю колоду (стопка движется как целое). Раньше была тень на карту —
   // на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
@@ -155,6 +156,23 @@ export class RoomEngine {
       this.zoneLayer!.addChild(t);
       this.zoneLabels[z] = t;
     });
+
+    // «низяяя» — крупный текст поверх карт, всплывает по центру во время отскока.
+    this.rejectText = new Text({
+      text: "низяяя",
+      style: {
+        fontFamily: "VT323, monospace",
+        fontSize: 64,
+        fill: 0xff5a4a,
+        stroke: { color: 0x2a0f0c, width: 6 },
+        letterSpacing: 3,
+        align: "center",
+      },
+    });
+    this.rejectText.anchor.set(0.5);
+    this.rejectText.visible = false;
+    this.rejectText.zIndex = 5000; // поверх карт (world.sortableChildren)
+    this.world.addChild(this.rejectText);
     this.styleZoneLabels();
 
     this.cardTex = this.makeCardBackTexture(app);
@@ -297,22 +315,25 @@ export class RoomEngine {
       this.wake();
       return;
     }
-    this.onDragChange?.(false); // драг закончился — вернуть кнопки действий
 
     const drop = pickDropZone(px, py, this.layout);
     const droppable = drop ? dropZoneRegions(this.layout)[drop].droppable : false;
     const rejecting = !!drop && !droppable;
-    if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
-      this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
-      this.onDeckDrop?.(drop);
-    } else if (rejecting) {
-      // Бросок в недоступную зону — «ударный» отскок. Колода ЗАДЕРЖИВАЕТСЯ у точки
-      // дропа и там играет отскок; домой уходит только по завершении reject (в onTick),
-      // иначе мгновенный полёт назад «съедает» анимацию.
+    if (rejecting) {
+      // Бросок в недоступную зону — «ударный» отскок. Колода ЗАДЕРЖИВАЕТСЯ у точки дропа
+      // и там играет отскок; домой уходит только по завершении reject (в onTick), иначе
+      // мгновенный полёт назад «съедает» анимацию. Кнопки действий тоже НЕ возвращаем
+      // здесь — onDragChange(false) вызовется в onTick, когда отскок доиграет.
       this.startReject(px, py);
     } else {
-      // Дроп в разрешённую зону / промах мимо всех зон — сразу уложить у активного якоря.
-      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
+        this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
+        this.onDeckDrop?.(drop);
+      } else {
+        // Дроп в текущую зону / промах мимо всех зон — сразу уложить у активного якоря.
+        this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      }
+      this.onDragChange?.(false); // взаимодействие завершено — вернуть кнопки
     }
     this.positionDeckHit();
     this.wake();
@@ -384,13 +405,32 @@ export class RoomEngine {
     });
   }
 
-  // Размер шрифта подписей от размера карты (обновляется на ресайзе).
+  // Размер шрифта подписей/«низяяя» от размера карты (обновляется на ресайзе).
   private styleZoneLabels(): void {
     const size = Math.min(44, Math.max(14, this.layout.cardH * 0.5));
     for (const z of Object.keys(this.zoneLabels) as DropZone[]) {
       const t = this.zoneLabels[z];
       if (t) t.style.fontSize = size;
     }
+    if (this.rejectText) this.rejectText.style.fontSize = Math.min(110, Math.max(34, this.layout.cardH * 1.2));
+  }
+
+  // «низяяя» по центру экрана во время отскока: та же тряска, что и у колоды, плюс
+  // пульс масштаба и затухание к концу анимации.
+  private syncRejectText(): void {
+    const t = this.rejectText;
+    if (!t) return;
+    if (!this.reject) {
+      if (t.visible) t.visible = false;
+      return;
+    }
+    const p = this.reject.t / this.reject.dur; // 0 → 1
+    t.visible = true;
+    t.x = this.w / 2 + this.shake.dx;
+    t.y = this.h / 2 + this.shake.dy;
+    t.rotation = this.shake.rot;
+    t.scale.set(1 + 0.3 * (1 - p)); // крупнее в начале, оседает к 1
+    t.alpha = Math.max(0, Math.min(1, (1 - p) * 1.8)); // держится, затем гаснет
   }
 
   private handleDeckTap(): void {
@@ -506,6 +546,7 @@ export class RoomEngine {
     this.tableG = null;
     this.zoneLayer = null;
     this.zoneLabels = {};
+    this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;
     this.cardLayer = null;
@@ -555,13 +596,15 @@ export class RoomEngine {
       this.reject.t += frameDt;
       if (this.reject.t >= this.reject.dur) {
         this.reject = null;
-        // Отскок доигран — теперь укладываем колоду обратно у активного якоря.
+        // Отскок доигран — укладываем колоду у якоря и только ТЕПЕРЬ возвращаем кнопки.
         this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+        this.onDragChange?.(false);
       }
     }
     this.shake = this.rejectShake();
     for (const c of this.cards) this.syncVisual(c);
     this.syncDeckShadow();
+    this.syncRejectText();
 
     // Всё осело, нет растасовки/драга/отбоя И нет живой idle → усыпляем цикл. При
     // включённой idle-анимации цикл не спит (карты постоянно чуть «дышат»).
