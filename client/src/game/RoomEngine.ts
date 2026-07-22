@@ -301,29 +301,37 @@ export class RoomEngine {
 
     const drop = pickDropZone(px, py, this.layout);
     const droppable = drop ? dropZoneRegions(this.layout)[drop].droppable : false;
+    const rejecting = !!drop && !droppable;
     if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
       this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
       this.onDeckDrop?.(drop);
-    } else if (drop && !droppable) {
-      // Бросок в запретную зону — «ударная» тряска и возврат на место (см. reject-анимацию).
+    } else if (rejecting) {
+      // Бросок в недоступную зону — «ударный» отскок. Колода ЗАДЕРЖИВАЕТСЯ у точки
+      // дропа и там играет отскок; домой уходит только по завершении reject (в onTick),
+      // иначе мгновенный полёт назад «съедает» анимацию.
       this.startReject(px, py);
+    } else {
+      // Дроп в разрешённую зону / промах мимо всех зон — сразу уложить у активного якоря.
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     }
-    // уложить стопку у активного якоря (промах/запрет → вернётся в текущую зону), масштаб назад к 1
-    this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.wake();
   }
 
-  // «Ударная» анимация запрета: короткая затухающая тряска колоды в сторону, откуда
-  // её отбили (от текущего якоря к точке запретного дропа), поверх пружинного возврата.
+  // «Ударный» отскок при запрещённом дропе: колода держится у точки удара и делает
+  // затухающие колебания В СТОРОНУ ДОМА (как отбитая от зоны), затем возвращается.
   private startReject(px: number, py: number): void {
     const a = this.activeAnchor();
-    let dx = px - a.x;
-    let dy = py - a.y;
+    let dx = a.x - px; // направление к дому — туда «отскакивает» колода
+    let dy = a.y - py;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len;
     dy /= len;
-    this.reject = { t: 0, dur: 0.42, dirX: dx, dirY: dy };
+    this.reject = { t: 0, dur: 0.5, dirX: dx, dirY: dy };
+    // Держим колоду у точки удара на время отскока (не улетает домой сразу).
+    for (let i = 0; i < this.cards.length; i++) {
+      this.cards[i].body.setTarget({ x: px, y: py - i * anim.deck.stackDy, scale: DRAG_SCALE, rot: this.restJitter[i] ?? 0 });
+    }
   }
 
   private applyDragTargets(): void {
@@ -545,7 +553,11 @@ export class RoomEngine {
     if (this.idleRunning()) this.idleT += frameDt;
     if (this.reject) {
       this.reject.t += frameDt;
-      if (this.reject.t >= this.reject.dur) this.reject = null;
+      if (this.reject.t >= this.reject.dur) {
+        this.reject = null;
+        // Отскок доигран — теперь укладываем колоду обратно у активного якоря.
+        this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      }
     }
     this.shake = this.rejectShake();
     for (const c of this.cards) this.syncVisual(c);
@@ -564,13 +576,15 @@ export class RoomEngine {
     }
   }
 
-  // Смещение/угол «ударной» тряски отбоя (одинаковы для всей колоды). Резко затухает.
+  // Смещение/угол «ударного» отскока (одинаковы для всей колоды). Стартует с МАКСИМУМА
+  // (cos(0)=1) — читается резкий удар — и затухает колебаниями к нулю.
   private rejectShake(): { dx: number; dy: number; rot: number } {
     if (!this.reject) return { dx: 0, dy: 0, rot: 0 };
-    const k = 1 - this.reject.t / this.reject.dur; // 1 → 0
-    const osc = Math.sin(this.reject.t * 46) * k * k; // быстрая тряска с резким затуханием
-    const amp = this.layout.cardH * 0.22;
-    return { dx: this.reject.dirX * amp * osc, dy: this.reject.dirY * amp * osc, rot: osc * 0.14 };
+    const p = this.reject.t / this.reject.dur; // 0 → 1
+    const env = (1 - p) * (1 - p); // квадратичное затухание
+    const osc = Math.cos(this.reject.t * 34) * env; // старт на максимуме, затем колебания
+    const amp = this.layout.cardH * 0.38;
+    return { dx: this.reject.dirX * amp * osc, dy: this.reject.dirY * amp * osc, rot: osc * 0.18 };
   }
 
   // Живёт ли idle-анимация прямо сейчас (для keep-awake и накопления фазы).
@@ -584,7 +598,7 @@ export class RoomEngine {
 
     // Лёгкая idle-«дыхалка»: только в покое (не во время растасовки/драга), когда
     // idle разрешён профилем. Наложение поверх пружинного состояния, тело не трогаем.
-    if (this.idleEnabled && !this.shuffleAnim && !this.press && this.deckZone !== "away" && c.body.isResting()) {
+    if (this.idleEnabled && !this.shuffleAnim && !this.press && !this.reject && this.deckZone !== "away" && c.body.isResting()) {
       rot += anim.idle.rotAmp * Math.sin(this.idleT * anim.idle.rotFreq + c.phase);
       scale *= 1 + anim.idle.scaleAmp * Math.sin(this.idleT * anim.idle.scaleFreq + c.phase);
     }
