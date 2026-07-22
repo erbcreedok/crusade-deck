@@ -13,7 +13,7 @@ import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains } from "./fan";
 import { parseCard, isCourt, suitColor } from "./card";
 import { anim } from "./anim/config";
 import {
@@ -560,11 +560,19 @@ export class RoomEngine {
 
   private positionDeckHit(): void {
     if (!this.deckHit) return;
-    // Раскрытый веер — расширяем хит-зону на всю сейф-зону, чтобы дабл-клик по любой
-    // карте веера собирал его обратно (и чтобы можно было схватить всю колоду).
+    // Раскрытый веер — хит-зона это прямоугольник сейф-зоны (дабл-клик по пустому месту
+    // собирает веер / хватает колоду) ОБЪЕДИНЁННЫЙ с полосой самой дуги: веер проседает
+    // ниже зоны (на широком экране — сильно), и без полосы тык/ховер по крайним картам
+    // не срабатывал вовсе. См. fanBandContains.
     if (this.deckZone === "safe" && this.deckFanned) {
       const z = this.layout.safeZone;
-      this.deckHit.hitArea = new Rectangle(z.cx - z.w / 2, z.cy - z.h / 2, z.w, z.h);
+      const l = this.layout;
+      const pad = l.cardW * 0.25; // запас под палец
+      this.deckHit.hitArea = {
+        contains: (x: number, y: number) =>
+          (Math.abs(x - z.cx) <= z.w / 2 && Math.abs(y - z.cy) <= z.h / 2) ||
+          fanBandContains(x, y, l.safeAnchor, z.w, anim.fan.maxAngleDeg, anim.fan.widthFactor, l.cardW, l.cardH, pad),
+      };
       return;
     }
     const a = this.activeAnchor();

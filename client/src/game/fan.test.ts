@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина сейф-зоны
@@ -105,5 +105,53 @@ describe("pokeEnvelope", () => {
     expect(pokeEnvelope(IN, IN, HOLD, OUT)).toBeCloseTo(1, 5);
     expect(pokeEnvelope(HOLD + OUT, IN, HOLD, OUT)).toBeCloseTo(0, 10);
     expect(pokeEnvelope(HOLD + OUT + 1, IN, HOLD, OUT)).toBe(0);
+  });
+});
+
+describe("fanBandContains", () => {
+  // Веер на широком экране: дуга проседает намного ниже сейф-зоны, поэтому попадание
+  // по крайним картам НЕЛЬЗЯ проверять прямоугольником зоны — только полосой дуги.
+  const WIDE = 1204; // сейф-зона десктопа
+  const CARD_W = 90;
+  const CARD_H = 128;
+  const hit = (x: number, y: number, zoneW = WIDE) =>
+    fanBandContains(x, y, anchor, zoneW, MAX, WF, CARD_W, CARD_H, 0);
+
+  it("центральная карта веера — попадание", () => {
+    expect(hit(anchor.x, anchor.y)).toBe(true);
+  });
+
+  it("нижняя часть крайних карт (далеко под якорем) — попадание", () => {
+    const n = 52;
+    for (const i of [0, n - 1]) {
+      const c = fanCard(i, n, anchor, WIDE, MAX, WF);
+      // точка у нижнего края крайней карты, вдоль её собственного наклона
+      const px = c.x - Math.sin(c.rot) * (CARD_H * 0.45);
+      const py = c.y + Math.cos(c.rot) * (CARD_H * 0.45);
+      expect(py).toBeGreaterThan(anchor.y + 100); // и правда сильно ниже якоря
+      expect(hit(px, py)).toBe(true);
+    }
+  });
+
+  it("за угловым краем веера — промах", () => {
+    const last = fanCard(51, 52, anchor, WIDE, MAX, WF);
+    expect(hit(last.x + CARD_W * 2, last.y)).toBe(false);
+  });
+
+  it("выше веера (к центру дуги) и ниже полосы — промах", () => {
+    expect(hit(anchor.x, anchor.y - CARD_H)).toBe(false);
+    expect(hit(anchor.x, anchor.y + CARD_H)).toBe(false);
+  });
+
+  it("симметричен относительно якоря", () => {
+    const c = fanCard(0, 52, anchor, WIDE, MAX, WF);
+    const dx = c.x - anchor.x;
+    expect(hit(anchor.x + dx, c.y)).toBe(hit(anchor.x - dx, c.y));
+  });
+
+  it("pad расширяет полосу (запас под палец)", () => {
+    const y = anchor.y + CARD_H;
+    expect(hit(anchor.x, y)).toBe(false);
+    expect(fanBandContains(anchor.x, y, anchor, WIDE, MAX, WF, CARD_W, CARD_H, CARD_H)).toBe(true);
   });
 });

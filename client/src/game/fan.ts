@@ -48,6 +48,38 @@ export function pokeEnvelope(t: number, inSec: number, hold: number, outSec: num
   return Math.max(0, Math.min(inn, out));
 }
 
+// Точка (x,y) внутри «полосы веера»? Веер — дуга окружности, поэтому его настоящая
+// область попадания — кольцевой сектор, а НЕ прямоугольник сейф-зоны: на широком экране
+// дуга проседает вниз далеко за пределы зоны, и края веера оказываются вне прямоугольника
+// (тык/ховер по крайним картам не срабатывал). Центр дуги — на r ниже якоря; карты
+// повёрнуты вдоль радиуса, значит по радиусу полоса шириной в высоту карты, а по углу —
+// ±maxAngleDeg плюс половина ширины карты (в угловой мере). pad — запас под палец.
+export function fanBandContains(
+  x: number,
+  y: number,
+  anchor: Vec2,
+  zoneWidth: number,
+  maxAngleDeg: number,
+  widthFactor: number,
+  cardW: number,
+  cardH: number,
+  pad = 0,
+): boolean {
+  const maxA = (maxAngleDeg * Math.PI) / 180;
+  const halfW = (zoneWidth * widthFactor) / 2;
+  const r = maxA > 0 ? halfW / Math.sin(maxA) : halfW;
+  if (r <= 0) return false;
+
+  const cy = anchor.y + r; // центр окружности дуги
+  const dx = x - anchor.x;
+  const dy = cy - y;
+  const dist = Math.hypot(dx, dy);
+  if (Math.abs(dist - r) > cardH / 2 + pad) return false;
+
+  const angle = Math.atan2(dx, dy); // тот же отсчёт, что и у fanCard
+  return Math.abs(angle) <= maxA + (cardW / 2 + pad) / r;
+}
+
 export function fanCard(
   i: number,
   count: number,
