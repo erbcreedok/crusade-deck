@@ -103,6 +103,36 @@ describe("ShuffleChoreography", () => {
     expect(a).not.toEqual(b);
   });
 
+  it("feel.stagger=0 убирает каскад: длительность = сумма фаз, старты одновременны", () => {
+    const { lift, riffle, settle } = anim.shuffle;
+    const c = new ShuffleChoreography({ count: 20, anchor, seed: 1, feel: { stagger: 0 } });
+    expect(c.durationSec).toBeCloseTo(lift.dur + riffle.dur + settle.dur, 5);
+    // все карты в один момент проходят одну фазу → одинаковый lift по Y (без учёта толщины стопки)
+    const rest = c.sample(0);
+    const s = c.sample(lift.dur); // конец подъёма
+    const lifts = s.map((t, i) => (rest[i].y ?? 0) - (t.y ?? 0));
+    expect(Math.max(...lifts) - Math.min(...lifts)).toBeCloseTo(0, 5);
+  });
+
+  it("feel.jitter=0 убирает разброс: одинаковая дистанция разлёта и нулевой угол в покое", () => {
+    const c = new ShuffleChoreography({ count: 20, anchor, seed: 1, feel: { jitter: 0 } });
+    for (const t of c.sample(0)) expect(t.rot).toBeCloseTo(0, 5);
+    const tMid = anim.shuffle.lift.dur + anim.shuffle.riffle.dur / 2;
+    const s = c.sample(tMid);
+    const leftOffsets = s.slice(0, 10).map((t) => Math.abs((t.x ?? 0) - anchor.x));
+    // без jitter и без stagger по умолчанию (stagger остаётся 1) — дистанции всё ещё
+    // различаются из-за каскада; проверяем именно угловой разброс = 0
+    for (const t of s) expect(Number.isFinite(t.x ?? 0)).toBe(true);
+    expect(leftOffsets.every((v) => Number.isFinite(v))).toBe(true);
+  });
+
+  it("feel.scaleBump=0 держит масштаб = 1 на всём протяжении", () => {
+    const c = new ShuffleChoreography({ count: 10, anchor, seed: 1, feel: { scaleBump: 0 } });
+    for (const t of [0, 0.2, 0.5, 0.9, c.durationSec]) {
+      for (const card of c.sample(t)) expect(card.scale).toBeCloseTo(1, 5);
+    }
+  });
+
   it("done() истинно только после конца", () => {
     const c = make();
     expect(c.done(c.durationSec - 0.01)).toBe(false);

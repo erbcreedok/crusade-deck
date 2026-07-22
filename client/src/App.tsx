@@ -6,7 +6,7 @@ import { Lobby } from "./Lobby";
 import { RoomScreen } from "./RoomScreen";
 import { AppMenu } from "./AppMenu";
 import { PixelBackground } from "./PixelBackground";
-import { useMotionPreference } from "./useMotionPreference";
+import { useAnimationSettings } from "./useAnimationSettings";
 
 export default function App() {
   const {
@@ -22,7 +22,7 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [restoreCode, setRestoreCode] = useState("");
   const [showRestore, setShowRestore] = useState(false);
-  const { enabled: motionEnabled, toggle: toggleMotion } = useMotionPreference();
+  const { settings: animation, setLevel, setSpeed, motionEnabled } = useAnimationSettings();
 
   return (
     <MotionConfig reducedMotion={motionEnabled ? "never" : "always"}>
@@ -111,14 +111,15 @@ export default function App() {
             account={account}
             onRename={renameAccount}
             onRegenerateCode={regenerateCode}
-            motionEnabled={motionEnabled}
-            onToggleMotion={toggleMotion}
+            animation={animation}
+            onSetLevel={setLevel}
+            onSetSpeed={setSpeed}
             room={room}
             onLeaveRoom={() => setRoom(null)}
           />
         )}
         {room ? (
-          <RoomScreen room={room} motionEnabled={motionEnabled} />
+          <RoomScreen room={room} animation={animation} />
         ) : (
           <Lobby
             accountId={user.uid}

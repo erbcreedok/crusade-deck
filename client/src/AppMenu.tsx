@@ -1,21 +1,35 @@
 import { useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { Account } from "./account";
+import {
+  ANIMATION_SPEEDS,
+  type AnimationLevel,
+  type AnimationSettings,
+  type AnimationSpeed,
+} from "./game/anim/animationSettings";
+
+const LEVEL_OPTIONS: { value: AnimationLevel; label: string }[] = [
+  { value: "full", label: "Полная" },
+  { value: "moderate", label: "Умеренная" },
+  { value: "off", label: "Выкл" },
+];
 
 export function AppMenu({
   account,
   onRename,
   onRegenerateCode,
-  motionEnabled,
-  onToggleMotion,
+  animation,
+  onSetLevel,
+  onSetSpeed,
   room,
   onLeaveRoom,
 }: {
   account: Account;
   onRename: (name: string) => void;
   onRegenerateCode: () => void;
-  motionEnabled: boolean;
-  onToggleMotion: () => void;
+  animation: AnimationSettings;
+  onSetLevel: (level: AnimationLevel) => void;
+  onSetSpeed: (speed: AnimationSpeed) => void;
   room: Room | null;
   onLeaveRoom: () => void;
 }) {
@@ -86,10 +100,34 @@ export function AppMenu({
 
             <hr className="pixel-divider" />
 
-            <label className="pixel-label">Настройки</label>
-            <button className="menu-toggle-row" onClick={onToggleMotion}>
-              {motionEnabled ? "✨ Анимации: вкл" : "◻ Анимации: выкл"}
-            </button>
+            <label className="pixel-label">Анимации</label>
+            <div className="seg-row">
+              {LEVEL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  className={`seg-btn${animation.level === opt.value ? " seg-btn-active" : ""}`}
+                  onClick={() => onSetLevel(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <label className={`pixel-label${animation.level === "off" ? " pixel-label-dim" : ""}`}>
+              Скорость
+            </label>
+            <div className="seg-row">
+              {ANIMATION_SPEEDS.map((sp) => (
+                <button
+                  key={sp}
+                  className={`seg-btn${animation.speed === sp ? " seg-btn-active" : ""}`}
+                  disabled={animation.level === "off"}
+                  onClick={() => onSetSpeed(sp)}
+                >
+                  {sp}x
+                </button>
+              ))}
+            </div>
 
             {room && (
               <>

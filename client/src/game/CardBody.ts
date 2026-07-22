@@ -22,6 +22,9 @@ export class CardBody {
   private trot: number;
   private tscale: number;
 
+  // Сила инерционного крена (juice). 1 — полный, 0 — выключен (умеренный/выкл режим).
+  tiltScale = 1;
+
   constructor(x = 0, y = 0, rot = 0, scale = 1) {
     this.cx = { pos: x, vel: 0 };
     this.cy = { pos: y, vel: 0 };
@@ -73,7 +76,7 @@ export class CardBody {
 
   // Визуальный угол = базовый (пружина) + крен от горизонтальной скорости (инерция).
   get rotation(): number {
-    const tilt = clamp(this.cx.vel * anim.tilt.factor, -anim.tilt.max, anim.tilt.max);
+    const tilt = clamp(this.cx.vel * anim.tilt.factor * this.tiltScale, -anim.tilt.max, anim.tilt.max);
     return this.crot.pos + tilt;
   }
 }

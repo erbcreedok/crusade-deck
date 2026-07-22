@@ -5,6 +5,10 @@ export interface ShuffleParams {
   count: number;
   anchor: { x: number; y: number };
   seed?: number;
+  // Множители «фила» под уровень анимации (0..1). По умолчанию 1 = полный.
+  // stagger — сила веерного каскада (задержки старта), jitter — разброс углов/дистанций,
+  // scaleBump — масштабный «пульс» на подъёме. В «умеренном» их ужимают/гасят.
+  feel?: { stagger?: number; jitter?: number; scaleBump?: number };
 }
 
 // Хореография риффл-шаффла: по времени t выдаёт ЦЕЛИ карт. Сама физику не считает —
@@ -33,18 +37,24 @@ export class ShuffleChoreography {
   private readonly spreadF: number[]; // множитель дистанции разлёта на карту
   private readonly archF: number[]; // множитель высоты дуги на карту
   private readonly leanF: number[]; // множитель крена на карту
+  private readonly scaleBump: number; // множитель масштабного «пульса» (0 в умеренном)
 
   constructor(p: ShuffleParams) {
     this.count = Math.max(0, Math.floor(p.count));
     this.anchor = p.anchor;
 
+    const staggerScale = p.feel?.stagger ?? 1;
+    const jitterScale = p.feel?.jitter ?? 1;
+    this.scaleBump = p.feel?.scaleBump ?? 1;
+
     const { lift, riffle, settle, stagger } = anim.shuffle;
     this.t1 = lift.dur;
     this.t2 = lift.dur + riffle.dur;
     this.baseDur = lift.dur + riffle.dur + settle.dur;
-    // Последняя по чересполосице карта стартует на stagger.total позже → на столько же
-    // длиннее вся анимация. Для одной карты разброса нет.
-    this.durationSec = this.baseDur + (this.count > 1 ? stagger.total : 0);
+    const staggerTotal = stagger.total * staggerScale;
+    // Последняя по чересполосице карта стартует на staggerTotal позже → на столько же
+    // длиннее вся анимация. Для одной карты (и при stagger=0) разброса нет.
+    this.durationSec = this.baseDur + (this.count > 1 ? staggerTotal : 0);
 
     const rand = mulberry32((p.seed ?? 1) >>> 0);
     const half = Math.ceil(this.count / 2); // размер левой (верхней) половины
@@ -61,13 +71,13 @@ export class ShuffleChoreography {
       const isLeft = i < half;
       const rank = isLeft ? 2 * i : 2 * (i - half) + 1;
       this.side.push(isLeft ? -1 : 1);
-      this.delay.push(this.count > 1 ? (rank / denom) * stagger.total : 0);
+      this.delay.push(this.count > 1 ? (rank / denom) * staggerTotal : 0);
 
       // Порядок вызовов rand() фиксирован — от него зависит детерминизм по seed.
-      this.restRot.push((rand() * 2 - 1) * settle.jitter);
-      this.spreadF.push(1 + (rand() * 2 - 1) * stagger.spreadVar);
-      this.archF.push(1 + (rand() * 2 - 1) * stagger.archVar);
-      this.leanF.push(1 + (rand() * 2 - 1) * stagger.leanVar);
+      this.restRot.push((rand() * 2 - 1) * settle.jitter * jitterScale);
+      this.spreadF.push(1 + (rand() * 2 - 1) * stagger.spreadVar * jitterScale);
+      this.archF.push(1 + (rand() * 2 - 1) * stagger.archVar * jitterScale);
+      this.leanF.push(1 + (rand() * 2 - 1) * stagger.leanVar * jitterScale);
     }
   }
 
@@ -103,7 +113,7 @@ export class ShuffleChoreography {
         x: rest.x! + this.side[i] * riffle.spread * this.spreadF[i] * bump,
         y: rest.y! - lift.height * lf - riffle.arch * this.archF[i] * bump,
         rot: rest.rot! + this.side[i] * riffle.lean * this.leanF[i] * bump,
-        scale: 1 + 0.04 * lf,
+        scale: 1 + 0.04 * lf * this.scaleBump,
       });
     }
     return out;

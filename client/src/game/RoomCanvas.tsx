@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { RoomEngine } from "./RoomEngine";
+import { resolveProfile, type AnimationSettings } from "./anim/animationSettings";
 
 export interface RoomCanvasHandle {
   shuffle: () => void;
@@ -7,14 +8,14 @@ export interface RoomCanvasHandle {
 
 interface Props {
   deckCount: number;
-  motionEnabled: boolean;
+  animation: AnimationSettings;
 }
 
 // Тонкий React-хост над движком: монтирует ОДИН <canvas> ровно один раз и отдаёт
 // управление императивному RoomEngine. React больше не трогает содержимое канваса —
-// только прокидывает пропсы (deckCount/motion) в движок и вызывает shuffle() через ref.
+// только прокидывает пропсы (deckCount/animation) в движок и вызывает shuffle() через ref.
 export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanvas(
-  { deckCount, motionEnabled },
+  { deckCount, animation },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -51,8 +52,8 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
     engineRef.current?.setDeckCount(deckCount);
   }, [deckCount]);
   useEffect(() => {
-    engineRef.current?.setMotionEnabled(motionEnabled);
-  }, [motionEnabled]);
+    engineRef.current?.setAnimationProfile(resolveProfile(animation));
+  }, [animation.level, animation.speed]);
 
   return <div className="room-canvas" ref={wrapRef} />;
 });

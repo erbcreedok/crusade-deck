@@ -2,6 +2,12 @@ import { Application, Container, Graphics, Sprite, Texture, type Ticker } from "
 import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
 import { anim } from "./anim/config";
+import {
+  DEFAULT_ANIMATION_SETTINGS,
+  resolveProfile,
+  shouldPlay,
+  type AnimationProfile,
+} from "./anim/animationSettings";
 import { ShuffleChoreography } from "./choreo/shuffle";
 
 interface CardVisual {
@@ -30,7 +36,7 @@ export class RoomEngine {
 
   private deckCount = 0;
   private restJitter: number[] = [];
-  private motionEnabled = true;
+  private profile: AnimationProfile = resolveProfile(DEFAULT_ANIMATION_SETTINGS);
   private destroyed = false;
   private mounted = false;
   private awake = false;
@@ -79,6 +85,7 @@ export class RoomEngine {
     this.reconcileCards();
 
     app.ticker.add(this.tick);
+    this.applyProfile(); // применить текущий профиль (FPS-кап, tilt) к свежему тикеру/картам
     this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
   }
 
@@ -109,14 +116,20 @@ export class RoomEngine {
   shuffle(): void {
     if (this.destroyed || this.cards.length === 0) return;
 
-    if (!this.motionEnabled) {
-      // анимации выключены → просто аккуратно уложить стопку без движения
+    // Анимации выключены ИЛИ растасовка не проходит по приоритету → просто уложить стопку.
+    if (!shouldPlay(anim.priority.shuffle, this.profile)) {
       this.cards.forEach((c, i) => c.body.snapTo(this.restTarget(i)));
       this.wake();
       return;
     }
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1;
-    const choreo = new ShuffleChoreography({ count: this.cards.length, anchor: this.layout.deckAnchor, seed });
+    const choreo = new ShuffleChoreography({
+      count: this.cards.length,
+      anchor: this.layout.deckAnchor,
+      seed,
+      // «Умеренный» режим ужимает каскад/разброс и гасит масштабный пульс.
+      feel: { stagger: this.profile.stagger, jitter: this.profile.jitter, scaleBump: this.profile.scaleBump ? 1 : 0 },
+    });
     // z-порядок по чересполосице: чем позже стартует карта, тем выше слой — половины
     // визуально прошивают друг друга при складывании (riffle-bridge), а не лежат пачками.
     choreo.startOrder().forEach((cardIdx, k) => {
@@ -126,10 +139,19 @@ export class RoomEngine {
     this.wake();
   }
 
-  setMotionEnabled(enabled: boolean): void {
-    this.motionEnabled = enabled;
-    if (!enabled) this.shuffleAnim = null; // без анимаций — оборвать текущую растасовку
+  // Применить пользовательский профиль анимации (уровень + скорость → движок).
+  setAnimationProfile(profile: AnimationProfile): void {
+    this.profile = profile;
+    this.applyProfile();
+    if (!profile.motion) this.shuffleAnim = null; // без анимаций — оборвать текущую растасовку
     this.wake();
+  }
+
+  // Разложить профиль по «железу» движка: FPS-кап тикера + сила крена на всех картах.
+  private applyProfile(): void {
+    if (this.app) this.app.ticker.maxFPS = this.profile.fpsCap; // 0 = без ограничения
+    const tiltScale = this.profile.tilt ? 1 : 0;
+    for (const c of this.cards) c.body.tiltScale = tiltScale;
   }
 
   resize(w: number, h: number): void {
@@ -168,25 +190,31 @@ export class RoomEngine {
 
   private onTick(ticker: Ticker): void {
     if (this.destroyed || !this.app) return;
-    const dt = Math.min(ticker.deltaMS / 1000, anim.maxStepSec);
-    const snap = !this.motionEnabled;
+    const snap = !this.profile.motion;
 
-    if (this.shuffleAnim) {
-      this.shuffleAnim.t += dt;
-      const targets = this.shuffleAnim.choreo.sample(this.shuffleAnim.t);
-      for (let i = 0; i < this.cards.length && i < targets.length; i++) {
-        this.cards[i].body.setTarget(targets[i]);
-      }
-      if (this.shuffleAnim.choreo.done(this.shuffleAnim.t)) {
-        this.shuffleAnim = null;
-        this.cards.forEach((c, i) => (c.sprite.zIndex = i)); // вернуть z-порядок ровной стопки
-      }
-    }
+    // Скорость (1х/2х/4х) масштабирует время. Интегрируем сабстепами не крупнее maxStepSec —
+    // иначе на 4х пружина «взрывается». Реальный лаг кадра тоже клампим (защита от фризов вкладки).
+    let remaining = snap ? anim.maxStepSec : Math.min(ticker.deltaMS / 1000, 0.05) * this.profile.speed;
+    do {
+      const dt = Math.min(remaining, anim.maxStepSec);
+      remaining -= dt;
 
-    for (const c of this.cards) {
-      c.body.step(dt, snap);
-      this.syncSprite(c);
-    }
+      if (this.shuffleAnim) {
+        this.shuffleAnim.t += dt;
+        const targets = this.shuffleAnim.choreo.sample(this.shuffleAnim.t);
+        for (let i = 0; i < this.cards.length && i < targets.length; i++) {
+          this.cards[i].body.setTarget(targets[i]);
+        }
+        if (this.shuffleAnim.choreo.done(this.shuffleAnim.t)) {
+          this.shuffleAnim = null;
+          this.cards.forEach((c, i) => (c.sprite.zIndex = i)); // вернуть z-порядок ровной стопки
+        }
+      }
+
+      for (const c of this.cards) c.body.step(dt, snap);
+    } while (remaining > 0 && !snap);
+
+    for (const c of this.cards) this.syncSprite(c);
 
     // Всё осело и нет активной растасовки → усыпляем цикл до следующего события.
     if (!this.shuffleAnim && this.cards.every((c) => c.body.isResting())) {
@@ -210,6 +238,7 @@ export class RoomEngine {
       sprite.anchor.set(0.5);
       sprite.zIndex = this.cards.length; // покой: выше по стопке = выше в z (совпадает с restTarget по Y)
       const body = new CardBody();
+      body.tiltScale = this.profile.tilt ? 1 : 0;
       body.snapTo(this.restTarget(this.cards.length));
       this.world.addChild(sprite);
       this.cards.push({ body, sprite });

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
 import { RoomCanvas, type RoomCanvasHandle } from "./game/RoomCanvas";
+import type { AnimationSettings } from "./game/anim/animationSettings";
 
 interface RoomPlayer {
   id: string;
@@ -20,7 +21,7 @@ interface ActiveProposal {
 
 // Экран комнаты без отрисованной сцены (стол/места/рука/колода сняты).
 // Осталась рабочая обвязка: топбар, баннер голосования, кнопки лобби.
-export function RoomScreen({ room, motionEnabled }: { room: Room; motionEnabled: boolean }) {
+export function RoomScreen({ room, animation }: { room: Room; animation: AnimationSettings }) {
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
   const [isPublic, setIsPublic] = useState(false);
@@ -109,7 +110,7 @@ export function RoomScreen({ room, motionEnabled }: { room: Room; motionEnabled:
         />
       )}
 
-      <RoomCanvas ref={canvasRef} deckCount={deckCount} motionEnabled={motionEnabled} />
+      <RoomCanvas ref={canvasRef} deckCount={deckCount} animation={animation} />
 
       <div className="table-bottombar">
         {phase === "lobby" && (

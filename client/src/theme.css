@@ -511,6 +511,39 @@ textarea {
   text-align: left;
 }
 
+.seg-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.seg-btn {
+  flex: 1;
+  font-family: "VT323", monospace;
+  font-size: 1.05rem;
+  background: var(--panel-bg-light);
+  color: var(--ink-dim);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.seg-btn-active {
+  background: var(--accent-gold);
+  color: #2b1d0a;
+}
+
+.seg-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pixel-label-dim {
+  opacity: 0.4;
+}
+
 .pixel-btn-danger {
   background: var(--accent-red);
   color: #2b0d0a;

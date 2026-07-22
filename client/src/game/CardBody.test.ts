@@ -60,6 +60,15 @@ describe("CardBody", () => {
     expect(b.isResting()).toBe(true); // осела
   });
 
+  it("tiltScale=0 отключает инерционный крен (умеренный/выкл режим)", () => {
+    const b = new CardBody();
+    b.snapTo({ x: 0, y: 0, rot: 0, scale: 1 });
+    b.tiltScale = 0;
+    b.setTarget({ x: 1000 });
+    b.step(1 / 60); // большая горизонтальная скорость, но крена быть не должно
+    expect(b.rotation).toBeCloseTo(0, 5);
+  });
+
   it("snap-режим шага телепортирует в цель без крена", () => {
     const b = new CardBody();
     b.snapTo({ x: 0, y: 0, rot: 0, scale: 1 });
