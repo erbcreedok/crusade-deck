@@ -15,6 +15,7 @@ import { computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropTarget, pickSeat, type DropZone, type DropTarget } from "./dropZones";
 import { layoutSeats, type SeatBox } from "./seatLayout";
+import { dragModeFor } from "./dragMode";
 import type { SeatView } from "./seats";
 import {
   fanCard,
@@ -422,7 +423,12 @@ export class RoomEngine {
     hit.zIndex = 10_000; // всегда над картами
     hit.on("pointerdown", (e: FederatedPointerEvent) => this.onDeckDown(e));
     // Тап по колоде (нажали и отпустили, не двигая) — выделение. Драг сюда не попадает.
-    hit.on("pointertap", (e: FederatedPointerEvent) => this.handleDeckTap(e));
+    hit.on("pointertap", (e: FederatedPointerEvent) => {
+      // Гасим всплытие: иначе тот же тап дойдёт до сцены и «тап мимо» снимет
+      // выделение, которое мы только что поставили.
+      e.stopPropagation();
+      this.handleDeckTap(e);
+    });
     hit.on("pointermove", (e: FederatedPointerEvent) => this.onDeckHover(e)); // ховер мышью (десктоп)
     hit.on("pointerout", (e: FederatedPointerEvent) => this.onDeckHoverOut(e));
     this.world.addChild(hit);
@@ -434,12 +440,9 @@ export class RoomEngine {
     app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
     app.stage.on("pointermove", (e: FederatedPointerEvent) => this.onPointerMove(e));
     app.stage.on("pointerup", (e: FederatedPointerEvent) => this.onPointerUp(e));
-    // Тап мимо всего — снять выделение. Тап по самой колоде сюда не попадает: её
-    // хит-зона гасит событие своим pointertap.
-    app.stage.on("pointertap", (e: FederatedPointerEvent) => {
-      if (this.deckHitContains(e.global.x, e.global.y)) return;
-      this.onEmptyTap?.();
-    });
+    // Тап мимо всего — снять выделение. Тап по колоде сюда не доходит: он погашен
+    // на её хит-зоне (stopPropagation выше).
+    app.stage.on("pointertap", () => this.onEmptyTap?.());
     app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
 
     if (this.seats.length > 0) this.applySeats(); // места могли приехать до монтирования
@@ -653,13 +656,6 @@ export class RoomEngine {
     g.roundRect(x, y, w + pad * 2, h + pad * 2, 14).fill({ color: 0xffe08a, alpha: 0.08 });
   }
 
-  // Попадает ли точка в хит-зону колоды — по ней отличаем «тап по колоде» от «тапа мимо».
-  private deckHitContains(x: number, y: number): boolean {
-    const hit = this.deckHit;
-    if (!hit || hit.eventMode === "none") return false;
-    const area = hit.hitArea as { contains?: (px: number, py: number) => boolean } | null;
-    return !!area?.contains?.(x - hit.x, y - hit.y);
-  }
 
   private drawSeats(): void {
     const g = this.seatG;
@@ -892,10 +888,11 @@ export class RoomEngine {
 
   private onDeckDown(e: FederatedPointerEvent): void {
     this.skipNextTap = false; // новый жест — прошлое подавление тапа больше не актуально
-    if (!this.deckDraggable || this.deckZone === "away") return;
-    // Веер раскрыт → жест относится к КАРТЕ, а не к колоде: колода целиком не таскается,
-    // пока веер не собран. Драг карты начнётся только после удержания (см. onTick).
-    if (this.fanOpen()) {
+    const mode = this.dragMode();
+    if (mode === "none") return;
+    // Рука в фокусе — жест относится к КАРТЕ; сложенная рука и любая другая зона —
+    // к колоде целиком. Правило целиком лежит в dragMode.ts.
+    if (mode === "card") {
       if (this.cardPress || this.cardDrag) return;
       const index = this.nearestFanIndex(e.global.x);
       // Зажатый веер не таскаем: пока карта не показала достаточную полоску, её не за что
@@ -1191,8 +1188,14 @@ export class RoomEngine {
     return this.deckZone === "hand";
   }
 
+  // Веер «живой»: с ним можно работать по одной карте. Только в фокусе — вне его рука
+  // сложена, и любой жест по ней относится к колоде целиком (см. dragMode.ts).
   private fanOpen(): boolean {
-    return this.fanned() && this.cards.length > 0;
+    return this.fanned() && this.handFocused && this.cards.length > 0;
+  }
+
+  private dragMode(): "deck" | "card" | "none" {
+    return dragModeFor({ zone: this.deckZone, handFocused: this.handFocused, draggable: this.deckDraggable });
   }
 
   // Достаточно ли видна карта, чтобы её взять. Считаем по фактическим позициям спрайтов:
@@ -1465,7 +1468,7 @@ export class RoomEngine {
     // Любой тык приглаживает карты под пальцем: стопка перестаёт быть растрёпанной,
     // отдельная карта в вее­ре ложится ровно.
     this.alignUnderTouch(e.global.x, e.global.y);
-    if (this.fanned() && e.pointerType !== "mouse") {
+    if (this.fanOpen() && e.pointerType !== "mouse") {
       this.pokeFan(e.global.x); // тык «ковыряет» веер (на десктопе это делает ховер)
     }
   }
@@ -1988,7 +1991,9 @@ export class RoomEngine {
     // амплитуда ×crowd×energy (теснее/после тыка — сильнее). Поверх пружинного состояния.
     if (this.fanWiggling && this.profile.tilt) {
       const w = anim.fan.wiggle;
-      rot += this.fanCrowdNow * this.fanEnergy * w.jitterRotAmp * Math.sin(this.fanJitterPhase + c.phase);
+      if (this.handFocused) {
+        rot += this.fanCrowdNow * this.fanEnergy * w.jitterRotAmp * Math.sin(this.fanJitterPhase + c.phase);
+      }
     }
 
     // Тряска отбоя: общая для колоды, но если отбивается ОДНА карта — трясётся только она.
@@ -2263,6 +2268,9 @@ export class RoomEngine {
   private fanWiggleActive(): boolean {
     return (
       this.fanned() &&
+      // Только у ВЫДЕЛЕННОЙ руки. Сложенная лежит неподвижно: постоянная дрожь на
+      // фоне мешала смотреть на стол и выглядела нервно.
+      this.handFocused &&
       this.deckCount > 1 &&
       !this.shuffleAnim &&
       !this.scrambleAnim &&
@@ -2290,7 +2298,7 @@ export class RoomEngine {
   // Тык по вееру: ре-энергия (волна/дрожь ускоряются), гребень волны — от точки тыка,
   // и локальное «раскрытие» ~cards карт вокруг, чтобы прочитать номиналы.
   private pokeFan(x: number): void {
-    if (!this.fanned() || this.deckCount < 2) return;
+    if (!this.fanOpen() || this.deckCount < 2) return; // сложенная рука не ковыряется
     const p = anim.fan.wiggle.poke;
     const pi = this.nearestFanIndex(x);
     // Повторный тык РЯДОМ с уже открытым местом не перезапускает раскрытие: оно просто
@@ -2416,7 +2424,8 @@ export class RoomEngine {
   // Ховер мышью (десктоп): раскрытие следует за курсором, пока он над веером.
   private onDeckHover(e: FederatedPointerEvent): void {
     if (e.pointerType !== "mouse" || this.press) return; // тач — не ховер; во время драга — нет
-    if (!this.fanned() || this.deckCount < 2) {
+    // Сложенная рука не реагирует на курсор: карты не раздвигаются и не подсвечиваются.
+    if (!this.fanOpen() || this.deckCount < 2) {
       this.hoverTarget = 0;
       return;
     }
@@ -2462,10 +2471,7 @@ export class RoomEngine {
   private applyFanWave(): void {
     const n = Math.max(2, this.deckCount);
     const w = anim.fan.wiggle;
-    // Вне фокуса рука почти не «дышит»: остаётся лёгкое шевеление, чтобы она не
-    // выглядела картинкой, но плясать веером она перестаёт.
-    const focusScale = this.handFocused ? 1 : anim.fan.idle.wiggleScale;
-    const waveScale = this.fanCrowdNow * w.amp * this.fanEnergy * focusScale;
+    const waveScale = this.fanCrowdNow * w.amp * this.fanEnergy;
     for (let i = 0; i < this.cards.length; i++) {
       const wave = waveScale * Math.sin(w.cycles * Math.PI * 2 * (i / (n - 1)) - this.fanWavePhase);
       const vi = Math.max(0, Math.min(n - 1, i + wave + this.pokeShiftAt(i)));
