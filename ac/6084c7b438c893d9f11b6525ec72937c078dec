@@ -1,0 +1,26 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_79027ae1e7d0ff 29-36,153,516,538-547,1543,1547-1549,1555,1563-1572
+  s_3b000dfed76439::t_b70277407e2c66 28
+client/src/game/swipeShuffle.ts
+  s_3b000dfed76439::t_c32f86dabf31e7 11-43
+client/src/game/swipeShuffle.test.ts
+  s_3b000dfed76439::t_d586ee5c9fd40e 2,82-130
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_79027ae1e7d0ff 110-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ac6084c7b438c893d9f11b6525ec72937c078dec",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
