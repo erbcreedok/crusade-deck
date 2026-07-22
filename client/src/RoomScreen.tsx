@@ -5,6 +5,7 @@ import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
 import { ShuffleSession } from "./game/shuffleSession";
+import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
 interface RoomPlayer {
@@ -43,8 +44,13 @@ export function RoomScreen({
   const [deck, setDeck] = useState<string[]>([]);
   const [deckZone, setDeckZone] = useState<DeckZone>("center");
   const [draggingDeck, setDraggingDeck] = useState(false);
-  const [faceUp, setFaceUp] = useState(false);
+  // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
+  const [facing, setFacing] = useState<Record<string, boolean>>({});
+  const [fanned, setFanned] = useState(false); // веер раскрыт (кнопки переворота тогда нет)
   const [shuffleSignal, setShuffleSignal] = useState(0);
+  const [flipSignal, setFlipSignal] = useState(0);
+  // Последний пришедший чужой эффект — движок его просто показывает.
+  const [incomingFx, setIncomingFx] = useState<DeckFxIncoming | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -62,6 +68,9 @@ export function RoomScreen({
       setIsPublic(room.state.isPublic);
       setPhase(room.state.phase);
       setDeck(room.state.deck ? [...room.state.deck] : []);
+      const nextFacing: Record<string, boolean> = {};
+      room.state.faceUp?.forEach((up: boolean, card: string) => (nextFacing[card] = up));
+      setFacing(nextFacing);
       setDeckZone(deckZoneFor(room.state.deckLocation ?? "center", room.sessionId));
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
@@ -129,6 +138,31 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
+  // Перевороты: на сервер уходит только РЕЗУЛЬТАТ (что перевернулось), анимации живут
+  // на клиенте. Состояние вернётся схемой и перекроет любую местную оптимистичность.
+  const onFlipDeck = useCallback(() => {
+    if (!canMoveDeck) return;
+    room.send("flip_deck");
+  }, [canMoveDeck, room]);
+
+  const onFlipCards = useCallback(
+    (cards: string[]) => {
+      if (!canMoveDeck || cards.length === 0) return;
+      room.send("flip_cards", { cards });
+    },
+    [canMoveDeck, room],
+  );
+
+  // Эффект для остальных игроков — украшение. Сервер раздаст его с длительностью, которую
+  // видел дилер, чтобы у всех жест выглядел одинаково независимо от пинга.
+  const onDeckFx = useCallback(
+    (fx: DeckFxMessage) => {
+      if (!canMoveDeck) return;
+      room.send("deck_fx", fx);
+    },
+    [canMoveDeck, room],
+  );
+
   // Сетевой протокол ЛЮБОЙ тасовки (кнопка, свайп, будущие жесты). Порядок считает и
   // анимирует клиент, а сюда он приходит готовым: открываем сессию (shuffle_start),
   // шлём прогресс не чаще пары раз в секунду и обязательный финал по затишью — им же
@@ -145,6 +179,16 @@ export function RoomScreen({
     },
     [canMoveDeck, room],
   );
+
+  // Приём чужих эффектов. Протухшие (пинг скакнул, вкладка была свёрнута) не играем:
+  // догонять момент полусекундной давности бессмысленно, а данные всё равно уже пришли
+  // схемой — они и есть правда, эффект лишь помогает понять, ЧТО произошло.
+  const fxClockRef = useRef(new FxClock());
+  useEffect(() => {
+    room.onMessage("deck_fx", (fx: DeckFxIncoming) => {
+      if (shouldPlayFx(fx, Date.now(), fxClockRef.current)) setIncomingFx({ ...fx });
+    });
+  }, [room]);
 
   // Тик сессии: отпускает накопленный прогресс и закрывает сессию финалом.
   useEffect(() => {
@@ -197,8 +241,14 @@ export function RoomScreen({
         deckDraggable={canMoveDeck}
         fourColor={fourColor}
         cardBack={cardBack}
-        faceUp={faceUp}
+        facing={facing}
+        onFanChange={setFanned}
+        onFlipDeck={onFlipDeck}
+        onFlipCards={onFlipCards}
+        onDeckFx={onDeckFx}
         shuffleSignal={shuffleSignal}
+        flipSignal={flipSignal}
+        incomingFx={incomingFx}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onCardReorder={onCardReorder}
@@ -238,9 +288,13 @@ export function RoomScreen({
             >
               Растасовать
             </button>
-            <button className="pixel-btn pixel-btn-secondary" onClick={() => setFaceUp((v) => !v)}>
-              {faceUp ? "🂠 Рубашкой вверх" : "🎴 Перевернуть карты"}
-            </button>
+            {/* Переворот кнопкой — только пока колода НЕ раскрыта веером: в вее­ре карты
+                переворачиваются жестами, и это осознанно сложнее. */}
+            {!fanned && (
+              <button className="pixel-btn pixel-btn-secondary" onClick={() => setFlipSignal((v) => v + 1)}>
+                🎴 Перевернуть колоду
+              </button>
+            )}
           </>
         )}
       </div>

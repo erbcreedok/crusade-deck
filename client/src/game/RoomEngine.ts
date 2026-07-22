@@ -2,6 +2,7 @@ import {
   Application,
   Container,
   Graphics,
+  Matrix,
   Rectangle,
   Sprite,
   Text,
@@ -25,6 +26,8 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
+import { classifyDeckSwipe, isSwipeDown, flipFactor, flipShowsOther, flipTransform, stretchOffset } from "./flip";
+import type { DeckFxMessage } from "./deckFxClient";
 import {
   swipeStrength,
   swipeCardCount,
@@ -126,7 +129,25 @@ export class RoomEngine {
   private deckCount = 0;
   private deckZone: DeckZone = "center";
   private deckFanned = false; // колода в сейф-зоне раскрыта веером (дабл-клик тоглит)
-  private deckFaceUp = false; // колода перевёрнута лицом вверх (кнопка «Перевернуть»)
+  // Сторона КАЖДОЙ карты (карта → лицом ли вверх) — приходит из состояния сервера.
+  // Единого «колода лицом вверх» больше нет: карты переворачиваются по одной.
+  private facing: Record<string, boolean> = {};
+  // Какие карты в этот момент показывают ОБРАТНУЮ сторону, потому что переворот уже
+  // перевалил через ребро, а состояние ещё не пришло/анимация ещё идёт.
+  // Оптимистично показанная сторона: карта → какой стороной она уже повёрнута на экране.
+  // Живёт до прихода состояния (тогда снимается как подтверждённая) или до таймаута —
+  // данные всегда побеждают анимацию.
+  private flipExpect = new Map<string, { up: boolean; until: number }>();
+  // Переворот: карты + задержка старта (стопка переворачивается волной).
+  private flipAnim: { t: number; dur: number; angle: number; entries: { v: CardVisual; delay: number }[] } | null = null;
+  // Резиновая тянучка запрещённого жеста (свайп вверх по стопке).
+  private stretchAnim: { t: number; dur: number; angle: number } | null = null;
+  private flipMap = new Map<CardVisual, number>(); // карта → задержка старта её переворота
+  private stretch = { dx: 0, dy: 0 }; // текущее смещение резиновой тянучки
+  private onFlipDeck: (() => void) | null = null;
+  private onFlipCards: ((cards: string[]) => void) | null = null;
+  private onDeckFx: ((fx: DeckFxMessage) => void) | null = null;
+  private onFanChange: ((fanned: boolean) => void) | null = null;
   private deckHit: Container | null = null;
   private lastDeckTapMs = 0;
   private onDeckDoubleClick: (() => void) | null = null;
@@ -134,7 +155,7 @@ export class RoomEngine {
   // Драг колоды дилером: press — палец/мышь прижаты у колоды (ещё не факт что драг),
   // dragging — порог смещения пройден, колода реально едет за курсором.
   private deckDraggable = false;
-  private press: { id: number; startX: number; startY: number; x: number; y: number } | null = null;
+  private press: { id: number; startX: number; startY: number; x: number; y: number; samples: SwipeSample[] } | null = null;
   private dragging = false;
   private hoverZone: DropZone | null = null;
   private onDeckDrop: ((zone: "center" | "safe") => void) | null = null;
@@ -161,6 +182,8 @@ export class RoomEngine {
     t: number;
     dur: number;
     entries: { v: CardVisual; from: ShufflePose; dir: Dir; dist: number; spin: number }[];
+    flipMid?: CardVisual[]; // карты, которые в середине полёта показывают другую сторону
+    flipped?: boolean;
   } | null = null;
   // Любая тасовка (кнопка, свайп, будущие жесты) сообщает наверх НОВЫЙ порядок — сеть
   // разбирается сама (открыть сессию, редкий прогресс, финал). Движок о сети не знает.
@@ -393,7 +416,14 @@ export class RoomEngine {
       newOrder.length > 0 &&
       [...oldOrder].sort().join("|") === [...newOrder].sort().join("|");
     const changed = oldOrder.join("|") !== newOrder.join("|");
-    if (sameSet && changed && shouldPlay(anim.priority.shuffle, this.profile)) {
+    if (sameSet && changed && this.flipAnim) {
+      // Идёт переворот колоды: сервер прислал реверснутый порядок. Это НЕ растасовка —
+      // раскладываем карты по местам без полёта, весь показ делает сам переворот.
+      this.cards.forEach((c, i) => {
+        c.sprite.zIndex = i;
+        c.body.setTarget(this.restTarget(i));
+      });
+    } else if (sameSet && changed && shouldPlay(anim.priority.shuffle, this.profile)) {
       this.scrambleAnim = null; // сумбур закончился — оседаем в реальный порядок
       this.startShuffleAnim(oldOrder);
     } else if (sameSet && !changed) {
@@ -434,10 +464,14 @@ export class RoomEngine {
     this.wake();
   }
 
-  // Перевернуть колоду лицом вверх / рубашкой вверх (кнопка). Не зависит от веера/зоны.
-  setDeckFaceUp(v: boolean): void {
-    if (v === this.deckFaceUp) return;
-    this.deckFaceUp = v;
+  // Стороны карт из состояния сервера — ЕДИНСТВЕННЫЙ источник правды. Анимации переворота
+  // только показывают процесс; если данные разойдутся с анимацией, побеждают данные.
+  setCardFacing(facing: Record<string, boolean>): void {
+    this.facing = facing;
+    // Пришли настоящие данные: всё, что они уже подтверждают, перестаёт быть «оптимизмом».
+    for (const [card, exp] of this.flipExpect) {
+      if (facing[card] === exp.up) this.flipExpect.delete(card);
+    }
     this.applyCardTextures();
     this.wake();
   }
@@ -469,9 +503,47 @@ export class RoomEngine {
     this.onCardReorder = fn;
   }
 
+  setOnFlipDeck(fn: (() => void) | null): void {
+    this.onFlipDeck = fn;
+  }
+
+  setOnFlipCards(fn: ((cards: string[]) => void) | null): void {
+    this.onFlipCards = fn;
+  }
+
+  // Эффект для остальных игроков: сервер раздаст его как есть, вместе с длительностью,
+  // чтобы у них анимация шла столько же, сколько шла здесь.
+  setOnDeckFx(fn: ((fx: DeckFxMessage) => void) | null): void {
+    this.onDeckFx = fn;
+  }
+
+  setOnFanChange(fn: ((fanned: boolean) => void) | null): void {
+    this.onFanChange = fn;
+    fn?.(this.deckFanned);
+  }
+
+  // Проиграть чужой эффект (пришёл с сервера). Состояние он не трогает — только показывает.
+  playFx(fx: DeckFxMessage): void {
+    if (this.destroyed) return;
+    const dur = Math.max(0.05, fx.dur / 1000);
+    if (fx.kind === "flip-deck") this.startFlip(this.cards, fx.angle, dur, false);
+    else if (fx.kind === "flip-cards") {
+      const vs = this.cards.filter((c) => fx.cards.includes(c.card));
+      this.startFlip(vs, fx.angle, dur, false);
+    } else if (fx.kind === "stretch") this.startStretch(fx.angle, dur);
+    else if (fx.kind === "spill") this.startSpill(fx.count, dur, false);
+  }
+
   // Колбэк на ЛЮБУЮ тасовку: наверх уходит готовый порядок колоды.
   setOnShuffleChange(fn: ((order: string[]) => void) | null): void {
     this.onShuffleChange = fn;
+  }
+
+  // Кнопка «Перевернуть колоду» (доступна, только пока веер собран). Переворот идёт
+  // сверху вниз — как если бы стопку перевернули к себе.
+  flipDeckByButton(): void {
+    if (this.destroyed || this.cards.length === 0 || this.flipAnim) return;
+    this.flipWholeDeck(Math.PI / 2);
   }
 
   // Кнопка «Растасовать». Порядок считаем здесь же (как и у свайпа): сначала короткий
@@ -543,7 +615,14 @@ export class RoomEngine {
       return;
     }
     if (this.press) return;
-    this.press = { id: e.pointerId, startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y };
+    this.press = {
+      id: e.pointerId,
+      startX: e.global.x,
+      startY: e.global.y,
+      x: e.global.x,
+      y: e.global.y,
+      samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
+    };
     if (this.deckHit) this.deckHit.cursor = "grabbing";
   }
 
@@ -572,6 +651,12 @@ export class RoomEngine {
         this.cardPress = null;
         return;
       }
+      // Свайп ВНИЗ по вееру переворачивает карту (или пачку, если она ужата).
+      if (this.fanOpen() && isSwipeDown(v.vx, v.vy) && p.y - p.startY >= this.layout.cardH * anim.swipe.minTravel) {
+        this.handleFanFlipSwipe(v.vx, v.vy, p.index);
+        this.cardPress = null;
+        return;
+      }
       const dx = this.cardPress.x - this.cardPress.startX;
       const dy = this.cardPress.y - this.cardPress.startY;
       if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return; // ещё тык, не жест
@@ -584,6 +669,8 @@ export class RoomEngine {
     if (!this.press || e.pointerId !== this.press.id) return;
     this.press.x = e.global.x;
     this.press.y = e.global.y;
+    this.press.samples.push({ x: e.global.x, y: e.global.y, t: performance.now() });
+    if (this.press.samples.length > 12) this.press.samples.shift();
     if (!this.dragging) {
       const dx = this.press.x - this.press.startX;
       const dy = this.press.y - this.press.startY;
@@ -610,7 +697,20 @@ export class RoomEngine {
     const wasDragging = this.dragging;
     const px = this.press.x;
     const py = this.press.y;
+    // Быстрый бросок по стопке — это жест (переворот/тянучка/рассыпание), а не перенос
+    // колоды: медленным перетаскиванием двигают, резким движением переворачивают.
+    const v = swipeVelocity(this.press.samples, anim.swipe.windowMs);
     this.press = null;
+    if (this.handleDeckSwipe(v.vx, v.vy)) {
+      this.dragging = false;
+      this.hoverZone = null;
+      if (this.deckHit) this.deckHit.cursor = this.deckDraggable ? "grab" : "pointer";
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i))); // колода на месте
+      this.drawZones();
+      this.onDragChange?.(false);
+      this.wake();
+      return;
+    }
     this.dragging = false;
     this.hoverZone = null;
     if (this.deckHit) this.deckHit.cursor = this.deckDraggable ? "grab" : "pointer";
@@ -634,7 +734,10 @@ export class RoomEngine {
     } else {
       if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
         this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
-        if (drop !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
+        if (drop !== "safe" && this.deckFanned) {
+          this.deckFanned = false; // веер живёт только в сейф-зоне
+          this.onFanChange?.(false);
+        }
         this.onDeckDrop?.(drop);
       }
       // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
@@ -645,6 +748,115 @@ export class RoomEngine {
     }
     this.positionDeckHit();
     this.wake();
+  }
+
+  // ——— перевороты, тянучка, рассыпание ———
+
+  // Переворот набора карт вокруг оси, перпендикулярной жесту. Стопка переворачивается
+  // волной (задержка на карту), отдельные карты — разом. emit=true → сообщить наверх
+  // (состояние на сервер + эффект остальным); false → это уже чужой эффект, играем молча.
+  private startFlip(cards: CardVisual[], angle: number, dur: number, emit: boolean, wholeDeck = false): void {
+    if (cards.length === 0) return;
+    const stagger = wholeDeck ? anim.flip.stagger : 0;
+    const entries = cards.map((v, i) => ({ v, delay: i * stagger }));
+    this.flipAnim = { t: 0, dur, angle, entries };
+    this.flipMap = new Map(entries.map((e) => [e.v, e.delay]));
+    if (emit) {
+      const total = Math.round((dur + entries[entries.length - 1].delay) * 1000);
+      if (wholeDeck) {
+        this.onFlipDeck?.();
+        this.onDeckFx?.({ kind: "flip-deck", angle, cards: [], count: 0, dur: total });
+      } else {
+        const ids = cards.map((c) => c.card);
+        this.onFlipCards?.(ids);
+        this.onDeckFx?.({ kind: "flip-cards", angle, cards: ids, count: 0, dur: total });
+      }
+    }
+    this.wake();
+  }
+
+  // Переворот всей колоды: порядок реверсится на сервере, локально это волна переворотов.
+  private flipWholeDeck(angle: number, emit = true): void {
+    this.startFlip([...this.cards], angle, anim.flip.deckDur, emit, true);
+  }
+
+  private startStretch(angle: number, dur: number = anim.flip.stretchDur, emit = false): void {
+    this.stretchAnim = { t: 0, dur, angle };
+    if (emit) this.onDeckFx?.({ kind: "stretch", angle, cards: [], count: 0, dur: Math.round(dur * 1000) });
+    this.wake();
+  }
+
+  // Рассыпание: несколько карт разлетаются и собираются обратно, каждая — случайной
+  // стороной (50/50). Именно стороны и уходят на сервер: анимация тут ни при чём.
+  private startSpill(count: number, dur: number, emit: boolean): void {
+    const n = this.cards.length;
+    if (n < 2) return;
+    const sp = anim.flip.spill;
+    const take = Math.max(1, Math.min(n, count));
+    const step = Math.max(1, Math.floor(n / take));
+    const picked: CardVisual[] = [];
+    for (let i = 0; i < n && picked.length < take; i += step) picked.push(this.cards[i]);
+
+    const dist = this.layout.cardH * sp.dist;
+    const entries = picked.map((v, k) => {
+      const a = -Math.PI / 2 + ((k + 0.5) / picked.length - 0.5) * Math.PI * 1.4;
+      return {
+        v,
+        from: { x: v.body.px, y: v.body.py, rot: v.body.rotation },
+        dir: { dx: Math.cos(a), dy: Math.sin(a) },
+        dist,
+        spin: (Math.cos(a) >= 0 ? 1 : -1) * anim.swipe.spin,
+      };
+    });
+    this.splashAnim = { t: 0, dur, entries };
+
+    if (emit) {
+      // Сторона каждой рассыпанной карты решается монеткой — и это РЕЗУЛЬТАТ, он идёт
+      // на сервер. Остальным уедет только сам эффект; стороны они получат состоянием.
+      const flipped = picked.filter(() => Math.random() < 0.5);
+      if (flipped.length > 0) {
+        this.splashAnim.flipMid = flipped; // покажем другую сторону в середине полёта
+        this.onFlipCards?.(flipped.map((c) => c.card));
+      }
+      this.onDeckFx?.({ kind: "spill", angle: 0, cards: [], count: take, dur: Math.round(dur * 1000) });
+    }
+    this.wake();
+  }
+
+  // Свайп по СТОПКЕ (не веер): вниз/вбок/диагональ — переворот, строго вверх — тянучка,
+  // а повторный свайп поверх ещё играющей анимации — рассыпание.
+  private handleDeckSwipe(vx: number, vy: number): boolean {
+    const sw = classifyDeckSwipe(vx, vy);
+    if (sw.action === "none") return false;
+    const busy = !!this.flipAnim || !!this.stretchAnim;
+    if (busy) {
+      if (this.splashAnim) return true; // рассыпание уже идёт — второй раз не запускаем
+      const sp = anim.flip.spill;
+      const count = sp.minCards + Math.floor(Math.random() * (sp.maxCards - sp.minCards + 1));
+      this.flipAnim = null;
+      this.stretchAnim = null;
+      this.startSpill(count, sp.dur, true);
+      return true;
+    }
+    if (sw.action === "stretch") {
+      this.startStretch(sw.angle, anim.flip.stretchDur, true);
+      return true;
+    }
+    this.flipWholeDeck(sw.angle);
+    return true;
+  }
+
+  // Свайп ВНИЗ по вееру: переворачивает карту под пальцем. Если она ужата (видна узкой
+  // полоской), одной картой не обойтись — переворачиваются и соседние, тем больше, чем
+  // сильнее свайп: попасть точно в ужатую карту нельзя, поэтому берём «пачку».
+  private handleFanFlipSwipe(vx: number, vy: number, index: number): void {
+    const n = this.cards.length;
+    if (n === 0) return;
+    const strength = swipeStrength(vx, vy);
+    const wide = this.canGrabAt(index); // карта видна достаточно — переворачиваем только её
+    const count = wide ? 1 : 2 + Math.round(strength); // 2..3 у ужатых
+    const picked = swipeCardIndices(index, count, n).map((i) => this.cards[i]);
+    this.startFlip(picked, Math.atan2(vy, vx), anim.flip.cardDur, true);
   }
 
   // ——— драг одной карты из веера ———
@@ -910,6 +1122,7 @@ export class RoomEngine {
       // В центре дабл-клик переносит колоду в сейф-зону и СРАЗУ раскрывает веер.
       this.deckZone = "safe";
       this.deckFanned = true;
+      this.onFanChange?.(true);
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       this.positionDeckHit();
       this.onDeckDoubleClick?.(); // сервер подтвердит перенос эхом
@@ -919,6 +1132,7 @@ export class RoomEngine {
 
   private toggleFan(): void {
     this.deckFanned = !this.deckFanned;
+    this.onFanChange?.(this.deckFanned);
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.wake();
@@ -1114,6 +1328,21 @@ export class RoomEngine {
     const top = this.cards[this.cards.length - 1];
     if (!top) return;
     if (this.deckBodyCount !== this.cards.length) this.drawDeckBody();
+    if (this.flipAnim && this.flipMap.has(top)) {
+      // «Кирпич» переворачивается вместе с верхней картой — как одна вещь.
+      const delay = this.flipMap.get(top)!;
+      const p = Math.max(0, Math.min(1, (this.flipAnim.t - delay) / this.flipAnim.dur));
+      const m = flipTransform(
+        top.body.px + this.stretch.dx,
+        top.body.py + this.stretch.dy,
+        top.body.rotation,
+        top.body.scaleVal,
+        this.flipAnim.angle,
+        flipFactor(p),
+      );
+      g.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.tx, m.ty));
+      return;
+    }
     g.x = top.sprite.x;
     g.y = top.sprite.y;
     g.rotation = top.sprite.rotation;
@@ -1287,6 +1516,50 @@ export class RoomEngine {
 
     if (this.cardDrag) this.applyCardDragTargets();
 
+    // Переворот: у каждой карты своя задержка (стопка идёт волной). Ровно на «ребре»
+    // подменяем текстуру — момент, когда подмену не видно.
+    if (this.flipAnim) {
+      const fa = this.flipAnim;
+      fa.t += frameDt;
+      let done = true;
+      for (const e of fa.entries) {
+        const p = (fa.t - e.delay) / fa.dur;
+        if (p < 1) done = false;
+        if (flipShowsOther(p) && !this.flipExpect.has(e.v.card)) this.expectFlipped([e.v]);
+      }
+      if (done) {
+        this.flipAnim = null;
+        this.flipMap.clear();
+      }
+    }
+
+    // Тянучка запрещённого жеста.
+    if (this.stretchAnim) {
+      const st = this.stretchAnim;
+      st.t += frameDt;
+      const p = st.t / st.dur;
+      if (p >= 1) {
+        this.stretchAnim = null;
+        this.stretch = { dx: 0, dy: 0 };
+      } else {
+        this.stretch = stretchOffset(p, st.angle, this.layout.cardH * anim.flip.stretchAmp);
+      }
+    }
+
+    // Оптимистичная сторона живёт ограниченное время: если данные так и не пришли,
+    // возвращаемся к тому, что говорит сервер. Правда всегда сильнее анимации.
+    if (this.flipExpect.size > 0) {
+      const now = performance.now();
+      let changed = false;
+      for (const [card, exp] of this.flipExpect) {
+        if (exp.until <= now) {
+          this.flipExpect.delete(card);
+          changed = true;
+        }
+      }
+      if (changed) this.applyCardTextures();
+    }
+
     if (this.reject) {
       this.reject.t += frameDt;
       if (this.reject.t >= this.reject.dur) {
@@ -1313,6 +1586,8 @@ export class RoomEngine {
       !this.scrambleAnim &&
       !this.splashAnim &&
       !this.pendingShuffle &&
+      !this.flipAnim &&
+      !this.stretchAnim &&
       !this.press &&
       !this.cardPress &&
       !this.cardDrag &&
@@ -1361,8 +1636,21 @@ export class RoomEngine {
 
     // Тряска отбоя: общая для колоды, но если отбивается ОДНА карта — трясётся только она.
     const sh = !this.rejectCard || this.rejectCard === c ? this.shake : ZERO_SHAKE;
-    c.sprite.x = c.body.px + sh.dx;
-    c.sprite.y = c.body.py + sh.dy;
+    const x = c.body.px + sh.dx + this.stretch.dx;
+    const y = c.body.py + sh.dy + this.stretch.dy;
+
+    // Карта в перевороте рисуется матрицей: вдоль оси жеста размер цел, поперёк —
+    // схлопывается (см. flipTransform). Обычная карта — привычными x/y/rot/scale.
+    const delay = this.flipMap.get(c);
+    if (this.flipAnim && delay !== undefined) {
+      const p = Math.max(0, Math.min(1, (this.flipAnim.t - delay) / this.flipAnim.dur));
+      const m = flipTransform(x, y, rot + sh.rot, scale, this.flipAnim.angle, flipFactor(p));
+      c.sprite.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.tx, m.ty));
+      return;
+    }
+
+    c.sprite.x = x;
+    c.sprite.y = y;
     c.sprite.rotation = rot + sh.rot;
     c.sprite.scale.set(scale);
   }
@@ -1443,12 +1731,28 @@ export class RoomEngine {
     return { body, sprite, card, phase: 0 };
   }
 
-  // Лицо или рубашка на каждой карте — по флагу deckFaceUp (кнопка «Перевернуть»).
-  // Не зависит от веера/зоны. Рубашка/лицо — сменяемые текстуры (стиль колоды).
+  // Лицо или рубашка — у каждой карты своя сторона (см. facing). Во время переворота,
+  // после прохождения ребра, карта временно показывает противоположную сторону: так
+  // подмена текстуры не видна, а по приходу состояния всё сойдётся само.
   private applyCardTextures(): void {
-    for (const c of this.cards) {
-      c.sprite.texture = this.deckFaceUp && c.card ? this.faceTexFor(c.card) : this.backTex!;
+    for (const c of this.cards) c.sprite.texture = this.textureFor(c.card);
+  }
+
+  private textureFor(card: string): Texture {
+    const exp = this.flipExpect.get(card);
+    const up = exp ? exp.up : !!this.facing[card];
+    return up && card ? this.faceTexFor(card) : this.backTex!;
+  }
+
+  // Показать карту другой стороной, не дожидаясь сервера. Ставится в момент «ребра»
+  // переворота; снимется, когда придут данные (или по таймауту — правда важнее).
+  private expectFlipped(cards: CardVisual[]): void {
+    const until = performance.now() + anim.flip.optimisticMs;
+    for (const c of cards) {
+      const cur = this.flipExpect.get(c.card);
+      this.flipExpect.set(c.card, { up: !(cur ? cur.up : !!this.facing[c.card]), until });
     }
+    this.applyCardTextures();
   }
 
   private faceTexFor(card: string): Texture {
@@ -1636,6 +1940,13 @@ export class RoomEngine {
     this.poke = null;
     this.hoverTarget = 0;
     this.onShuffleChange?.(nextOrder); // наверх уходит готовый порядок; сеть шлёт его сама
+
+    // Самый сильный бросок иногда (33%) переворачивает одну из летящих карт — «неаккуратно
+    // швырнул». Сторона решается ЗДЕСЬ и уходит на сервер как результат.
+    if (strength >= anim.flip.strongSwipe && Math.random() < anim.flip.swipeShuffleFlipChance) {
+      const victim = thrown[Math.floor(Math.random() * thrown.length)];
+      this.startFlip([victim], -Math.PI / 2, anim.flip.cardDur, true);
+    }
     this.wake();
   }
 
@@ -1646,6 +1957,11 @@ export class RoomEngine {
     if (!sa) return;
     sa.t += dt;
     const p = Math.min(1, sa.t / sa.dur);
+    // Рассыпанные карты меняют сторону в верхней точке полёта — как настоящие, в воздухе.
+    if (sa.flipMid && !sa.flipped && p >= 0.5) {
+      sa.flipped = true;
+      this.expectFlipped(sa.flipMid);
+    }
     const u = easeOutQuad(p); // база едет из старого места в новый слот
     const arc = Math.sin(Math.PI * p); // вылет в сторону и обратно
     for (const e of sa.entries) {
