@@ -9,12 +9,10 @@ function make(count = 52, seed = 1) {
 }
 
 describe("ShuffleChoreography", () => {
-  it("длительность = сумма фаз из конфига", () => {
+  it("длительность = фазы + окно разброса старта (stagger)", () => {
     const c = make();
-    expect(c.durationSec).toBeCloseTo(
-      anim.shuffle.lift.dur + anim.shuffle.riffle.dur + anim.shuffle.settle.dur,
-      5,
-    );
+    const { lift, riffle, settle, stagger } = anim.shuffle;
+    expect(c.durationSec).toBeCloseTo(lift.dur + riffle.dur + settle.dur + stagger.total, 5);
   });
 
   it("выдаёт цель на каждую карту", () => {
@@ -39,17 +37,20 @@ describe("ShuffleChoreography", () => {
     }
   });
 
-  it("в середине риффла стопка разъезжается на две половины (лево/право)", () => {
+  it("в середине риффла половины в среднем разъезжаются влево/вправо", () => {
     const c = make(20);
     const tMid = anim.shuffle.lift.dur + anim.shuffle.riffle.dur / 2;
     const s = c.sample(tMid);
-    const left = s.slice(0, 10);
-    const right = s.slice(10);
-    // левая половина ушла влево от якоря, правая — вправо
-    expect(Math.max(...left.map((t) => t.x ?? 0))).toBeLessThan(anchor.x);
-    expect(Math.min(...right.map((t) => t.x ?? 0))).toBeGreaterThan(anchor.x);
-    // разлёт заметный
-    expect(anchor.x - (left[0].x ?? 0)).toBeGreaterThan(anim.shuffle.riffle.spread * 0.5);
+    const left = s.slice(0, 10).map((t) => (t.x ?? 0) - anchor.x);
+    const right = s.slice(10).map((t) => (t.x ?? 0) - anchor.x);
+    const avg = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
+    // левая половина в среднем левее якоря, правая — правее
+    expect(avg(left)).toBeLessThan(0);
+    expect(avg(right)).toBeGreaterThan(0);
+    // разлёт заметный (хотя бы одна карта ушла на пол-spread)
+    expect(Math.max(...s.map((t) => Math.abs((t.x ?? 0) - anchor.x)))).toBeGreaterThan(
+      anim.shuffle.riffle.spread * 0.5,
+    );
   });
 
   it("в риффле стопка приподнята над покоем", () => {
@@ -58,6 +59,36 @@ describe("ShuffleChoreography", () => {
     const tMid = anim.shuffle.lift.dur + anim.shuffle.riffle.dur / 2;
     const liftedY0 = c.sample(tMid)[0].y ?? 0;
     expect(liftedY0).toBeLessThan(restY0); // меньше Y = выше на экране
+  });
+
+  it("веер/каскад: карты стартуют не одновременно (задержка между стартами)", () => {
+    const c = make(20);
+    const rest = c.sample(0);
+    const s = c.sample(0.05); // сразу после старта
+    const moved = s.filter((t, i) => Math.abs((t.y ?? 0) - (rest[i].y ?? 0)) > 0.5);
+    // часть карт уже пошла вверх, часть ещё в покое → это каскад, а не одновременный старт
+    expect(moved.length).toBeGreaterThan(0);
+    expect(moved.length).toBeLessThan(20);
+  });
+
+  it("чересполосица: старты чередуют половины (L,R,L,R,…)", () => {
+    const c = make(20); // half=10: индексы 0..9 — левая половина, 10..19 — правая
+    const order = c.startOrder();
+    expect(order).toHaveLength(20);
+    const sides = order.map((i) => (i < 10 ? "L" : "R"));
+    let alternations = 0;
+    for (let k = 1; k < sides.length; k++) if (sides[k] !== sides[k - 1]) alternations++;
+    // почти все соседние старты — с разных половин (классический riffle-bridge)
+    expect(alternations).toBeGreaterThan(sides.length - 3);
+  });
+
+  it("дистанция разлёта у карт одной половины различается (не строем)", () => {
+    const c = make(20);
+    const tMid = anim.shuffle.lift.dur + anim.shuffle.riffle.dur / 2;
+    const s = c.sample(tMid);
+    const leftOffsets = s.slice(0, 10).map((t) => Math.abs((t.x ?? 0) - anchor.x));
+    const uniq = new Set(leftOffsets.map((v) => v.toFixed(2)));
+    expect(uniq.size).toBeGreaterThan(1);
   });
 
   it("детерминизм: одинаковый seed → идентичный sample", () => {

@@ -70,6 +70,7 @@ export class RoomEngine {
     container.appendChild(app.canvas);
     this.app = app;
     this.world = new Container();
+    this.world.sortableChildren = true; // рендер по zIndex — нужно для чересполосицы половин в риффле
     app.stage.addChild(this.world);
 
     this.cardTex = this.makeCardBackTexture(app);
@@ -115,10 +116,13 @@ export class RoomEngine {
       return;
     }
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1;
-    this.shuffleAnim = {
-      choreo: new ShuffleChoreography({ count: this.cards.length, anchor: this.layout.deckAnchor, seed }),
-      t: 0,
-    };
+    const choreo = new ShuffleChoreography({ count: this.cards.length, anchor: this.layout.deckAnchor, seed });
+    // z-порядок по чересполосице: чем позже стартует карта, тем выше слой — половины
+    // визуально прошивают друг друга при складывании (riffle-bridge), а не лежат пачками.
+    choreo.startOrder().forEach((cardIdx, k) => {
+      if (this.cards[cardIdx]) this.cards[cardIdx].sprite.zIndex = k;
+    });
+    this.shuffleAnim = { choreo, t: 0 };
     this.wake();
   }
 
@@ -173,7 +177,10 @@ export class RoomEngine {
       for (let i = 0; i < this.cards.length && i < targets.length; i++) {
         this.cards[i].body.setTarget(targets[i]);
       }
-      if (this.shuffleAnim.choreo.done(this.shuffleAnim.t)) this.shuffleAnim = null;
+      if (this.shuffleAnim.choreo.done(this.shuffleAnim.t)) {
+        this.shuffleAnim = null;
+        this.cards.forEach((c, i) => (c.sprite.zIndex = i)); // вернуть z-порядок ровной стопки
+      }
     }
 
     for (const c of this.cards) {
@@ -201,6 +208,7 @@ export class RoomEngine {
     while (this.cards.length < this.deckCount) {
       const sprite = new Sprite(this.cardTex);
       sprite.anchor.set(0.5);
+      sprite.zIndex = this.cards.length; // покой: выше по стопке = выше в z (совпадает с restTarget по Y)
       const body = new CardBody();
       body.snapTo(this.restTarget(this.cards.length));
       this.world.addChild(sprite);
