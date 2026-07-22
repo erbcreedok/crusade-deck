@@ -39,11 +39,15 @@ export function RoomScreen({
   animation,
   fourColor,
   cardBack,
+  onOpenSettings,
+  onLeaveRoom,
 }: {
   room: Room;
   animation: AnimationSettings;
   fourColor: boolean;
   cardBack: CardBackId;
+  onOpenSettings: () => void;
+  onLeaveRoom: () => void;
 }) {
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
@@ -54,7 +58,7 @@ export function RoomScreen({
   // Где лежит колода по мнению сервера ("center" или id держателя). В зону для движка
   // переводим ниже — для этого нужно знать, кто сейчас сидит за столом.
   const [deckLocation, setDeckLocation] = useState<string>("center");
-  // Где именно у держателя: "hand" или "pocket0..2" (см. deckZone.ts).
+  // Где именно у держателя: "hand" или "safe0..2" (см. deckZone.ts).
   const [deckSlot, setDeckSlot] = useState<string>("");
   const [draggingDeck, setDraggingDeck] = useState(false);
   // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
@@ -155,7 +159,9 @@ export function RoomScreen({
   useEffect(() => {
     const el = topbarRef.current;
     if (!el) return;
-    const apply = () => setTopInset(el.getBoundingClientRect().height + 8);
+    // Высота шапки константна (--topbar-h), но её положение зависит от safe-area,
+    // поэтому берём НИЖНЮЮ границу: ровно столько сверху занято, столько и отдаём.
+    const apply = () => setTopInset(el.getBoundingClientRect().bottom + 8);
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(el);
@@ -183,7 +189,7 @@ export function RoomScreen({
   const place = deckPlaceFor(deckLocation, deckSlot, room.sessionId, (id: string) => seatedIds.has(id));
   const deckZone = place.zone;
   const deckSlotIndex = place.slot;
-  // Держатель колоды — только если это чужое место; своё — это рука или карман.
+  // Держатель колоды — только если это чужое место; своё — это рука или сейф.
   const deckHolder = deckZone === "seat" ? deckLocation : null;
   // Режим МОЕЙ руки: открытая — остальные видят её так же, как я; закрытая — оборотку.
   const handOpen = players.find((p) => p.id === room.sessionId)?.handOpen ?? false;
@@ -193,10 +199,10 @@ export function RoomScreen({
 
   // Драг-н-дроп: колода брошена в дроп-зону — шлём её на сервер (там валидируется).
   const onDeckDrop = useCallback(
-    (zone: "center" | "hand" | "pocket", slot: number) => {
+    (zone: "center" | "hand" | "safe", slot: number) => {
       if (!canMoveDeck) return;
-      // Слот важен только для кармана: туда влезает до трёх отдельных колод.
-      room.send("move_deck", zone === "pocket" ? { zone, slot } : { zone });
+      // Слот важен только для сейфа: туда влезает до трёх отдельных колод.
+      room.send("move_deck", zone === "safe" ? { zone, slot } : { zone });
     },
     [canMoveDeck, room],
   );
@@ -303,8 +309,8 @@ export function RoomScreen({
   const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
   const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
   // Инструменты колоды (Растасовать/Перевернуть) — доступны дилеру, ПОКА КОЛОДА У МЕНЯ
-  // (стол, рука или карман), не во время драга.
-  const deckIsMine = deckZone === "center" || deckZone === "hand" || deckZone === "pocket";
+  // (стол, рука или сейф), не во время драга.
+  const deckIsMine = deckZone === "center" || deckZone === "hand" || deckZone === "safe";
   const showDeckTools = phase === "lobby" && amIDealer && !draggingDeck && deckIsMine;
 
   // Пункты слайд-ап меню. Здесь же будут настройки и выход — пока то, что уже умеет
@@ -329,6 +335,9 @@ export function RoomScreen({
       menuItems.push({ label: "🎴 Перевернуть колоду", onClick: () => setFlipSignal((v) => v + 1) });
     }
   }
+  // Веер растёт вверх, поэтому последние в списке — самые верхние пункты.
+  menuItems.push({ label: "🚪 Выйти в меню", onClick: onLeaveRoom });
+  menuItems.push({ label: "⚙ Настройки", onClick: onOpenSettings });
 
   return (
     <div className="table-screen">

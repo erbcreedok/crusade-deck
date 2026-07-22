@@ -14,7 +14,7 @@ interface Props {
   topInset: number; // высота топбара комнаты: места садятся под ним, а не под бейджами
   bottomInset: number; // высота панели действий: игровые зоны заканчиваются над ней
   deckZone: DeckZone;
-  deckSlot: number; // слот кармана (0..2), если колода лежит в кармане
+  deckSlot: number; // слот сейфа (0..2), если колода лежит в сейфе
   deckDraggable: boolean;
   fourColor: boolean;
   cardBack: CardBackId; // скин рубашки (меню → Графика)
@@ -23,7 +23,7 @@ interface Props {
   flipSignal: number; // растёт при нажатии «Перевернуть колоду»
   incomingFx: DeckFxIncoming | null; // чужой эффект с сервера — проиграть как есть
   rejectedFlip: { cards: string[]; text: string; seq: number } | null; // сервер не подтвердил переворот
-  onDeckDrop: (zone: "center" | "hand" | "pocket", slot: number) => void;
+  onDeckDrop: (zone: "center" | "hand" | "safe", slot: number) => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
   onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
   onFanChange: (fanned: boolean) => void; // веер раскрылся/собрался (от этого зависят кнопки)

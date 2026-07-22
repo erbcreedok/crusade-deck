@@ -13,20 +13,20 @@ export interface RoundedRect {
 export interface RoomLayout {
   centerZone: RoundedRect; // общая зона игры (широкая, сверху)
   // Низ экрана — одна горизонтальная полоса, поделённая ПО ВЕРТИКАЛИ:
-  // рука слева (80%) и карман справа (20%). Рука — единственное место, где колода
-  // раскрывается веером; карман — визуальный «сейф» под личные колоды, там карты
+  // рука слева (80%) и сейф справа (20%). Рука — единственное место, где колода
+  // раскрывается веером; сейф — визуальный «сейф» под личные колоды, там карты
   // всегда рубашкой вверх и веера не бывает.
   handZone: RoundedRect;
-  pocketZone: RoundedRect;
-  pocketSlots: RoundedRect[]; // три слота кармана — до трёх отдельных колод
+  safeZone: RoundedRect;
+  safeSlots: RoundedRect[]; // три слота сейфа — до трёх отдельных колод
   deckAnchor: { x: number; y: number }; // покой колоды в центре = центр centerZone
   handAnchor: { x: number; y: number }; // покой колоды в руке = центр handZone
-  pocketAnchors: { x: number; y: number }[]; // покой колоды в каждом слоте кармана
+  safeAnchors: { x: number; y: number }[]; // покой колоды в каждом слоте сейфа
   cardW: number;
   cardH: number;
 }
 
-export const POCKET_SLOTS = 3;
+export const SAFE_SLOTS = 3;
 
 const CARD_RATIO = 0.7; // ширина / высота игральной карты (~2.5" x 3.5")
 const CARD_MIN_H = 48;
@@ -40,7 +40,7 @@ export interface LayoutInsets {
   left: number;
   right: number;
   // Высота панели действий внизу (HTML поверх канваса). Игровые зоны заканчиваются
-  // НАД ней: кнопки не должны перекрывать ни руку, ни карман.
+  // НАД ней: кнопки не должны перекрывать ни руку, ни сейф.
   bottom?: number;
 }
 
@@ -60,7 +60,7 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   const freeTop = Math.min(insets.top, h * 0.4);
 
   // Нижняя полоса: одна горизонталь на всю ширину зоны, поделённая по вертикали.
-  // Рука широкая (в ней веер, ей нужно место), карман узкий — это «карман», а не стол.
+  // Рука широкая (в ней веер, ей нужно место), сейф узкий — это «сейф», а не стол.
   // Панель действий забирает низ экрана; клампим её вклад, чтобы даже абсурдная панель
   // не схлопнула полосу в ноль.
   const freeBottom = Math.min(Math.max(0, insets.bottom ?? 0), h * 0.5);
@@ -70,13 +70,13 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   const bandLeft = (w - zoneW) / 2;
   const gap = 10;
   const handW = Math.max(cardW, zoneW * 0.8 - gap / 2);
-  const pocketW = Math.max(cardW * 0.6, zoneW * 0.2 - gap / 2);
+  const safeW = Math.max(cardW * 0.6, zoneW * 0.2 - gap / 2);
 
   const handZone: RoundedRect = { cx: bandLeft + handW / 2, cy: bandCy, w: handW, h: bandH, r };
-  const pocketZone: RoundedRect = {
-    cx: bandLeft + handW + gap + pocketW / 2,
+  const safeZone: RoundedRect = {
+    cx: bandLeft + handW + gap + safeW / 2,
     cy: bandCy,
-    w: pocketW,
+    w: safeW,
     h: bandH,
     r,
   };
@@ -91,29 +91,29 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   const centerCy = centerTop + Math.max(centerH / 2, (centerBottom - centerTop) / 2);
   const centerZone: RoundedRect = { cx: centerCx, cy: centerCy, w: centerW, h: centerH, r };
 
-  // Слоты кармана — три равные полки сверху вниз: до трёх отдельных колод.
+  // Слоты сейфа — три равные полки сверху вниз: до трёх отдельных колод.
   const slotGap = 6;
-  const slotH = (bandH - slotGap * (POCKET_SLOTS + 1)) / POCKET_SLOTS;
-  const pocketSlots: RoundedRect[] = Array.from({ length: POCKET_SLOTS }, (_, i) => ({
-    cx: pocketZone.cx,
-    cy: pocketZone.cy - bandH / 2 + slotGap * (i + 1) + slotH * (i + 0.5),
-    w: Math.max(1, pocketW - slotGap * 2),
+  const slotH = (bandH - slotGap * (SAFE_SLOTS + 1)) / SAFE_SLOTS;
+  const safeSlots: RoundedRect[] = Array.from({ length: SAFE_SLOTS }, (_, i) => ({
+    cx: safeZone.cx,
+    cy: safeZone.cy - bandH / 2 + slotGap * (i + 1) + slotH * (i + 0.5),
+    w: Math.max(1, safeW - slotGap * 2),
     h: Math.max(1, slotH),
     r: 8,
   }));
 
   const deckAnchor = { x: centerZone.cx, y: centerZone.cy };
   const handAnchor = { x: handZone.cx, y: handZone.cy };
-  const pocketAnchors = pocketSlots.map((s) => ({ x: s.cx, y: s.cy }));
+  const safeAnchors = safeSlots.map((s) => ({ x: s.cx, y: s.cy }));
 
   return {
     centerZone,
     handZone,
-    pocketZone,
-    pocketSlots,
+    safeZone,
+    safeSlots,
     deckAnchor,
     handAnchor,
-    pocketAnchors,
+    safeAnchors,
     cardW,
     cardH,
   };

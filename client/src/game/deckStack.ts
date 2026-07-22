@@ -25,12 +25,12 @@ export function stackOffset(i: number, count: number, mirrored = false): Offset 
 }
 
 // Масштаб колоды по зоне: в центре стола она общая и крупная, в руке — обычного
-// размера (там веер, и увеличение только мешало бы), на чужом месте и в кармане —
-// мелкая: и место игрока, и слот кармана небольшие, колода должна в них помещаться.
+// размера (там веер, и увеличение только мешало бы), на чужом месте и в сейфе —
+// мелкая: и место игрока, и слот сейфа небольшие, колода должна в них помещаться.
 export function deckZoneScale(zone: DeckZone): number {
   if (zone === "center") return anim.deck.centerScale;
   if (zone === "seat") return anim.deck.seatScale;
-  if (zone === "pocket") return anim.deck.pocketScale;
+  if (zone === "safe") return anim.deck.safeScale;
   return 1; // рука: карты в натуральную величину, их надо читать
 }
 

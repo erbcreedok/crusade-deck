@@ -326,26 +326,40 @@ textarea {
 .table-topbar {
   position: absolute;
   z-index: 5;
-  top: max(12px, env(safe-area-inset-top));
-  left: max(12px, env(safe-area-inset-left));
-  /* место справа под фиксированную кнопку меню (.menu-fab) */
-  right: max(56px, calc(env(safe-area-inset-right) + 56px));
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  /* Константная высота: бейджи не переносятся на вторую строку и не двигают стол.
+     Лишнее уезжает в горизонтальную прокрутку внутри самой шапки. */
+  height: var(--topbar-h);
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   /* бейджи некликабельны — не перехватывают драг колоды под ними */
   pointer-events: none;
 }
 
+.table-topbar::-webkit-scrollbar {
+  display: none;
+}
+
 .table-badge {
+  flex: 0 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
   font-family: "VT323", monospace;
-  font-size: 1.1rem;
+  font-size: clamp(13px, 3.6vw, 18px);
+  line-height: 1;
+  white-space: nowrap;
   background: var(--panel-bg);
   border: 2px solid var(--shadow-black);
   box-shadow: 0 0 0 2px var(--panel-border);
-  padding: 4px 10px;
+  padding: 0 10px;
 }
 
 .table-oval {
@@ -455,6 +469,9 @@ textarea {
    отступ, чтобы игровые зоны заканчивались НАД панелью, а не под ней. */
 :root {
   --action-btn-h: 56px;
+  /* Шапка комнаты: высота КОНСТАНТНА, а не «сколько получилось из контента».
+     Ту же величину RoomScreen отдаёт канвасу верхним отступом. */
+  --topbar-h: 40px;
   --action-btn-w: clamp(96px, 30vw, 200px);
   --action-bar-pad: 12px;
 }
@@ -523,12 +540,18 @@ textarea {
   background: rgba(0, 0, 0, 0.22);
 }
 
+.action-menu-anchor {
+  position: relative;
+  display: flex;
+  pointer-events: none; /* сама обёртка кликов не ловит — только кнопка и пункты */
+}
+
 .action-fan {
   position: absolute;
   z-index: 7;
-  /* Растёт вверх от гамбургера: тот стоит справа в панели действий. */
-  right: calc(var(--action-bar-pad) + 4px);
-  bottom: calc(var(--action-btn-h) + var(--action-bar-pad) * 2 + env(safe-area-inset-bottom));
+  /* Растёт вверх ровно от гамбургера и по его правому краю. */
+  right: 0;
+  bottom: calc(100% + 10px);
   display: flex;
   flex-direction: column;
   align-items: flex-end;

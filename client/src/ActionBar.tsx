@@ -49,53 +49,55 @@ export function ActionBar({
   return (
     <>
       {menuOpen && (
-        <>
-          <div
-            className="action-sheet-backdrop"
-            data-testid="action-sheet-backdrop"
-            onClick={() => setMenuOpen(false)}
-          />
-          {/* «Веер» как в доке macOS: пункты выпрыгивают вверх от самой кнопки, а не
-              выезжают шторкой во весь экран. Ближний к кнопке появляется первым. */}
-          <div className="action-fan" role="menu">
-            {[...menuItems].reverse().map((item, i) => {
-              const fromBottom = menuItems.length - 1 - i; // 0 у ближнего к гамбургеру
-              return (
-                <button
-                  key={item.label}
-                  className="action-fan-item"
-                  role="menuitem"
-                  disabled={item.disabled}
-                  style={{
-                    // Лёгкая дуга: чем выше пункт, тем сильнее он уходит влево.
-                    marginRight: `${fromBottom * 6}px`,
-                    animationDelay: `${fromBottom * 35}ms`,
-                  }}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    item.onClick();
-                  }}
-                >
-                  {item.icon} {item.label}
-                </button>
-              );
-            })}
-            {menuItems.length === 0 && <p className="action-fan-empty">Пока пусто</p>}
-          </div>
-        </>
+        <div
+          className="action-sheet-backdrop"
+          data-testid="action-sheet-backdrop"
+          onClick={() => setMenuOpen(false)}
+        />
       )}
 
       <div className="action-bar">
         <ActionButton slot={main} kind="main" testId="action-main" />
         <ActionButton slot={secondary} kind="secondary" testId="action-secondary" />
-        <button
-          className="action-btn action-btn-menu"
-          aria-label="Ещё действия"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          ☰
-        </button>
+        {/* Обёртка нужна, чтобы веер рос ровно от кнопки: кнопки в панели отцентрованы,
+            и привязка к краю экрана промахивалась мимо гамбургера. */}
+        <div className="action-menu-anchor">
+          {menuOpen && (
+            // «Веер» как у папки в доке macOS: пункты выпрыгивают вверх от самой кнопки,
+            // по ширине содержимого. Ближний к кнопке появляется первым.
+            <div className="action-fan" role="menu">
+              {[...menuItems].reverse().map((item, i) => {
+                const fromBottom = menuItems.length - 1 - i; // 0 у ближнего к гамбургеру
+                return (
+                  <button
+                    key={item.label}
+                    className="action-fan-item"
+                    role="menuitem"
+                    disabled={item.disabled}
+                    // Правый край строго по гамбургеру: пункты «выпрыгивают» вверх,
+                    // но не разъезжаются лесенкой — иначе колонка выглядит кривой.
+                    style={{ animationDelay: `${fromBottom * 35}ms` }}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      item.onClick();
+                    }}
+                  >
+                    {item.icon} {item.label}
+                  </button>
+                );
+              })}
+              {menuItems.length === 0 && <p className="action-fan-empty">Пока пусто</p>}
+            </div>
+          )}
+          <button
+            className="action-btn action-btn-menu"
+            aria-label="Ещё действия"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            ☰
+          </button>
+        </div>
       </div>
     </>
   );

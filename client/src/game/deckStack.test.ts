@@ -138,8 +138,8 @@ describe("deckZoneScale", () => {
     expect(deckZoneScale("hand")).toBe(1);
   });
 
-  it("на месте игрока и в кармане колода мельче — должна помещаться в прямоугольник", () => {
-    for (const zone of ["seat", "pocket"] as const) {
+  it("на месте игрока и в сейфе колода мельче — должна помещаться в прямоугольник", () => {
+    for (const zone of ["seat", "safe"] as const) {
       expect(deckZoneScale(zone)).toBeLessThan(1);
       expect(deckZoneScale(zone)).toBeGreaterThan(0);
     }

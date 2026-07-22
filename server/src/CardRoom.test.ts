@@ -167,24 +167,24 @@ describe("CardRoom", () => {
     expect(room.state.deck.length).toBe(36); // карты не раздаются, только меняют место
   });
 
-  it("move_deck 'pocket' кладёт колоду в КОНКРЕТНЫЙ слот кармана", async () => {
+  it("move_deck 'safe' кладёт колоду в КОНКРЕТНЫЙ слот сейфа", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
 
     const waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "pocket", slot: 2 });
+    dealer.send("move_deck", { zone: "safe", slot: 2 });
     await waiter;
 
     expect(room.state.deckLocation).toBe(dealer.sessionId);
-    expect(room.state.deckSlot).toBe("pocket2");
+    expect(room.state.deckSlot).toBe("safe2");
   });
 
-  it("слот кармана вне 0..2 не принимается", async () => {
+  it("слот сейфа вне 0..2 не принимается", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
 
     const waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "pocket", slot: 7 });
+    dealer.send("move_deck", { zone: "safe", slot: 7 });
     await waiter;
 
     expect(room.state.deckLocation).toBe("center"); // осталась на месте

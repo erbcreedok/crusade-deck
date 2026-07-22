@@ -36,6 +36,9 @@ export function AppMenu({
   onSetCardBack,
   room,
   onLeaveRoom,
+  open: controlledOpen,
+  onOpenChange,
+  showFab = true,
 }: {
   account: Account;
   onRename: (name: string) => void;
@@ -50,8 +53,21 @@ export function AppMenu({
   onSetCardBack: (id: CardBackId) => void;
   room: Room | null;
   onLeaveRoom: () => void;
+  // Управление снаружи: в комнате меню открывает нижний веер, и своя кнопка ☰ не нужна.
+  // Без этих пропсов компонент работает как раньше — сам с собой (лобби).
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showFab?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = controlledOpen ?? ownOpen;
+  const setOpen = useCallback(
+    (v: boolean) => {
+      setOwnOpen(v);
+      onOpenChange?.(v);
+    },
+    [onOpenChange],
+  );
   const [view, setView] = useState<MenuView>("main");
   const [name, setName] = useState(account.name);
   const [copied, setCopied] = useState(false);
@@ -91,9 +107,11 @@ export function AppMenu({
 
   return (
     <>
-      <button className="menu-fab" onClick={() => setOpen(true)}>
-        ☰
-      </button>
+      {showFab && (
+        <button className="menu-fab" onClick={() => setOpen(true)}>
+          ☰
+        </button>
+      )}
 
       {open && (
         // Подложка перехватывает нажатие и остаётся смонтированной до click —

@@ -107,7 +107,7 @@ const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-кли
 const ZONE_LABELS: Record<DropZone, string> = {
   center: "ЦЕНТР",
   hand: "РУКА",
-  pocket: "КАРМАН",
+  safe: "СЕЙФ",
 };
 
 // Императивный движок комнаты: владеет ОДНИМ Pixi Application, тикером и всеми объектами.
@@ -155,7 +155,7 @@ export class RoomEngine {
   private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
   private deckCount = 0;
   private deckZone: DeckZone = "center";
-  private deckSlot = 0; // слот кармана, если колода лежит в кармане (0..2)
+  private deckSlot = 0; // слот сейфа, если колода лежит в сейфе (0..2)
   // Сторона КАЖДОЙ карты (карта → лицом ли вверх) — приходит из состояния сервера.
   // Единого «колода лицом вверх» больше нет: карты переворачиваются по одной.
   private facing: Record<string, boolean> = {};
@@ -683,7 +683,7 @@ export class RoomEngine {
     // Не «away» — карты плавно летят к новому якорю (setTarget, а не snap).
     if (!away) this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
-    this.applyCardTextures(); // в кармане карты всегда рубашкой вверх — текстуры меняются
+    this.applyCardTextures(); // в сейфе карты всегда рубашкой вверх — текстуры меняются
     this.onFanChange?.(this.fanned());
     this.wake();
   }
@@ -781,8 +781,8 @@ export class RoomEngine {
   // Якорь, у которого сейчас покоится колода: центр или своя сейф-зона.
   private activeAnchor(): { x: number; y: number } {
     if (this.deckZone === "hand") return this.layout.handAnchor;
-    if (this.deckZone === "pocket") {
-      return this.layout.pocketAnchors[this.deckSlot] ?? this.layout.pocketAnchors[0];
+    if (this.deckZone === "safe") {
+      return this.layout.safeAnchors[this.deckSlot] ?? this.layout.safeAnchors[0];
     }
     // Колода лежит на месте другого игрока — её якорь и есть центр его прямоугольника.
     if (this.deckZone === "seat") {
@@ -932,8 +932,8 @@ export class RoomEngine {
 
     const drop = pickDropTarget(px, py, this.layout);
     {
-      // Запретных зон больше нет: центр, рука и слоты кармана — всё законные цели.
-      if (drop && (drop.zone !== this.deckZone || (drop.zone === "pocket" && drop.slot !== this.deckSlot))) {
+      // Запретных зон больше нет: центр, рука и слоты сейфа — всё законные цели.
+      if (drop && (drop.zone !== this.deckZone || (drop.zone === "safe" && drop.slot !== this.deckSlot))) {
         this.deckZone = drop.zone; // оптимистично двигаем локально, сервер подтвердит эхом
         this.deckSlot = drop.slot ?? 0;
         this.onFanChange?.(this.fanned()); // веер есть только в руке — кнопки об этом знают
@@ -1297,10 +1297,10 @@ export class RoomEngine {
         color: active ? hot : base,
         alpha: active ? 0.95 : 0.4,
       });
-      // Карман показывает свои полки: в него кладут ДО ТРЁХ отдельных колод, и целиться
+      // Сейф показывает свои полки: в него кладут ДО ТРЁХ отдельных колод, и целиться
       // надо в конкретную. Подсвечивается та, над которой сейчас палец.
-      if (z === "pocket") {
-        this.layout.pocketSlots.forEach((slot, i) => {
+      if (z === "safe") {
+        this.layout.safeSlots.forEach((slot, i) => {
           const hotSlot = active && this.hoverZone?.slot === i;
           const sx = slot.cx - slot.w / 2;
           const sy = slot.cy - slot.h / 2;
@@ -1329,7 +1329,7 @@ export class RoomEngine {
     for (const z of Object.keys(this.zoneLabels) as DropZone[]) {
       const t = this.zoneLabels[z];
       if (!t) continue;
-      // Подпись не должна вылезать за свою зону: карман узкий, и «КАРМАН» кеглем
+      // Подпись не должна вылезать за свою зону: сейф узкий, и «СЕЙФ» кеглем
       // центра расползался на весь стол. Ужимаем по ширине зоны.
       const rect = regions[z].rect;
       const fit = (rect.w * 0.9) / Math.max(1, ZONE_LABELS[z].length * 0.62);
@@ -2011,9 +2011,9 @@ export class RoomEngine {
   }
 
   private shownSide(card: string): boolean {
-    // Карман — это «сейф»: что бы ни говорило состояние, лежащие там карты закрыты.
+    // Сейф — это «сейф»: что бы ни говорило состояние, лежащие там карты закрыты.
     // Открывать их можно, только вынув колоду наружу.
-    if (this.deckZone === "pocket") return false;
+    if (this.deckZone === "safe") return false;
     return !!this.facing[card];
   }
 

@@ -35,6 +35,8 @@ export default function App() {
   // Пока она задана, а живого room нет — показываем лоадер и пытаемся подключиться.
   const [targetCode, setTargetCode] = useState<string | null>(() => parseRoomCode() ?? loadActiveRoom());
   const [authError, setAuthError] = useState<string | null>(null);
+  // Меню настроек живёт здесь: в комнате его открывает нижний веер, в лобби — своя ☰.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [restoreCode, setRestoreCode] = useState("");
   const [showRestore, setShowRestore] = useState(false);
   const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
@@ -59,6 +61,12 @@ export default function App() {
     };
     apply();
     r.onStateChange(apply); // идемпотентно: как только придёт inviteCode — проставим
+  }
+
+  // Выход из комнаты в лобби: закрываем соединение и забываем активную комнату.
+  function leaveRoomToLobby() {
+    room?.leave();
+    forgetRoom();
   }
 
   // Явный выход/отмена возврата — забываем активную комнату (авто-возврата больше нет;
@@ -219,6 +227,10 @@ export default function App() {
       <>
         {account && (
           <AppMenu
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            // В комнате верхнего гамбургера нет: настройки открываются из нижнего веера.
+            showFab={!room}
             account={account}
             onRename={renameAccount}
             onRegenerateCode={regenerateCode}
@@ -235,7 +247,14 @@ export default function App() {
           />
         )}
         {room ? (
-          <RoomScreen room={room} animation={animation} fourColor={fourColor} cardBack={cardBack} />
+          <RoomScreen
+            room={room}
+            animation={animation}
+            fourColor={fourColor}
+            cardBack={cardBack}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onLeaveRoom={leaveRoomToLobby}
+          />
         ) : targetCode ? (
           <div className="pixel-screen">
             <div className="pixel-panel" style={{ textAlign: "center" }}>

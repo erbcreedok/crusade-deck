@@ -14,9 +14,9 @@ describe("pickDropTarget", () => {
     expect(pickDropTarget(layout.handAnchor.x, layout.handAnchor.y, layout)).toEqual({ zone: "hand" });
   });
 
-  it("карман отдаёт КОНКРЕТНЫЙ слот — их три", () => {
-    layout.pocketSlots.forEach((slot, i) => {
-      expect(pickDropTarget(slot.cx, slot.cy, layout)).toEqual({ zone: "pocket", slot: i });
+  it("сейф отдаёт КОНКРЕТНЫЙ слот — их три", () => {
+    layout.safeSlots.forEach((slot, i) => {
+      expect(pickDropTarget(slot.cx, slot.cy, layout)).toEqual({ zone: "safe", slot: i });
     });
   });
 
@@ -27,12 +27,12 @@ describe("pickDropTarget", () => {
   it("все зоны доступны для дропа — запретных больше нет", () => {
     const r = dropZoneRegions(layout);
     expect(Object.values(r).every((z) => z.droppable)).toBe(true);
-    expect(Object.keys(r).sort()).toEqual(["center", "hand", "pocket"]);
+    expect(Object.keys(r).sort()).toEqual(["center", "hand", "safe"]);
   });
 
-  it("рука и карман не перекрываются: точка в кармане никогда не «рука»", () => {
-    for (const slot of layout.pocketSlots) {
-      expect(pickDropTarget(slot.cx, slot.cy, layout)?.zone).toBe("pocket");
+  it("рука и сейф не перекрываются: точка в сейфе никогда не «рука»", () => {
+    for (const slot of layout.safeSlots) {
+      expect(pickDropTarget(slot.cx, slot.cy, layout)?.zone).toBe("safe");
     }
   });
 });
