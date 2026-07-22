@@ -1,0 +1,103 @@
+// Скины рубашки карт: описание (палитра + вид узора) и чистая математика раскладки узора.
+// Рисует по этим числам движок (makeCardBackTexture) — сюда Pixi не заглядывает, поэтому
+// геометрия узора тестируется юнитами. Скинов пока два, список рассчитан на пополнение.
+
+export type CardBackId = "ruby" | "mosaic";
+
+export interface CardBackSkin {
+  id: CardBackId;
+  label: string;
+  pattern: "lattice" | "mosaic"; // какой узор рисовать
+  bg: number; // фон карты
+  border: number; // рамка по краю
+  inner: number; // внутренняя рамка/обводка фигур
+  ink: number[]; // палитра узора (для мозаики — по числу оттенков)
+}
+
+export const CARD_BACKS: CardBackSkin[] = [
+  {
+    id: "ruby",
+    label: "Квадраторомб",
+    pattern: "lattice",
+    bg: 0xf4ecd8,
+    border: 0xc0392b,
+    inner: 0x8e2a1f,
+    ink: [0xc0392b, 0xe8574a],
+  },
+  {
+    id: "mosaic",
+    label: "Мозаика",
+    pattern: "mosaic",
+    bg: 0x0c1220,
+    border: 0x2b6cb0,
+    inner: 0x0a0f1a,
+    ink: [0x14304f, 0x1d4f7c, 0x2b6cb0],
+  },
+];
+
+export const DEFAULT_CARD_BACK: CardBackId = "ruby";
+
+export function isCardBackId(v: unknown): v is CardBackId {
+  return typeof v === "string" && CARD_BACKS.some((s) => s.id === v);
+}
+
+export function cardBackSkin(id: CardBackId): CardBackSkin {
+  return CARD_BACKS.find((s) => s.id === id) ?? CARD_BACKS[0];
+}
+
+export interface LatticePoint {
+  x: number;
+  y: number;
+  odd: boolean; // шахматный признак: ромб или квадрат (узор «квадраторомб»)
+}
+
+// Центры фигур решётки: cols×rows равномерно по полю с отступом margin от краёв.
+export function latticeCenters(w: number, h: number, cols: number, rows: number, margin: number): LatticePoint[] {
+  if (cols <= 0 || rows <= 0) return [];
+  const innerW = Math.max(0, w - margin * 2);
+  const innerH = Math.max(0, h - margin * 2);
+  const stepX = innerW / cols;
+  const stepY = innerH / rows;
+  const pts: LatticePoint[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      pts.push({
+        x: margin + stepX * (col + 0.5),
+        y: margin + stepY * (row + 0.5),
+        odd: (col + row) % 2 === 1,
+      });
+    }
+  }
+  return pts;
+}
+
+export interface MosaicTile {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  shade: number; // индекс в палитре ink
+}
+
+// Плитки мозаики: cols×rows встык (без дыр и нахлёстов) по полю с отступом margin.
+// Оттенок детерминирован от позиции — узор одинаков на каждой карте и в тестах.
+export function mosaicTiles(w: number, h: number, cols: number, rows: number, margin: number): MosaicTile[] {
+  if (cols <= 0 || rows <= 0) return [];
+  const innerW = Math.max(0, w - margin * 2);
+  const innerH = Math.max(0, h - margin * 2);
+  const tw = innerW / cols;
+  const th = innerH / rows;
+  const tiles: MosaicTile[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      tiles.push({
+        x: margin + tw * col,
+        y: margin + th * row,
+        w: tw,
+        h: th,
+        shade: (col * 7 + row * 13 + ((col * row) % 5)) % 3,
+      });
+    }
+  }
+  return tiles;
+}

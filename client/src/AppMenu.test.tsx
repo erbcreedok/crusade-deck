@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 const account: Account = { id: "a1", name: "Тест", recoveryHash: "ABC123" };
 
-function renderMenu() {
+function renderMenu(overrides: Partial<Parameters<typeof AppMenu>[0]> = {}) {
   return render(
     <AppMenu
       account={account}
@@ -20,10 +20,18 @@ function renderMenu() {
       onSetShadows={vi.fn()}
       fourColor={false}
       onSetFourColor={vi.fn()}
+      cardBack="ruby"
+      onSetCardBack={vi.fn()}
       room={null}
       onLeaveRoom={vi.fn()}
+      {...overrides}
     />
   );
+}
+
+// Кнопка подраздела/скина по подписи (в панели меню кнопок немного, ищем по тексту).
+function byText(container: HTMLElement, text: string) {
+  return Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes(text))!;
 }
 
 function open(container: HTMLElement) {
@@ -52,6 +60,38 @@ describe("AppMenu overlay", () => {
     const overlay = open(container);
     fireEvent.click(overlay);
     expect(container.querySelector(".modal-overlay")).toBeFalsy();
+  });
+
+  it("настройки графики живут в подразделе, а не в главном меню", () => {
+    const { container } = renderMenu();
+    open(container);
+    expect(byText(container, "Анимации")).toBeUndefined();
+
+    fireEvent.click(byText(container, "Графика"));
+    expect(byText(container, "Квадраторомб")).toBeTruthy();
+    expect(byText(container, "Мозаика")).toBeTruthy();
+    expect(container.querySelector(".pixel-title")?.textContent).toContain("Графика");
+  });
+
+  it("выбор рубашки уходит наверх, текущий скин подсвечен", () => {
+    const onSetCardBack = vi.fn();
+    const { container } = renderMenu({ cardBack: "ruby", onSetCardBack });
+    open(container);
+    fireEvent.click(byText(container, "Графика"));
+
+    expect(byText(container, "Квадраторомб").className).toContain("seg-btn-active");
+    expect(byText(container, "Мозаика").className).not.toContain("seg-btn-active");
+
+    fireEvent.click(byText(container, "Мозаика"));
+    expect(onSetCardBack).toHaveBeenCalledWith("mosaic");
+  });
+
+  it("из подраздела можно вернуться в главное меню", () => {
+    const { container } = renderMenu();
+    open(container);
+    fireEvent.click(byText(container, "Графика"));
+    fireEvent.click(container.querySelector('[aria-label="Назад"]')!);
+    expect(container.querySelector(".pixel-title")?.textContent).toContain("Меню");
   });
 
   it("НЕ закрывается по клику внутри панели", () => {

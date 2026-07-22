@@ -2,12 +2,14 @@ import { useEffect, useRef } from "react";
 import { RoomEngine } from "./RoomEngine";
 import { resolveProfile, type AnimationSettings } from "./anim/animationSettings";
 import type { DeckZone } from "./deckZone";
+import type { CardBackId } from "./cardBack";
 
 interface Props {
   deck: string[]; // порядок колоды ["10♠",…] — для лицевых текстур
   deckZone: DeckZone;
   deckDraggable: boolean;
   fourColor: boolean;
+  cardBack: CardBackId; // скин рубашки (меню → Графика)
   faceUp: boolean;
   shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает «сумбур» до ответа
   onDeckDoubleClick: () => void;
@@ -26,6 +28,7 @@ export function RoomCanvas({
   deckZone,
   deckDraggable,
   fourColor,
+  cardBack,
   faceUp,
   shuffleSignal,
   onDeckDoubleClick,
@@ -77,6 +80,9 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setFourColor(fourColor);
   }, [fourColor]);
+  useEffect(() => {
+    engineRef.current?.setCardBack(cardBack);
+  }, [cardBack]);
   useEffect(() => {
     engineRef.current?.setDeckFaceUp(faceUp);
   }, [faceUp]);

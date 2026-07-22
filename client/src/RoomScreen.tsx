@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
 import { RoomCanvas } from "./game/RoomCanvas";
+import type { CardBackId } from "./game/cardBack";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
@@ -26,10 +27,12 @@ export function RoomScreen({
   room,
   animation,
   fourColor,
+  cardBack,
 }: {
   room: Room;
   animation: AnimationSettings;
   fourColor: boolean;
+  cardBack: CardBackId;
 }) {
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
@@ -166,6 +169,7 @@ export function RoomScreen({
         deckZone={deckZone}
         deckDraggable={canMoveDeck}
         fourColor={fourColor}
+        cardBack={cardBack}
         faceUp={faceUp}
         shuffleSignal={shuffleSignal}
         onDeckDoubleClick={onDeckDoubleClick}

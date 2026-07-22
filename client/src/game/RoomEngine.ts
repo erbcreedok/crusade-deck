@@ -26,6 +26,13 @@ import {
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
 import { parseCard, isCourt, suitColor } from "./card";
+import {
+  cardBackSkin,
+  latticeCenters,
+  mosaicTiles,
+  DEFAULT_CARD_BACK,
+  type CardBackId,
+} from "./cardBack";
 import { anim } from "./anim/config";
 import {
   DEFAULT_ANIMATION_SETTINGS,
@@ -96,6 +103,7 @@ export class RoomEngine {
 
   private deckCards: string[] = []; // порядок колоды (из состояния сервера)
   private fourColor = false; // четырёхцветная колода (♦ оранж, ♣ голубой) для слабовидящих
+  private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
   private deckCount = 0;
   private deckZone: DeckZone = "center";
   private deckFanned = false; // колода в сейф-зоне раскрыта веером (дабл-клик тоглит)
@@ -358,6 +366,18 @@ export class RoomEngine {
     this.updateVisibility();
     this.cards.forEach((c) => this.syncVisual(c));
     this.syncDeckShadow();
+    this.wake();
+  }
+
+  // Скин рубашки: перерисовываем текстуру и раздаём её картам (лица не трогаем).
+  setCardBack(id: CardBackId): void {
+    if (id === this.cardBack) return;
+    this.cardBack = id;
+    if (!this.app) return;
+    const old = this.backTex;
+    this.backTex = this.makeCardBackTexture(this.app);
+    this.applyCardTextures();
+    old?.destroy(true);
     this.wake();
   }
 
@@ -1437,18 +1457,33 @@ export class RoomEngine {
     this.tableG?.clear();
   }
 
+  // Рубашка по выбранному скину (см. cardBack.ts — там палитра и геометрия узора).
   private makeCardBackTexture(app: Application): Texture {
+    const skin = cardBackSkin(this.cardBack);
     const g = new Graphics();
     g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16)
-      .fill({ color: 0x14281c })
-      .stroke({ width: 5, color: 0xd9b154 });
-    g.roundRect(16, 16, TEX_W - 32, TEX_H - 32, 10).stroke({ width: 3, color: 0x3a6b4b });
-    // центральный ромб-эмблема в пиксельно-казуальном духе
-    const cx = TEX_W / 2;
-    const cy = TEX_H / 2;
-    g.poly([cx, cy - 34, cx + 26, cy, cx, cy + 34, cx - 26, cy])
-      .fill({ color: 0xd9b154, alpha: 0.9 })
-      .stroke({ width: 3, color: 0x14281c });
+      .fill({ color: skin.bg })
+      .stroke({ width: 5, color: skin.border });
+
+    if (skin.pattern === "lattice") {
+      // «Квадраторомб»: шахматка из ромбов и квадратов, как на классической рубашке.
+      const r = 13;
+      for (const p of latticeCenters(TEX_W, TEX_H, 4, 6, 22)) {
+        const color = skin.ink[p.odd ? 1 : 0];
+        if (p.odd) {
+          g.rect(p.x - r * 0.72, p.y - r * 0.72, r * 1.44, r * 1.44).fill({ color });
+        } else {
+          g.poly([p.x, p.y - r, p.x + r, p.y, p.x, p.y + r, p.x - r, p.y]).fill({ color });
+        }
+      }
+    } else {
+      // Мозаика: плитки встык, три оттенка синего по детерминированному узору.
+      for (const t of mosaicTiles(TEX_W, TEX_H, 5, 7, 20)) {
+        g.rect(t.x + 1, t.y + 1, t.w - 2, t.h - 2).fill({ color: skin.ink[t.shade] });
+      }
+    }
+
+    g.roundRect(16, 16, TEX_W - 32, TEX_H - 32, 10).stroke({ width: 3, color: skin.inner });
     const tex = app.renderer.generateTexture({ target: g, resolution: 2 });
     g.destroy();
     return tex;
