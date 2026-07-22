@@ -4,15 +4,20 @@ import { ProposalBanner } from "./ProposalBanner";
 import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
+import { tableSummary } from "./game/seats";
 import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
 import { rejectionText } from "./game/rejections";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
+// Игрок в списке комнаты. Совпадает по форме с Seat (game/seats.ts) — стол дальше
+// будет рассаживать ровно этих.
 interface RoomPlayer {
   id: string;
   name: string;
   isDealer: boolean;
+  isReady: boolean;
+  isBot: boolean;
   connected: boolean;
 }
 
@@ -72,6 +77,8 @@ export function RoomScreen({
           id: sessionId,
           name: p.name,
           isDealer: p.isDealer,
+          isReady: p.isReady,
+          isBot: !!p.isBot,
           connected: p.connected,
         });
       });
@@ -129,6 +136,7 @@ export function RoomScreen({
   const targetName = players.find((p) => p.id === proposal?.targetId)?.name || "?";
   const myVote = proposal ? proposal.votes[room.sessionId] : undefined;
   const amIDealer = players.find((p) => p.id === room.sessionId)?.isDealer ?? false;
+  const seats = tableSummary(players);
 
   // Колоду двигает только дилер и только в лобби (во время раздачи).
   const canMoveDeck = amIDealer && phase === "lobby";
@@ -254,6 +262,11 @@ export function RoomScreen({
           </div>
         )}
         <div className="table-badge">{isPublic ? "🌐 паблик" : "🔒 приват"}</div>
+        {/* Пока стол не нарисован, это единственный признак, что за ним кто-то есть. */}
+        <div className="table-badge">
+          за столом: {seats.total} · готовы: {seats.ready}
+          {seats.bots > 0 && ` · 🤖 ${seats.bots}`}
+        </div>
       </div>
 
       {proposal && (

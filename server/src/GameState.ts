@@ -6,6 +6,9 @@ export class Player extends Schema {
   @type("boolean") isDealer: boolean = false;
   @type("boolean") isReady: boolean = false;
   @type("boolean") connected: boolean = true;
+  // Бот тестовой комнаты (см. bots.ts): такой же игрок за столом, но без клиента.
+  // Клиенту нужен явный флаг, чтобы рисовать его местом за столом, а не «пустым стулом».
+  @type("boolean") isBot: boolean = false;
   // Карты в руке, напр. "10♠", "A♥". Синкается всем игрокам (см. заметку
   // про упрощение видимости в project_accounts_dealer_voting.md) — клиент
   // сам решает, чью руку рисовать в открытую, а чью рубашкой вниз.

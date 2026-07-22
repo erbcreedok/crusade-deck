@@ -12,6 +12,16 @@ export async function joinRoom(opts: {
   return client.create("card_room", opts);
 }
 
+// Тестовая комната: за столом сразу сидят боты (сервер, TestRoom). Нужна, чтобы делать
+// посадку/вёрстку/дроп-зоны, не собирая живых игроков. Всегда приватная — код выдаёт сервер.
+export async function createTestRoom(opts: {
+  accountId?: string;
+  name: string;
+  deckType: "36" | "52";
+}): Promise<Room> {
+  return client.create("test_room", opts);
+}
+
 export async function joinRoomById(
   roomId: string,
   opts: { accountId?: string; name: string }

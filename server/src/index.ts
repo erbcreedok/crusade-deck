@@ -5,6 +5,7 @@ import { createServer } from "http";
 import colyseusPkg from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { CardRoom } from "./CardRoom.js";
+import { TestRoom } from "./TestRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
 import { createAccount, findAccountByRecoveryHash, renameAccount, regenerateRecoveryHash } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
@@ -26,6 +27,8 @@ const httpServer = createServer(app);
 const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
 
 gameServer.define("card_room", CardRoom);
+// Тестовая комната с ботами за столом — площадка для посадки/вёрстки/дроп-зон.
+gameServer.define("test_room", TestRoom);
 
 // Найти roomId по 6-значному коду — используется клиентом для join по коду
 app.get("/rooms/by-code/:code", (req, res) => {

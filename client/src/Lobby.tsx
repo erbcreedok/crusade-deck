@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import {
   joinRoom,
+  createTestRoom,
   joinByInviteCode,
   joinRoomById,
   fetchPublicRooms,
@@ -66,6 +67,18 @@ export function Lobby({
     }
   }
 
+  // Тестовая комната: за столом сразу три бота (сервер, TestRoom). Нужна, чтобы делать
+  // посадку игроков, вёрстку стола и дроп-зоны, не собирая живых людей.
+  async function createBotsRoom() {
+    setError(null);
+    try {
+      const room = await createTestRoom({ accountId, name, deckType });
+      onJoined(room);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   async function joinByCode() {
     setError(null);
     try {
@@ -124,6 +137,14 @@ export function Lobby({
 
         <button className="pixel-btn pixel-btn-full" onClick={createRoom}>
           Создать комнату
+        </button>
+
+        <button
+          className="pixel-btn pixel-btn-secondary pixel-btn-full"
+          style={{ marginTop: 10 }}
+          onClick={createBotsRoom}
+        >
+          🤖 Тестовая комната (3 бота)
         </button>
 
         <hr className="pixel-divider" />

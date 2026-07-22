@@ -248,7 +248,10 @@ export class CardRoom extends Room<GameState> {
 
   onJoin(client: Client, options: JoinOptions, auth?: { uid: string }) {
     const accountId = auth!.uid;
-    const wasEmpty = this.state.players.size === 0;
+    // Дилером становится первый ЖИВОЙ игрок. Боты в тестовой комнате уже сидят за столом
+    // на момент первого входа — считать по ним «комната не пуста» значит оставить её
+    // вообще без дилера (боты дилерами не бывают, см. bots.ts).
+    const noHumansYet = ![...this.state.players.values()].some((p) => !p.isBot);
     const player = new Player();
     player.id = accountId;
     player.name = options.name || "Player";
@@ -273,7 +276,7 @@ export class CardRoom extends Room<GameState> {
       // Закрываем явно: клиент увидит onLeave и переподключится штатным путём.
       this.clients.find((c) => c.sessionId === oldSid)?.leave(TAKEOVER_CODE);
     } else {
-      player.isDealer = wasEmpty;
+      player.isDealer = noHumansYet;
     }
     player.connected = true;
 
@@ -312,10 +315,12 @@ export class CardRoom extends Room<GameState> {
     removePublicRoom(this.roomId);
   }
 
+  // Считаем только живых: боты «подключены» всегда, и если их учитывать, опустевшая
+  // тестовая комната никогда не дождётся своего TTL и провисит вечно.
   private connectedCount(): number {
     let n = 0;
     this.state.players.forEach((p) => {
-      if (p.connected) n++;
+      if (p.connected && !p.isBot) n++;
     });
     return n;
   }
