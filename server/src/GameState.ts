@@ -16,10 +16,14 @@ export class Player extends Schema {
   // про упрощение видимости в project_accounts_dealer_voting.md) — клиент
   // сам решает, чью руку рисовать в открытую, а чью рубашкой вниз.
   @type({ array: "string" }) hand = new ArraySchema<string>();
+  // Карты, спрятанные ИМПЕРАТИВНО самим игроком: их не видит никто, кроме владельца, даже
+  // когда рука открыта. Ключ — сама карта; лежит на игроке, потому что карта в руке.
+  @type({ map: "boolean" }) handHidden = new MapSchema<boolean>();
 }
 
 // Голосование: предложить себя/другого в дилеры, или предложить кого-то кикнуть.
-// У дилера вес голоса 1.5, у остальных — 1 (считается в CardRoom).
+// Вес голоса дилера чуть выше обычного (DEALER_VOTE_WEIGHT в handRules.ts): он решает
+// равные голосования, но двое обычных игроков всегда его перевешивают.
 export class Proposal extends Schema {
   @type("string") kind: "dealer" | "kick" = "dealer";
   @type("string") proposerId: string = ""; // sessionId
@@ -54,4 +58,7 @@ export class GameState extends Schema {
   // видят по этому полю, что колода «в работе», и не мешают. Снимается финальным
   // сообщением, уходом игрока или сторожевым таймером (см. SHUFFLE_LOCK_MS в CardRoom).
   @type("string") shufflingBy: string = "";
+  // Режим видимости, который включает дилер: карты колоды перестают быть скрытыми, а руки
+  // всех игроков становятся приватными (как у дилера). Комнатное состояние — видно всем.
+  @type("boolean") revealMode: boolean = false;
 }

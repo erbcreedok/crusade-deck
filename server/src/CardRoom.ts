@@ -11,6 +11,7 @@ import { moveCard, isPermutationOf } from "./deckOrder.js";
 import { flipWholeDeck, flippedFacing } from "./deckFacing.js";
 import { sanitizeDeckFx, FxRateLimiter } from "./deckFx.js";
 import { flipRejectReason } from "./rejections.js";
+import { collectHands, DEALER_VOTE_WEIGHT } from "./handRules.js";
 
 interface JoinOptions {
   token?: string;
@@ -197,6 +198,48 @@ export class CardRoom extends Room<GameState> {
         }
       },
     );
+
+    // Карта в руке прячется/показывается императивно самим владельцем. Спрятанную не
+    // видит никто, кроме него, даже при открытой руке.
+    this.onMessage("toggle_card_hidden", (client, message: { card?: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      const card = message?.card;
+      if (!player || typeof card !== "string") return;
+      if (!player.hand.includes(card)) return; // прятать можно только своё
+      if (player.handHidden.get(card)) player.handHidden.delete(card);
+      else player.handHidden.set(card, true);
+    });
+
+    // Дилерский режим видимости: карты колоды перестают быть скрытыми, а руки всех
+    // игроков становятся приватными. Выключение возвращает колоду рубашкой вверх.
+    this.onMessage("toggle_reveal_mode", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer) return;
+      this.state.revealMode = !this.state.revealMode;
+      this.state.deck.forEach((card) => this.state.faceUp.set(card, this.state.revealMode));
+      if (this.state.revealMode) this.state.players.forEach((p) => (p.handOpen = false));
+    });
+
+    // «Ресет»: дилер забирает карты из всех рук к себе, делает их скрытыми, а руки —
+    // приватными. Колода при этом переезжает к дилеру.
+    this.onMessage("collect_hands", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer) return;
+      const hands: Record<string, string[]> = {};
+      this.state.players.forEach((p, sid) => (hands[sid] = p.hand.toArray()));
+      const out = collectHands(this.state.deck.toArray(), hands);
+      this.state.deck.clear();
+      out.deck.forEach((card) => this.state.deck.push(card));
+      for (const [card, up] of Object.entries(out.faceUp)) this.state.faceUp.set(card, up);
+      this.state.players.forEach((p) => {
+        p.hand.clear();
+        p.handHidden.clear();
+        p.handOpen = false;
+      });
+      this.state.revealMode = false;
+      this.state.deckLocation = client.sessionId;
+      this.state.deckRev += 1;
+    });
 
     // Рука открыта/закрыта. Личное дело каждого игрока — дилерство тут ни при чём.
     this.onMessage("toggle_hand", (client) => {
@@ -448,7 +491,7 @@ export class CardRoom extends Room<GameState> {
   private totalWeight(): number {
     let total = 0;
     this.state.players.forEach((p) => {
-      if (p.connected) total += p.isDealer ? 1.5 : 1;
+      if (p.connected) total += p.isDealer ? DEALER_VOTE_WEIGHT : 1;
     });
     return total;
   }
@@ -456,7 +499,7 @@ export class CardRoom extends Room<GameState> {
   private weightOf(sessionId: string): number {
     const p = this.state.players.get(sessionId);
     if (!p || !p.connected) return 0;
-    return p.isDealer ? 1.5 : 1;
+    return p.isDealer ? DEALER_VOTE_WEIGHT : 1;
   }
 
   private tallyAndResolve() {

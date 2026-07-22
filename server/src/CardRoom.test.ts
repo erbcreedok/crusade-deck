@@ -658,4 +658,120 @@ describe("CardRoom", () => {
 
     expect(rejects[0]?.reason).toBe("unknown_cards");
   });
+
+  // ——— рука 3.0: видимость ———
+
+  it("toggle_card_hidden прячет и возвращает КОНКРЕТНУЮ карту, но только свою", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("start_game");
+    dealer.send("start_game");
+    await waiter;
+
+    const mine = room.state.players.get(dealer.sessionId)!;
+    const card = mine.hand[0];
+
+    waiter = room.waitForMessage("toggle_card_hidden");
+    dealer.send("toggle_card_hidden", { card });
+    await waiter;
+    expect(mine.handHidden.get(card)).toBe(true);
+
+    waiter = room.waitForMessage("toggle_card_hidden");
+    dealer.send("toggle_card_hidden", { card });
+    await waiter;
+    expect(mine.handHidden.get(card)).toBeUndefined(); // вернули обратно
+
+    // Чужую карту спрятать нельзя — это карта другого игрока, не его дело.
+    waiter = room.waitForMessage("toggle_card_hidden");
+    second.send("toggle_card_hidden", { card });
+    await waiter;
+    expect(room.state.players.get(second.sessionId)!.handHidden.size).toBe(0);
+  });
+
+  it("toggle_reveal_mode раскрывает колоду и делает все руки приватными", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("toggle_hand");
+    second.send("toggle_hand");
+    await waiter;
+    expect(room.state.players.get(second.sessionId)!.handOpen).toBe(true);
+
+    waiter = room.waitForMessage("toggle_reveal_mode");
+    dealer.send("toggle_reveal_mode");
+    await waiter;
+
+    expect(room.state.revealMode).toBe(true);
+    expect([...room.state.faceUp.values()].every((v) => v === true)).toBe(true);
+    expect(room.state.players.get(second.sessionId)!.handOpen).toBe(false); // руки приватные
+
+    waiter = room.waitForMessage("toggle_reveal_mode");
+    dealer.send("toggle_reveal_mode");
+    await waiter;
+    expect(room.state.revealMode).toBe(false);
+    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
+  });
+
+  it("ignores dealer-only powers from a regular player", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("toggle_reveal_mode");
+    second.send("toggle_reveal_mode");
+    await waiter;
+    expect(room.state.revealMode).toBe(false);
+
+    waiter = room.waitForMessage("collect_hands");
+    second.send("collect_hands");
+    await waiter;
+    expect(room.state.deck.length).toBe(36);
+  });
+
+  it("collect_hands забирает карты у всех, прячет их и обнуляет приватность рук", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("start_game");
+    dealer.send("start_game");
+    await waiter;
+    expect(room.state.deck.length).toBe(0);
+
+    waiter = room.waitForMessage("toggle_hand");
+    second.send("toggle_hand");
+    await waiter;
+
+    waiter = room.waitForMessage("collect_hands");
+    dealer.send("collect_hands");
+    await waiter;
+
+    expect(room.state.deck.length).toBe(36); // все карты вернулись
+    expect(room.state.players.get(dealer.sessionId)!.hand.length).toBe(0);
+    expect(room.state.players.get(second.sessionId)!.hand.length).toBe(0);
+    expect(room.state.players.get(second.sessionId)!.handOpen).toBe(false);
+    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
+    expect(room.state.deckLocation).toBe(dealer.sessionId); // колода у дилера
+  });
+
+  it("перевес дилера в голосовании больше не даёт ему вето: двое обычных решают", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+    const third = await colyseus.connectTo(room, { name: "Carol" });
+
+    // Двое обычных за то, чтобы кикнуть дилера: их 2 против его 1.01.
+    let waiter = room.waitForMessage("propose_kick");
+    second.send("propose_kick", { targetSessionId: dealer.sessionId });
+    await waiter;
+
+    waiter = room.waitForMessage("vote");
+    third.send("vote", { value: true });
+    await waiter;
+
+    expect(room.state.players.has(dealer.sessionId)).toBe(false);
+  });
 });
