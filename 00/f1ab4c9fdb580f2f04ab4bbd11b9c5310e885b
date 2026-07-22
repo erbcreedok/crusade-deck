@@ -1,0 +1,51 @@
+server/src/TestRoom.ts
+  s_45aab95818ff9f::t_e9fe4a18c79f0a 1-21
+server/src/GameState.ts
+  s_45aab95818ff9f::t_8817a6f0d64e94 9-11
+server/src/CardRoom.ts
+  s_45aab95818ff9f::t_94180db506d177 279
+  s_45aab95818ff9f::t_e4e7597b56f78e 251-254
+  s_45aab95818ff9f::t_6ac539d0347e79 318-319,323
+server/src/bots.ts
+  s_45aab95818ff9f::t_11847faf89afb4 1-34
+client/src/Lobby.test.tsx
+  s_45aab95818ff9f::t_4290125bacdd71 47-74
+  s_45aab95818ff9f::t_a4b5ece69155af 11,14
+client/src/Lobby.tsx
+  s_45aab95818ff9f::t_1c45956b9df0a5 142-149
+  s_45aab95818ff9f::t_cb892ddc6dbd15 70-81
+  s_45aab95818ff9f::t_87b295e1218758 5
+server/src/CardRoom.test.ts
+  s_45aab95818ff9f::t_96508c926ea993 332-388
+client/src/game/seats.test.ts
+  s_45aab95818ff9f::t_6cefc0101b3bf8 1-35
+client/src/game/seats.ts
+  s_45aab95818ff9f::t_7c577be10d9aea 1-29
+client/src/colyseus.ts
+  s_45aab95818ff9f::t_5a99bfa2fdab24 15-24
+server/src/index.ts
+  s_45aab95818ff9f::t_97160c3d62a512 8
+  s_45aab95818ff9f::t_389edc7224230b 30-31
+client/src/RoomScreen.tsx
+  s_45aab95818ff9f::t_68169061dc94fa 7
+  s_45aab95818ff9f::t_1a8e352fc03ff9 13-14,19-20
+  s_45aab95818ff9f::t_a5a5469e756c7a 80-81
+  s_45aab95818ff9f::t_71b881c898814d 139
+  s_45aab95818ff9f::t_b3a8dca61bdcdd 265-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "00f1ab4c9fdb580f2f04ab4bbd11b9c5310e885b",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
