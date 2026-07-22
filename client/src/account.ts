@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { resolveHttpUrl } from "./serverUrl";
 
 export interface Account {
   id: string;
@@ -7,7 +8,7 @@ export interface Account {
 }
 
 const STORAGE_KEY = "crusade-deck:account";
-const SERVER_URL = import.meta.env.VITE_HTTP_URL || "http://localhost:2567";
+const SERVER_URL = resolveHttpUrl(import.meta.env);
 
 function loadLocal(): Account | null {
   const raw = localStorage.getItem(STORAGE_KEY);

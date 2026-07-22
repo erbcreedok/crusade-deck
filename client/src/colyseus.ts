@@ -1,7 +1,8 @@
 import { Client, Room } from "colyseus.js";
+import { resolveWsUrl, resolveHttpUrl } from "./serverUrl";
 
-const client = new Client(import.meta.env.VITE_SERVER_URL || "ws://localhost:2567");
-const HTTP_URL = import.meta.env.VITE_HTTP_URL || "http://localhost:2567";
+const client = new Client(resolveWsUrl(import.meta.env, window.location));
+const HTTP_URL = resolveHttpUrl(import.meta.env);
 
 export async function joinRoom(opts: {
   accountId?: string;

@@ -1,0 +1,31 @@
+[Unit]
+Description=Crusade Deck game server (Colyseus)
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/home/deploy/crusade-deck/server
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=2
+
+Environment=NODE_ENV=production
+Environment=PORT=2567
+# Только петля: наружу сервер выставлен через Caddy, 2567 закрыт файрволом.
+Environment=HOST=127.0.0.1
+# Заменить на реальный домен перед установкой.
+Environment=ALLOWED_ORIGIN=https://EXAMPLE.COM
+
+# Аккаунты пишутся в server/data — единственный каталог, куда нужна запись.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/deploy/crusade-deck/server/data
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
