@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyDeckSwipe, isSwipeDown, flipFactor, flipTilt, flipShowsOther, flipTransform, stretchOffset } from "./flip";
+import { classifyDeckSwipe, isSwipeDown, spinAngle, spinScale, spinShowsOther, flipTilt, flipTransform, stretchOffset } from "./flip";
 
 describe("classifyDeckSwipe", () => {
   const dir = (vx: number, vy: number) => classifyDeckSwipe(vx, vy);
@@ -36,21 +36,30 @@ describe("classifyDeckSwipe", () => {
   });
 });
 
-describe("flipFactor / flipShowsOther", () => {
-  it("карта схлопывается в ребро на середине и раскрывается ОБРАТНО В НОРМУ", () => {
-    expect(flipFactor(0)).toBeCloseTo(1, 6);
-    expect(Math.abs(flipFactor(0.5))).toBeCloseTo(0, 6);
-    expect(flipFactor(1)).toBeCloseTo(1, 6); // не -1: карта не остаётся зеркальной
+describe("spinAngle / spinScale / spinShowsOther", () => {
+  it("колода делает 1.5 оборота (540°), одиночная карта — пол-оборота", () => {
+    expect(spinAngle(1, 3)).toBeCloseTo(3 * Math.PI, 6); // 540°
+    expect(spinAngle(1, 1)).toBeCloseTo(Math.PI, 6);
+    expect(spinAngle(0, 3)).toBe(0);
   });
 
-  it("фактор нигде не уходит в минус — зеркального состояния не бывает", () => {
-    for (let k = 0; k <= 20; k++) expect(flipFactor(k / 20)).toBeGreaterThanOrEqual(0);
+  it("ширина схлопывается на каждом ребре и всегда неотрицательна — зеркала нет", () => {
+    expect(spinScale(0)).toBeCloseTo(1, 6);
+    expect(spinScale(Math.PI / 2)).toBeCloseTo(0, 6);
+    expect(spinScale(Math.PI)).toBeCloseTo(1, 6); // развернулась другой стороной, но не зеркальна
+    expect(spinScale(3 * Math.PI)).toBeCloseTo(1, 6);
+    for (let k = 0; k <= 40; k++) expect(spinScale((k / 40) * 3 * Math.PI)).toBeGreaterThanOrEqual(0);
   });
 
-  it("другая сторона показывается ровно на середине — в момент ребра, а не раньше", () => {
-    expect(flipShowsOther(0.49)).toBe(false);
-    expect(flipShowsOther(0.5)).toBe(true);
-    expect(flipShowsOther(1)).toBe(true);
+  it("сторона меняется на каждом полуобороте, а в конце 540° — противоположная исходной", () => {
+    expect(spinShowsOther(0)).toBe(false);
+    expect(spinShowsOther(Math.PI * 0.6)).toBe(true); // первый полуоборот
+    expect(spinShowsOther(Math.PI * 1.6)).toBe(false); // второй — снова исходная
+    expect(spinShowsOther(3 * Math.PI - 0.01)).toBe(true); // финал — другая сторона
+  });
+
+  it("пол-оборота карты тоже заканчивается другой стороной", () => {
+    expect(spinShowsOther(spinAngle(1, 1) - 0.01)).toBe(true);
   });
 });
 
@@ -84,7 +93,7 @@ describe("flipTransform", () => {
   });
 
   it("к концу переворота карта в норме: не зеркальна и не искажена", () => {
-    const m = flipTransform(10, 20, 0, 2, Math.PI / 4, flipFactor(1));
+    const m = flipTransform(10, 20, 0, 2, Math.PI / 4, spinScale(spinAngle(1, 3)));
     expect(m.a * m.d - m.b * m.c).toBeGreaterThan(0); // не зеркало
     expect(m.a).toBeCloseTo(2, 6);
     expect(m.d).toBeCloseTo(2, 6);

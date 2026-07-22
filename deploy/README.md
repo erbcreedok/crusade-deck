@@ -56,12 +56,32 @@ SSH: залить свой публичный ключ в `/home/deploy/.ssh/aut
 ```bash
 git clone <repo-url> /home/deploy/crusade-deck
 cd /home/deploy/crusade-deck/server && npm ci && npm run build
-cd /home/deploy/crusade-deck/client && npm ci && npm run build
 ```
 
-Клиент собирается без `.env` — адреса сервера вычисляются в рантайме из
-`window.location` (см. `client/src/serverUrl.ts`). Поэтому смена домена
-пересборки клиента не требует.
+Клиент читает адрес сервера из переменных сборки (`client/src/colyseus.ts`,
+`client/src/account.ts`). Перед сборкой создать `client/.env.production`
+с реальным доменом — обязательно `wss://` и `https://`, иначе страница по HTTPS
+не сможет открыть незащищённый сокет:
+
+```bash
+cd /home/deploy/crusade-deck/client
+cat > .env.production <<'EOF'
+VITE_SERVER_URL=wss://ВАШ-ДОМЕН.com
+VITE_HTTP_URL=https://ВАШ-ДОМЕН.com
+EOF
+npm ci && npm run build
+```
+
+⚠️ `.env.local` подхватывается и прод-сборкой тоже, причём с приоритетом выше
+`.env.production`. В git он не попадает, так что на сервере его быть не должно —
+но если появится, в бандл уедет адрес из него. Проверить после сборки:
+
+```bash
+grep -c "ВАШ-ДОМЕН.com" dist/assets/index-*.js
+```
+
+Смена домена требует пересборки клиента: поправить `.env.production` и повторить
+`npm run build`.
 
 ## 3. Запустить (от root)
 

@@ -15,10 +15,13 @@ export interface Offset {
 // Смещение i-й карты стопки относительно якоря. Стопка ОТЦЕНТРОВАНА: середина колоды
 // лежит в якоре, поэтому колода не «уползает» из зоны по мере роста числа карт.
 // i = 0 — задняя карта (ниже-левее), i = count-1 — передняя (выше-правее).
-export function stackOffset(i: number, count: number): Offset {
+// mirrored — колода лежит лицом вверх, то есть её перевернули: сдвиг стопки уходит в
+// зеркальную сторону (не вправо, а влево), ровно как у настоящей перевёрнутой пачки.
+export function stackOffset(i: number, count: number, mirrored = false): Offset {
   const c = (Math.max(1, count) - 1) / 2;
+  const sx = mirrored ? -anim.deck.stackDx : anim.deck.stackDx;
   // +0 нормализует «минус ноль» (важно только для читаемости чисел в тестах/логах).
-  return { dx: (i - c) * anim.deck.stackDx + 0, dy: (i - c) * anim.deck.stackDy + 0 };
+  return { dx: (i - c) * sx + 0, dy: (i - c) * anim.deck.stackDy + 0 };
 }
 
 // Масштаб колоды по зоне: в центре стола она общая и крупная, в личной сейф-зоне —

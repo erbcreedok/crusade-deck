@@ -15,12 +15,8 @@ const { Server } = colyseusPkg;
 
 const app = express();
 app.use(express.json());
-// В проде клиент и сервер за одним origin (Caddy отдаёт статику и проксирует API),
-// поэтому CORS сводится к конкретному домену. В dev остаётся "*" — там клиент на :5173.
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
-
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.sendStatus(204);
@@ -90,9 +86,6 @@ app.get("/accounts/:id/last-room", (req, res) => {
 });
 
 const PORT = Number(process.env.PORT) || 2567;
-// В проде слушаем только петлю: наружу сервер выставлен через Caddy, порт 2567
-// закрыт файрволом. В dev нужен 0.0.0.0, чтобы зайти с телефона по IP машины.
-const HOST = process.env.HOST || "0.0.0.0";
-httpServer.listen(PORT, HOST, () => {
-  console.log(`Crusade Deck server listening on ${HOST}:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`Crusade Deck server listening on :${PORT}`);
 });

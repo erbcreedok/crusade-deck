@@ -31,9 +31,10 @@ import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
 import {
   classifyDeckSwipe,
   isSwipeDown,
-  flipFactor,
+  spinAngle,
+  spinScale,
+  spinShowsOther,
   flipTilt,
-  flipShowsOther,
   flipTransform,
   stretchOffset,
 } from "./flip";
@@ -169,7 +170,8 @@ export class RoomEngine {
     dur: number;
     angle: number;
     entries: { v: CardVisual; delay: number; swapped: boolean; from: boolean }[];
-    reverseAtEdge: boolean; // на «ребре» применить реверс порядка локально (переворот стопки)
+    halfTurns: number; // 3 для колоды (540°), 1 для карты (180°)
+    reverseAtEdge: boolean; // на последнем «ребре» применить реверс порядка локально
     reversed: boolean;
   } | null = null;
   // Текст-объяснение поверх стола (отказ сервера). Живёт отдельно от «ударного» отскока.
@@ -391,7 +393,7 @@ export class RoomEngine {
     // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
     // всё, что под ней, рисуется одной Graphics (см. drawDeckBody).
     const body = new Graphics();
-    body.zIndex = -1;
+    body.zIndex = 0.5; // над нижней картой (zIndex 0), под всеми остальными
     this.cardLayer.addChild(body);
     this.deckBody = body;
 
@@ -989,7 +991,10 @@ export class RoomEngine {
       swapped: false,
       from: this.shownSide(v.card),
     }));
-    this.flipAnim = { t: 0, dur, angle, entries, reverseAtEdge: wholeDeck, reversed: false };
+    // Колода делает полтора оборота — видно, что её именно РАЗВЕРНУЛИ, а не подменили
+    // картинку; отдельная карта обходится половиной.
+    const halfTurns = wholeDeck ? anim.flip.deckHalfTurns : anim.flip.cardHalfTurns;
+    this.flipAnim = { t: 0, dur, angle, entries, halfTurns, reverseAtEdge: wholeDeck, reversed: false };
     this.flipMap = new Map(entries.map((e) => [e.v, { delay: e.delay }]));
     this.flipByCard = new Map(entries.map((e) => [e.v.card, e]));
     // Своё действие применяем В ТОТ ЖЕ МИГ: дилер — источник правды, ждать сервер незачем.
@@ -1297,7 +1302,7 @@ export class RoomEngine {
     const zs = deckZoneScale(this.deckZone);
     // Держим колоду у точки удара на время отскока (не улетает домой сразу).
     for (let i = 0; i < this.cards.length; i++) {
-      const so = stackOffset(i, this.cards.length);
+      const so = stackOffset(i, this.cards.length, this.deckIsFaceUp());
       this.cards[i].body.setTarget({ x: px + so.dx * zs, y: py + so.dy * zs, scale: DRAG_SCALE * zs, rot: this.restJitter[i] ?? 0 });
     }
   }
@@ -1307,7 +1312,7 @@ export class RoomEngine {
     const { x, y } = this.press;
     const zs = deckZoneScale(this.deckZone);
     for (let i = 0; i < this.cards.length; i++) {
-      const so = stackOffset(i, this.cards.length);
+      const so = stackOffset(i, this.cards.length, this.deckIsFaceUp());
       this.cards[i].body.setTarget({
         x: x + so.dx * zs,
         y: y + so.dy * zs,
@@ -1557,11 +1562,15 @@ export class RoomEngine {
   private updateVisibility(): void {
     const away = this.deckZone === "away";
     const detailed = this.detailedCards();
-    const top = this.cards.length - 1;
-    for (let i = 0; i < this.cards.length; i++) {
-      this.cards[i].sprite.visible = !away && (detailed || i === top);
+    const n = this.cards.length;
+    const top = n - 1;
+    // Стопка — это ДВЕ настоящие карты (верхняя и нижняя) и блок торцов между ними.
+    // Нижняя нужна не для красоты: при развороте она оказывается наверху, и без неё
+    // было видно чужую сторону не той карты. Колода из 1-2 карт рисуется как есть.
+    for (let i = 0; i < n; i++) {
+      this.cards[i].sprite.visible = !away && (detailed || i === top || i === 0);
     }
-    if (this.deckBody) this.deckBody.visible = !away && !detailed && this.cards.length > 1;
+    if (this.deckBody) this.deckBody.visible = !away && !detailed && n > 2;
     if (this.deckShadow) {
       this.deckShadow.visible = !away && this.profile.shadows && this.cards.length > 0;
     }
@@ -1574,14 +1583,15 @@ export class RoomEngine {
     if (!g) return;
     g.clear();
     const n = this.cards.length;
-    if (n < 2) return;
+    if (n < 3) return; // две карты и меньше рисуются как есть, блок не нужен
     const w = this.layout.cardW;
     const h = this.layout.cardH;
     const r = Math.max(3, w * 0.1);
-    const top = stackOffset(n - 1, n); // блок ставим в систему координат верхней карты
+    const mirrored = this.deckIsFaceUp();
+    const top = stackOffset(n - 1, n, mirrored); // блок ставим в систему координат верхней карты
     const bg = cardBackSkin(this.cardBack).bg;
     // Сплошное «тело» блока — от самой задней карты, чтобы между полосками не просвечивал стол.
-    const back = stackOffset(0, n);
+    const back = stackOffset(0, n, mirrored);
     g.roundRect(back.dx - top.dx - w / 2, back.dy - top.dy - h / 2, w, h, r)
       .fill({ color: bg })
       .stroke({ width: 1.5, color: CARD_EDGE.side });
@@ -1589,8 +1599,8 @@ export class RoomEngine {
     // Полоски торцов: не все 52 карты (их шаг — доли пикселя и они слились бы в пятно),
     // а через равные промежутки. Видны с тех сторон, куда уходит задняя карта — слева и
     // снизу, — поэтому у каждой полоски рисуем только левый и нижний срезы.
-    for (const i of stackStripeIndices(n, anim.deck.stripeSpacing)) {
-      const so = stackOffset(i, n);
+    for (const i of stackStripeIndices(n, anim.deck.stripeSpacing).filter((i) => i > 0)) {
+      const so = stackOffset(i, n, mirrored);
       const x = so.dx - top.dx - w / 2;
       const y = so.dy - top.dy - h / 2;
       g.roundRect(x, y, w, h, r).fill({ color: bg });
@@ -1620,7 +1630,7 @@ export class RoomEngine {
         top.body.rotation + flipTilt(p, this.flipAnim.angle, anim.flip.tiltAmp),
         top.body.scaleVal,
         this.flipAnim.angle,
-        flipFactor(p),
+        spinScale(spinAngle(p, this.flipAnim.halfTurns)),
       );
       g.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.tx, m.ty));
       return;
@@ -1814,20 +1824,22 @@ export class RoomEngine {
       const fa = this.flipAnim;
       fa.t += frameDt;
       let done = true;
+      // Порядок колоды реверсится на ПОСЛЕДНЕМ ребре: до этого стопка просто крутится,
+      // и менять, кто наверху, рано.
+      const lastEdge = (fa.halfTurns - 0.5) / fa.halfTurns;
+      if (fa.reverseAtEdge && !fa.reversed && fa.t / fa.dur >= lastEdge) {
+        fa.reversed = true;
+        this.applyOrderLocally([...this.deckCards].reverse());
+      }
       for (const e of fa.entries) {
         const p = (fa.t - e.delay) / fa.dur;
         if (p < 1) done = false;
-        // Ровно на «ребре» показываем другую сторону — один раз за анимацию. Это верно и
-        // для отката: там тем же движением карта возвращается к тому, что говорит сервер.
-        if (!e.swapped && flipShowsOther(p)) {
-          e.swapped = true;
-          // Переворот стопки реверсит порядок — считаем это САМИ, ровно на «ребре», не
-          // дожидаясь сервера: иначе поверх оказывалась не та карта, что должна.
-          if (fa.reverseAtEdge && !fa.reversed) {
-            fa.reversed = true;
-            this.applyOrderLocally([...this.deckCards].reverse());
-          }
-          this.flipByCard.get(e.v.card)!.swapped = true;
+        // Сторона переключается на каждом ребре вращения, а не один раз: полтора оборота
+        // — это три ребра, и на каждом карта честно показывает следующую сторону.
+        const other = spinShowsOther(spinAngle(Math.max(0, Math.min(1, p)), fa.halfTurns));
+        if (e.swapped !== other) {
+          e.swapped = other;
+          e.v.sprite.texture = this.textureFor(e.v.card);
         }
       }
       if (done) {
@@ -1948,7 +1960,8 @@ export class RoomEngine {
       // Крен «живого» переворота накладывается поверх собственного угла карты и сам
       // сходит на нет к концу — карта возвращается ровно к своему положению.
       const tilt = flipTilt(p, this.flipAnim.angle, anim.flip.tiltAmp);
-      const m = flipTransform(x, y, rot + sh.rot + tilt, scale, this.flipAnim.angle, flipFactor(p));
+      const f = spinScale(spinAngle(p, this.flipAnim.halfTurns));
+      const m = flipTransform(x, y, rot + sh.rot + tilt, scale, this.flipAnim.angle, f);
       c.sprite.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.tx, m.ty));
       return;
     }
@@ -2045,8 +2058,10 @@ export class RoomEngine {
   private textureFor(card: string): Texture {
     // Карта в перевороте до «ребра» держит ту сторону, с которой начинала: правда может
     // прийти раньше анимации, но менять картинку без переворота нельзя.
+    // Во время вращения сторона определяется фазой: from — та, с которой начали,
+    // swapped — перевалили ли нечётное число рёбер.
     const inFlip = this.flipByCard.get(card);
-    const up = inFlip && !inFlip.swapped ? inFlip.from : this.shownSide(card);
+    const up = inFlip ? (inFlip.swapped ? !inFlip.from : inFlip.from) : this.shownSide(card);
     return up && card ? this.faceTexFor(card) : this.backTex!;
   }
 
@@ -2143,11 +2158,18 @@ export class RoomEngine {
     return tex;
   }
 
+  // Колода лежит лицом вверх? Смотрим по верхней карте: от этого зависит, в какую
+  // сторону «растёт» стопка (перевёрнутая пачка смещается зеркально).
+  private deckIsFaceUp(): boolean {
+    const top = this.cards[this.cards.length - 1];
+    return !!top && !!this.facing[top.card];
+  }
+
   private restTarget(i: number): CardTargets {
     if (this.deckZone === "safe" && this.deckFanned) return this.fanTarget(i);
     const a = this.activeAnchor();
     const zs = deckZoneScale(this.deckZone);
-    const so = stackOffset(i, this.cards.length);
+    const so = stackOffset(i, this.cards.length, this.deckIsFaceUp());
     return { x: a.x + so.dx * zs, y: a.y + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
   }
 

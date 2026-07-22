@@ -32,24 +32,31 @@ export function isSwipeDown(vx: number, vy: number): boolean {
   return vy / speed > anim.flip.upSectorCos;
 }
 
-// Фактор переворота: 1 → 0 (ребро) → 1. Модуль здесь принципиален: без него карта
-// доезжала до -1, то есть оставалась ЗЕРКАЛЬНОЙ. Сторона меняется подменой текстуры ровно
-// на ребре (flipShowsOther), а геометрия возвращается в исходную — карта не «вывернута».
-export function flipFactor(p: number): number {
-  return Math.abs(Math.cos(Math.PI * Math.max(0, Math.min(1, p))));
+// Разворот стопки — это вращение вокруг оси, а не «схлопывание и разворачивание».
+// turns — сколько ПОЛУоборотов делает вещь: колода крутится на 3 (540°, полтора оборота
+// — видно, что её именно развернули), одиночная карта на 1 (180°). Число полуоборотов
+// нечётное, поэтому в конце наверху всегда противоположная сторона.
+export function spinAngle(p: number, halfTurns: number): number {
+  return Math.max(0, Math.min(1, p)) * halfTurns * Math.PI;
 }
 
-// Живой наклон во время переворота: карта кренится в сторону жеста на середине и сама
-// ПЛАВНО возвращается к своему углу к концу. Вертикальный жест наклона не даёт (крутить
+// Проекция вращения: ширина = |cos|. Модуль обязателен — иначе картинка становится
+// зеркальной, а настоящая карта, повернувшись, зеркальной не бывает.
+export function spinScale(theta: number): number {
+  return Math.abs(Math.cos(theta));
+}
+
+// Видна ли сейчас ПРОТИВОПОЛОЖНАЯ сторона (перевалили нечётное число рёбер).
+export function spinShowsOther(theta: number): boolean {
+  return Math.cos(theta) < 0;
+}
+
+// Живой наклон во время разворота: карта кренится в сторону жеста к середине и САМА
+// плавно возвращается к своему углу к концу. Вертикальный жест наклона не даёт (крутить
 // не за что), диагональ — промежуточный, горизонталь — максимум.
 export function flipTilt(p: number, swipeAngle: number, amp: number): number {
   const t = Math.max(0, Math.min(1, p));
   return amp * Math.sin(Math.PI * t) * Math.cos(swipeAngle);
-}
-
-// Когда подменять текстуру: ровно на ребре, чтобы подмены не было видно.
-export function flipShowsOther(p: number): boolean {
-  return p >= 0.5;
 }
 
 export interface Transform2D {

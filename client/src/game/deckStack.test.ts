@@ -34,6 +34,22 @@ describe("stackOffset", () => {
   });
 });
 
+describe("stackOffset — зеркало для перевёрнутой колоды", () => {
+  it("колода лицом вверх смещается в ДРУГУЮ сторону: не вправо, а влево", () => {
+    const normal = stackOffset(N - 1, N, false);
+    const flipped = stackOffset(N - 1, N, true);
+    expect(flipped.dx).toBeCloseTo(-normal.dx, 10);
+  });
+
+  it("по вертикали ничего не меняется — перевернули, а не положили иначе", () => {
+    expect(stackOffset(5, N, true).dy).toBeCloseTo(stackOffset(5, N, false).dy, 10);
+  });
+
+  it("по умолчанию зеркала нет", () => {
+    expect(stackOffset(5, N)).toEqual(stackOffset(5, N, false));
+  });
+});
+
 describe("stackExtent", () => {
   it("габарит блока растёт с числом карт — толщина колоды видна", () => {
     expect(stackExtent(52).w).toBeGreaterThan(stackExtent(36).w);
