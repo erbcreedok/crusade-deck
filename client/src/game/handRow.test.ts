@@ -12,10 +12,11 @@ describe("rowOffsets", () => {
     for (let i = 1; i < o.length; i++) expect(o[i] - o[i - 1]).toBeCloseTo(step, 6);
   });
 
-  it("карты идут внахлёст: шаг заметно меньше ширины карты", () => {
-    // Именно нахлёст и прячет номиналы: видна полоска шириной в шаг, а не вся карта.
-    expect(rowStep(6, CARD_W, MAX)).toBeLessThan(CARD_W * 0.5);
-    expect(rowStep(6, CARD_W, MAX)).toBeGreaterThan(0);
+  it("карты лежат ПАЧКОЙ: даже на маленькой руке шаг — узкая полоска", () => {
+    // Именно плотный нахлёст и прячет номиналы. Проверяем на трёх картах: там ширина
+    // зоны ничего не ограничивает, и шаг задаётся только самим правилом раскладки.
+    expect(rowStep(3, CARD_W, MAX)).toBeLessThanOrEqual(CARD_W * 0.15);
+    expect(rowStep(3, CARD_W, MAX)).toBeGreaterThan(0);
   });
 
   it("много карт — ряд сжимается, но каждая карта остаётся видна торцом", () => {
