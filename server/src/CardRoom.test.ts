@@ -90,6 +90,24 @@ describe("CardRoom", () => {
     expect(room.state.deck.length).toBe(36);
   });
 
+  it("shuffle_deck works while the deck is in the dealer's safe zone", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    let waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "safe" });
+    await waiter;
+    const before = [...room.state.deck].sort();
+
+    waiter = room.waitForMessage("shuffle_deck");
+    dealer.send("shuffle_deck");
+    await waiter;
+
+    expect([...room.state.deck].sort()).toEqual(before); // те же карты, другой порядок
+    expect(room.state.deck.length).toBe(36);
+    expect(room.state.deckLocation).toBe(dealer.sessionId); // колода осталась в сейф-зоне
+  });
+
   it("ignores shuffle_deck from a non-dealer", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     await colyseus.connectTo(room, { name: "Alice" });

@@ -118,14 +118,14 @@ export function RoomScreen({
 
   const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
 
-  // Набор кнопок «Готов/Растасовать/Раздать» доступен ТОЛЬКО когда колода в центре и
-  // не идёт драг. Если колода вне центра — вместо них плейсхолдер (позже — свои кнопки).
+  // «Готов/Раздать» — только когда колода в центре и не идёт драг. Вне центра — плейсхолдер.
   const deckInCenter = deckZone === "center";
   const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
   const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
-  // «Перевернуть карты» — пока доступна дилеру и в центре, и в сейф-зоне (не при драге).
-  const showFlip =
-    phase === "lobby" && amIDealer && !draggingDeck && (deckZone === "center" || deckZone === "safe");
+  // Инструменты колоды (Растасовать/Перевернуть) — доступны дилеру, ПОКА ЕСТЬ КОЛОДА
+  // (центр или своя сейф-зона), не во время драга. Позже так же — для сброса/второй колоды.
+  const deckIsMine = deckZone === "center" || deckZone === "safe";
+  const showDeckTools = phase === "lobby" && amIDealer && !draggingDeck && deckIsMine;
 
   return (
     <div className="table-screen">
@@ -172,17 +172,6 @@ export function RoomScreen({
               Готов
             </button>
             {amIDealer && (
-              <button
-                className="pixel-btn pixel-btn-secondary"
-                onClick={() => {
-                  room.send("shuffle_deck"); // сервер тасует; новый порядок придёт эхом
-                  setShuffleSignal((s) => s + 1); // «сумбур» на время запроса
-                }}
-              >
-                Растасовать
-              </button>
-            )}
-            {amIDealer && (
               <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("start_game")}>
                 Раздать
               </button>
@@ -197,10 +186,22 @@ export function RoomScreen({
           </button>
         )}
 
-        {showFlip && (
-          <button className="pixel-btn pixel-btn-secondary" onClick={() => setFaceUp((v) => !v)}>
-            {faceUp ? "🂠 Рубашкой вверх" : "🎴 Перевернуть карты"}
-          </button>
+        {/* Инструменты колоды — доступны, пока есть колода (центр/сейф). */}
+        {showDeckTools && (
+          <>
+            <button
+              className="pixel-btn pixel-btn-secondary"
+              onClick={() => {
+                room.send("shuffle_deck"); // сервер тасует; новый порядок придёт эхом
+                setShuffleSignal((s) => s + 1); // «сумбур» на время запроса
+              }}
+            >
+              Растасовать
+            </button>
+            <button className="pixel-btn pixel-btn-secondary" onClick={() => setFaceUp((v) => !v)}>
+              {faceUp ? "🂠 Рубашкой вверх" : "🎴 Перевернуть карты"}
+            </button>
+          </>
         )}
       </div>
     </div>
