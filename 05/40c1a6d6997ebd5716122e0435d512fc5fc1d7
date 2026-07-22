@@ -1,0 +1,24 @@
+client/src/game/RoomEngine.ts
+  s_7d9a23fba6e8e1::t_76a0b264308bec 90
+  s_7d9a23fba6e8e1::t_1ccfcb2adf3d1c 114,2563-2565,2568,2570-2584,2592-2593,2598,2600-2636,2638-2641,2648-2649,2659,2662,2671,2673-2682,2684,2686-2722,2725-2730,2732-2734,2766-2769,2782,2784-2787
+client/src/game/engine/shufflePose.ts
+  s_7d9a23fba6e8e1::t_2ed5dfe173ac76 1-47
+client/src/game/engine/shufflePose.test.ts
+  s_7d9a23fba6e8e1::t_da43a4bd763c0b 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0540c1a6d6997ebd5716122e0435d512fc5fc1d7",
+  "prompts": {},
+  "sessions": {
+    "s_7d9a23fba6e8e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfdb8a65-0508-4465-9b69-1a9ce1cb09b2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
