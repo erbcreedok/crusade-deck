@@ -1,0 +1,23 @@
+deploy/crusade-deck.service
+  s_d242f4bac5a1da::t_d00664dd4fd631 15-16
+deploy/README.md
+  s_d242f4bac5a1da::t_2b15bfebb6daa4 45-47
+CLAUDE.md
+  s_d242f4bac5a1da::t_f426fd38abedae 93-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e6e260f82cb8dd8ac684227d9f13e983aece98db",
+  "prompts": {},
+  "sessions": {
+    "s_d242f4bac5a1da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89366ff4-08a9-45bb-8339-ef8e9a9d2d5f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
