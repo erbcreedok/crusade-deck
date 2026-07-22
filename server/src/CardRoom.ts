@@ -7,7 +7,7 @@ import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
 import { findAccountById } from "./accounts.js";
 import { setPublicRoom, updatePublicRoomCount, removePublicRoom } from "./publicRooms.js";
 import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
-import { moveCard, scatterCards } from "./deckOrder.js";
+import { moveCard, isPermutationOf } from "./deckOrder.js";
 
 interface JoinOptions {
   token?: string;
@@ -84,16 +84,16 @@ export class CardRoom extends Room<GameState> {
       next.forEach((c, i) => this.state.deck.setAt(i, c));
     });
 
-    // Свайп по раскрытому вееру: игрок выбросил пачку соседних карт — они врезаются
-    // обратно в колоду на случайные места. Это НЕ полная перетасовка: все остальные
-    // карты сохраняют порядок относительно друг друга (см. scatterCards).
-    this.onMessage("scatter_cards", (client, message: { cards?: string[] }) => {
+    // Готовый порядок колоды от клиента (свайп по вееру: карты выплёскиваются и врезаются
+    // обратно). Тасует КЛИЕНТ — так его анимация точна и не ждёт сети; сервер принимает
+    // результат, но проверяет, что это именно перестановка текущей колоды.
+    this.onMessage("set_deck_order", (client, message: { order?: string[] }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer || this.state.phase !== "lobby") return;
-      const cards = message?.cards;
-      if (!Array.isArray(cards) || cards.length === 0) return;
-      const next = scatterCards(this.state.deck.toArray(), cards.filter((c) => typeof c === "string"), Math.random);
-      next.forEach((c, i) => this.state.deck.setAt(i, c));
+      const order = message?.order;
+      if (!Array.isArray(order) || !order.every((c) => typeof c === "string")) return;
+      if (!isPermutationOf(order, this.state.deck.toArray())) return;
+      order.forEach((c, i) => this.state.deck.setAt(i, c));
     });
 
     // Дилер притягивает колоду в свою сейф-зону (zone "safe") или возвращает в

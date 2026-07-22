@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveCard } from "./deckOrder";
+import { moveCard, scatterCards } from "./deckOrder";
 
 const deck = ["A♠", "2♠", "3♠", "4♠", "5♠"];
 
@@ -28,6 +28,35 @@ describe("moveCard", () => {
   it("исходный массив не мутируется", () => {
     const src = [...deck];
     moveCard(src, "A♠", 3);
+    expect(src).toEqual(deck);
+  });
+});
+
+describe("scatterCards", () => {
+  const rng = (...vals: number[]) => {
+    let i = 0;
+    return () => vals[i++ % vals.length];
+  };
+
+  it("остальные карты сохраняют порядок относительно друг друга", () => {
+    const out = scatterCards(deck, ["2♠", "5♠"], rng(0, 0.99));
+    expect(out.filter((c) => c !== "2♠" && c !== "5♠")).toEqual(["A♠", "3♠", "4♠"]);
+  });
+
+  it("набор карт не меняется", () => {
+    const out = scatterCards(deck, ["3♠", "4♠"], rng(0.1, 0.9));
+    expect([...out].sort()).toEqual([...deck].sort());
+  });
+
+  it("доля 0 кладёт карту в начало, доля 1 — в конец", () => {
+    expect(scatterCards(deck, ["5♠"], rng(0))[0]).toBe("5♠");
+    expect(scatterCards(deck, ["A♠"], rng(1))[deck.length - 1]).toBe("A♠");
+  });
+
+  it("пустой список и неизвестные карты ничего не меняют, исходник цел", () => {
+    const src = [...deck];
+    expect(scatterCards(src, [], rng(0.5))).toEqual(deck);
+    expect(scatterCards(src, ["K♦"], rng(0.5))).toEqual(deck);
     expect(src).toEqual(deck);
   });
 });

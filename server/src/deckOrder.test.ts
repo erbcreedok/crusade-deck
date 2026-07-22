@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveCard, scatterCards } from "./deckOrder.js";
+import { moveCard, isPermutationOf } from "./deckOrder.js";
 
 const deck = ["A♠", "2♠", "3♠", "4♠", "5♠"];
 
@@ -23,40 +23,22 @@ describe("moveCard", () => {
   });
 });
 
-describe("scatterCards", () => {
-  const deck = ["A♠", "2♠", "3♠", "4♠", "5♠", "6♠", "7♠"];
-  // Детерминированный «рандом»: выдаёт заданную последовательность долей.
-  const rng = (...vals: number[]) => {
-    let i = 0;
-    return () => vals[i++ % vals.length];
-  };
+describe("isPermutationOf", () => {
+  const cur = ["A♠", "2♠", "3♠"];
 
-  it("остальные карты сохраняют порядок ОТНОСИТЕЛЬНО ДРУГ ДРУГА", () => {
-    const out = scatterCards(deck, ["2♠", "5♠"], rng(0, 0.99));
-    const rest = out.filter((c) => c !== "2♠" && c !== "5♠");
-    expect(rest).toEqual(["A♠", "3♠", "4♠", "6♠", "7♠"]);
+  it("та же колода в другом порядке — перестановка", () => {
+    expect(isPermutationOf(["3♠", "A♠", "2♠"], cur)).toBe(true);
+    expect(isPermutationOf([...cur], cur)).toBe(true);
   });
 
-  it("набор карт не меняется — ничего не теряется и не задваивается", () => {
-    const out = scatterCards(deck, ["3♠", "4♠", "7♠"], rng(0.1, 0.5, 0.9));
-    expect([...out].sort()).toEqual([...deck].sort());
-    expect(out.length).toBe(deck.length);
+  it("другая длина, подменённая или задвоенная карта — не перестановка", () => {
+    expect(isPermutationOf(["A♠", "2♠"], cur)).toBe(false);
+    expect(isPermutationOf(["A♠", "2♠", "K♦"], cur)).toBe(false);
+    expect(isPermutationOf(["A♠", "A♠", "2♠"], cur)).toBe(false);
   });
 
-  it("выброшенные карты встают на новые места по рандому", () => {
-    const out = scatterCards(deck, ["7♠"], rng(0));
-    expect(out[0]).toBe("7♠"); // доля 0 → в самое начало
-    expect(scatterCards(deck, ["A♠"], rng(1))[deck.length - 1]).toBe("A♠"); // доля 1 → в конец
-  });
-
-  it("пустой список и неизвестные карты — колода без изменений", () => {
-    expect(scatterCards(deck, [], rng(0.5))).toEqual(deck);
-    expect(scatterCards(deck, ["нет такой"], rng(0.5))).toEqual(deck);
-  });
-
-  it("исходный массив не мутируется", () => {
-    const src = [...deck];
-    scatterCards(src, ["3♠"], rng(0.2));
-    expect(src).toEqual(deck);
+  it("пустые колоды сравниваются без падений", () => {
+    expect(isPermutationOf([], [])).toBe(true);
+    expect(isPermutationOf(["A♠"], [])).toBe(false);
   });
 });

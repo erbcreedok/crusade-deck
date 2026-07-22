@@ -24,7 +24,7 @@ import {
   fanSpreadShift,
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
-import { moveCard } from "./deckOrder";
+import { moveCard, scatterCards } from "./deckOrder";
 import {
   swipeStrength,
   swipeCardCount,
@@ -157,7 +157,11 @@ export class RoomEngine {
   // «Выплеск» по свайпу вверх: несколько карт вылетают из веера и возвращаются, пока
   // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
   // если новый порядок придёт в полёте, карта просто вернётся уже в новый слот.
-  private splashAnim: { t: number; dur: number; entries: { v: CardVisual; dir: Dir; dist: number; spin: number; z: number }[] } | null = null;
+  private splashAnim: {
+    t: number;
+    dur: number;
+    entries: { v: CardVisual; from: ShufflePose; dir: Dir; dist: number; spin: number }[];
+  } | null = null;
   private onSwipeShuffle: ((cards: string[]) => void) | null = null;
 
   // «Кирпич» колоды: торцы карт под верхней, одной Graphics вместо полусотни спрайтов.
@@ -731,6 +735,21 @@ export class RoomEngine {
     if (reordered.length !== this.cards.length) return; // рассинхрон — не трогаем
     this.deckCards = next;
     this.cards = reordered;
+    this.cards.forEach((c, i) => {
+      c.sprite.zIndex = i;
+      c.body.setTarget(this.restTarget(i));
+    });
+  }
+
+  // Применить готовый порядок колоды локально (жест-выплеск считает его сам). Спрайты
+  // переиспользуются по идентичности карты, поэтому каждая карта просто едет в свой слот;
+  // эхо сервера с тем же порядком уже ничего не сдвинет (см. setDeck).
+  private applyOrderLocally(order: string[]): void {
+    const byCard = new Map(this.cards.map((c) => [c.card, c]));
+    const next = order.map((c) => byCard.get(c)).filter((c): c is CardVisual => !!c);
+    if (next.length !== this.cards.length) return; // рассинхрон — не трогаем
+    this.deckCards = order;
+    this.cards = next;
     this.cards.forEach((c, i) => {
       c.sprite.zIndex = i;
       c.body.setTarget(this.restTarget(i));
@@ -1564,20 +1583,25 @@ export class RoomEngine {
     // Берём НЕПРЕРЫВНУЮ пачку карт вокруг той, с которой начался свайп: выплеск идёт
     // из-под пальца, а не выдёргивает карты по всему вееру.
     const picked = swipeCardIndices(startIndex, count, n);
-    const entries = picked.map((idx, k) => ({
-      v: this.cards[idx],
+    const thrown = picked.map((i) => this.cards[i]);
+    const entries = thrown.map((v, k) => ({
+      v,
+      from: { x: v.body.px, y: v.body.py, rot: v.body.rotation },
       dir: dirs[k] ?? dirs[dirs.length - 1],
       dist,
       spin: ((dirs[k] ?? dirs[0]).dx >= 0 ? 1 : -1) * s.spin,
-      z: 50_000 + k,
     }));
-    for (const e of entries) e.v.sprite.zIndex = e.z; // летят поверх веера
+
+    // Порядок считаем ЗДЕСЬ, а не ждём сервер: анимация сразу знает, куда каждая карта
+    // ляжет, и раскладка получается точной. Сервер потом просто примет готовый порядок.
+    const nextOrder = scatterCards(this.deckCards, thrown.map((v) => v.card), Math.random);
+    this.applyOrderLocally(nextOrder);
+    for (let k = 0; k < entries.length; k++) entries[k].v.sprite.zIndex = 50_000 + k; // летят поверх веера
+
     this.splashAnim = { t: 0, dur: s.dur, entries };
     this.poke = null;
     this.hoverTarget = 0;
-    // Наверх уходят ИМЕННО выброшенные карты: сервер врежет обратно только их, а порядок
-    // остальных не тронет (полная перетасовка — это отдельная кнопка «Растасовать»).
-    this.onSwipeShuffle?.(entries.map((e) => e.v.card));
+    this.onSwipeShuffle?.(nextOrder); // сервер принимает уже готовый порядок
     this.wake();
   }
 
@@ -1588,15 +1612,16 @@ export class RoomEngine {
     if (!sa) return;
     sa.t += dt;
     const p = Math.min(1, sa.t / sa.dur);
-    const arc = Math.sin(Math.PI * p);
+    const u = easeOutQuad(p); // база едет из старого места в новый слот
+    const arc = Math.sin(Math.PI * p); // вылет в сторону и обратно
     for (const e of sa.entries) {
       const i = this.cards.indexOf(e.v);
       if (i < 0) continue;
-      const home = this.restTarget(i);
+      const home = this.restTarget(i); // слот уже НОВЫЙ — порядок применён на старте жеста
       e.v.body.setTarget({
-        x: (home.x ?? 0) + e.dir.dx * e.dist * arc,
-        y: (home.y ?? 0) + e.dir.dy * e.dist * arc,
-        rot: (home.rot ?? 0) + e.spin * arc,
+        x: lerp(e.from.x, home.x ?? 0, u) + e.dir.dx * e.dist * arc,
+        y: lerp(e.from.y, home.y ?? 0, u) + e.dir.dy * e.dist * arc,
+        rot: lerp(e.from.rot, home.rot ?? 0, u) + e.spin * arc,
         scale: (home.scale ?? 1) * (1 + 0.12 * arc),
       });
     }

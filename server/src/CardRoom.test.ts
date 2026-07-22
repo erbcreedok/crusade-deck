@@ -405,38 +405,42 @@ describe("CardRoom", () => {
     expect(room.state.deck.length).toBe(0); // колода роздана — двигать нечего
   });
 
-  // Свайп по вееру выбрасывает пачку соседних карт — они врезаются обратно в колоду,
-  // а ВСЕ остальные обязаны сохранить порядок относительно друг друга.
-  it("scatter_cards moves only the given cards, the rest keep their relative order", async () => {
+  // Свайп по вееру тасует НА КЛИЕНТЕ и присылает готовый порядок — сервер его принимает,
+  // но только если это перестановка текущей колоды.
+  it("set_deck_order accepts a client-computed permutation", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const before = [...room.state.deck];
-    const thrown = before.slice(5, 10);
+    const next = [before[7], ...before.filter((_, i) => i !== 7)];
 
-    const waiter = room.waitForMessage("scatter_cards");
-    dealer.send("scatter_cards", { cards: thrown });
+    const waiter = room.waitForMessage("set_deck_order");
+    dealer.send("set_deck_order", { order: next });
     await waiter;
 
-    const after = [...room.state.deck];
-    expect([...after].sort()).toEqual([...before].sort()); // тот же набор
-    const restBefore = before.filter((c) => !thrown.includes(c));
-    const restAfter = after.filter((c) => !thrown.includes(c));
-    expect(restAfter).toEqual(restBefore); // остальные карты друг относительно друга не сдвинулись
+    expect([...room.state.deck]).toEqual(next);
   });
 
-  it("ignores scatter_cards from a non-dealer and with a bad payload", async () => {
+  it("rejects a tampered order and a non-dealer", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
-    await colyseus.connectTo(room, { name: "Alice" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const second = await colyseus.connectTo(room, { name: "Bob" });
     const before = [...room.state.deck];
 
-    let waiter = room.waitForMessage("scatter_cards");
-    second.send("scatter_cards", { cards: before.slice(0, 3) });
+    // подменённая карта
+    let waiter = room.waitForMessage("set_deck_order");
+    dealer.send("set_deck_order", { order: ["джокер", ...before.slice(1)] });
     await waiter;
     expect([...room.state.deck]).toEqual(before);
 
-    waiter = room.waitForMessage("scatter_cards");
-    (await colyseus.connectTo(room, { name: "Carol" })).send("scatter_cards", { cards: "не массив" });
+    // укороченная колода
+    waiter = room.waitForMessage("set_deck_order");
+    dealer.send("set_deck_order", { order: before.slice(0, 10) });
+    await waiter;
+    expect([...room.state.deck]).toEqual(before);
+
+    // не дилер
+    waiter = room.waitForMessage("set_deck_order");
+    second.send("set_deck_order", { order: [...before].reverse() });
     await waiter;
     expect([...room.state.deck]).toEqual(before);
   });
