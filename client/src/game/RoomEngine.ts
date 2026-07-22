@@ -38,6 +38,7 @@ import {
   stretchOffset,
 } from "./flip";
 import { cardsUnderTouch } from "./touch";
+import { rowOffsets, rowWidth } from "./handRow";
 import type { DeckFxMessage } from "./deckFxClient";
 import {
   swipeStrength,
@@ -2186,11 +2187,27 @@ export class RoomEngine {
   }
 
   private restTarget(i: number): CardTargets {
-    if (this.fanned()) return this.fanTarget(i);
+    // Рука вне фокуса — «шеренга»: видно, сколько карт, но читается только первая.
+    // В фокусе она разъезжается веером (см. handView.ts — правило, а не деталь отрисовки).
+    if (this.fanned()) return this.handFocused ? this.fanTarget(i) : this.rowTarget(i);
     const a = this.activeAnchor();
     const zs = deckZoneScale(this.deckZone);
     const so = stackOffset(i, this.cards.length, this.deckIsFaceUp());
     return { x: a.x + so.dx * zs, y: a.y + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
+  }
+
+  // Шеренга сложенной руки: первая карта стоит открыто, остальные — плотной пачкой
+  // (см. handRow.ts). Карты стоят ровно, без наклона: рука «смирно».
+  private rowTarget(i: number): CardTargets {
+    const z = this.layout.handZone;
+    const cardW = this.layout.cardW;
+    const maxW = Math.max(cardW, z.w * anim.fan.idle.widthScale);
+    const count = Math.max(1, this.deckCount);
+    const offsets = rowOffsets(count, cardW, maxW);
+    const width = rowWidth(count, cardW, maxW);
+    const left = z.cx - width / 2;
+    const x = left + (offsets[Math.max(0, Math.min(offsets.length - 1, i))] ?? 0) + cardW / 2;
+    return { x, y: z.cy, rot: 0, scale: 1 };
   }
 
   // Геометрия веера в руке. Дуга fanCard провисает ВНИЗ от якоря, поэтому якорь стоит у
