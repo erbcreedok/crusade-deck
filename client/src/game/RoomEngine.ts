@@ -13,6 +13,7 @@ import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
+import { fanCard } from "./fan";
 import { anim } from "./anim/config";
 import {
   DEFAULT_ANIMATION_SETTINGS,
@@ -71,6 +72,7 @@ export class RoomEngine {
 
   private deckCount = 0;
   private deckZone: DeckZone = "center";
+  private deckFanned = false; // колода в сейф-зоне раскрыта веером (дабл-клик тоглит)
   private deckHit: Container | null = null;
   private lastDeckTapMs = 0;
   private onDeckDoubleClick: (() => void) | null = null;
@@ -239,6 +241,7 @@ export class RoomEngine {
   setDeckZone(zone: DeckZone): void {
     if (zone === this.deckZone) return;
     this.deckZone = zone;
+    if (zone !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
     const away = zone === "away";
     this.updateVisibility();
     if (this.deckHit) this.deckHit.eventMode = away ? "none" : "static";
@@ -328,6 +331,7 @@ export class RoomEngine {
     } else {
       if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
         this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
+        if (drop !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
         this.onDeckDrop?.(drop);
       }
       // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
@@ -436,16 +440,33 @@ export class RoomEngine {
 
   private handleDeckTap(): void {
     const now = performance.now();
-    if (now - this.lastDeckTapMs < 350) {
-      this.lastDeckTapMs = 0;
-      this.onDeckDoubleClick?.();
-    } else {
+    if (now - this.lastDeckTapMs >= 350) {
       this.lastDeckTapMs = now;
+      return;
     }
+    this.lastDeckTapMs = 0;
+    // В сейф-зоне дабл-клик раскрывает/собирает веер (локально). В центре — как раньше
+    // (React решает: переместить колоду в сейф-зону).
+    if (this.deckZone === "safe") this.toggleFan();
+    else this.onDeckDoubleClick?.();
+  }
+
+  private toggleFan(): void {
+    this.deckFanned = !this.deckFanned;
+    this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    this.positionDeckHit();
+    this.wake();
   }
 
   private positionDeckHit(): void {
     if (!this.deckHit) return;
+    // Раскрытый веер — расширяем хит-зону на всю сейф-зону, чтобы дабл-клик по любой
+    // карте веера собирал его обратно (и чтобы можно было схватить всю колоду).
+    if (this.deckZone === "safe" && this.deckFanned) {
+      const z = this.layout.safeZone;
+      this.deckHit.hitArea = new Rectangle(z.cx - z.w / 2, z.cy - z.h / 2, z.w, z.h);
+      return;
+    }
     const a = this.activeAnchor();
     const w = this.layout.cardW * 1.3;
     const h = this.layout.cardH * 1.3;
@@ -697,8 +718,22 @@ export class RoomEngine {
   }
 
   private restTarget(i: number): CardTargets {
+    if (this.deckZone === "safe" && this.deckFanned) return this.fanTarget(i);
     const a = this.activeAnchor();
     return { x: a.x, y: a.y - i * anim.deck.stackDy, rot: this.restJitter[i] ?? 0, scale: 1 };
+  }
+
+  // Веер-дуга в сейф-зоне (чистая математика — см. fan.ts).
+  private fanTarget(i: number): CardTargets {
+    const c = fanCard(
+      i,
+      Math.max(1, this.deckCount),
+      this.layout.safeAnchor,
+      this.layout.safeZone.w,
+      anim.fan.maxAngleDeg,
+      anim.fan.widthFactor,
+    );
+    return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
   }
 
   private ensureJitter(n: number): void {
