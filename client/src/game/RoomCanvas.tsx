@@ -11,6 +11,9 @@ interface Props {
   seats: SeatView[]; // чужие игроки за столом (посадка «П»), каждый — своя дроп-зона
   deckHolder: string | null; // чьё место держит колоду (при deckZone === "seat")
   onDeckDropToSeat: (playerId: string) => void; // колоду бросили на место игрока
+  selectedDecks: readonly string[]; // выделенные колоды — вокруг них рамка фокуса
+  onDeckTap: (deckId: string) => void; // тап по колоде — выделить её
+  onEmptyTap: () => void; // тап мимо всего — снять выделение
   topInset: number; // высота топбара комнаты: места садятся под ним, а не под бейджами
   bottomInset: number; // высота панели действий: игровые зоны заканчиваются над ней
   deckZone: DeckZone;
@@ -43,6 +46,9 @@ export function RoomCanvas({
   seats,
   deckHolder,
   onDeckDropToSeat,
+  selectedDecks,
+  onDeckTap,
+  onEmptyTap,
   topInset,
   bottomInset,
   deckZone,
@@ -74,10 +80,20 @@ export function RoomCanvas({
   // в неизменном виде (зона колоды, держатель, места, скины), в него никогда не попадёт.
   // Поэтому держим актуальные пропсы в ref и разом заливаем их сразу после mount.
   const latest = useRef({
-    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, fourColor, cardBack, facing, topInset, bottomInset, animation,
+    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, selectedDecks, fourColor, cardBack,
+    facing, topInset, bottomInset, animation,
+    // Колбэки тоже: пересозданный движок (ремоунт, HMR) иначе остаётся немым —
+    // тап по колоде никуда не сообщает, и выделение «не работает».
+    onDeckTap, onEmptyTap,
+    onDeckDrop, onDeckDropToSeat, onCardReorder, onShuffleChange, onFanChange, onFlipDeck,
+    onFlipCards, onDeckFx, onDragChange,
   });
   latest.current = {
-    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, fourColor, cardBack, facing, topInset, bottomInset, animation,
+    deck, seats, deckHolder, deckZone, deckSlot, deckDraggable, selectedDecks, fourColor, cardBack,
+    facing, topInset, bottomInset, animation,
+    onDeckTap, onEmptyTap,
+    onDeckDrop, onDeckDropToSeat, onCardReorder, onShuffleChange, onFanChange, onFlipDeck,
+    onFlipCards, onDeckFx, onDragChange,
   };
 
   // Создать движок один раз. Движок сам создаёт свежий <canvas> внутри wrap.
@@ -104,6 +120,18 @@ export function RoomCanvas({
       engine.setCardFacing(p.facing);
       engine.setDeckHolder(p.deckHolder);
       engine.setDeckZone(p.deckZone, p.deckSlot);
+      engine.setSelectedDecks(p.selectedDecks);
+      engine.setOnDeckTap(p.onDeckTap);
+      engine.setOnEmptyTap(p.onEmptyTap);
+      engine.setOnDeckDrop(p.onDeckDrop);
+      engine.setOnDeckDropToSeat(p.onDeckDropToSeat);
+      engine.setOnCardReorder(p.onCardReorder);
+      engine.setOnShuffleChange(p.onShuffleChange);
+      engine.setOnFanChange(p.onFanChange);
+      engine.setOnFlipDeck(p.onFlipDeck);
+      engine.setOnFlipCards(p.onFlipCards);
+      engine.setOnDeckFx(p.onDeckFx);
+      engine.setOnDragChange(p.onDragChange);
     });
 
     const ro = new ResizeObserver((entries) => {
@@ -147,6 +175,17 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setOnDeckDropToSeat(onDeckDropToSeat);
   }, [onDeckDropToSeat]);
+  useEffect(() => {
+    engineRef.current?.setOnDeckTap(onDeckTap);
+  }, [onDeckTap]);
+  useEffect(() => {
+    engineRef.current?.setOnEmptyTap(onEmptyTap);
+  }, [onEmptyTap]);
+  const selectedKey = selectedDecks.join(",");
+  useEffect(() => {
+    engineRef.current?.setSelectedDecks(selectedDecks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
   useEffect(() => {
     engineRef.current?.setDeckDraggable(deckDraggable);
     // Дилер в лобби — источник правды: применяет изменения мгновенно и не переигрывает

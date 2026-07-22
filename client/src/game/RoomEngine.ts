@@ -100,6 +100,10 @@ const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» 
 // Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
 const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 };
 
+// Пока колода на столе одна, но выделение устроено по id — когда колод станет
+// несколько, поменяется только источник этого значения.
+export const DECK_ID = "deck";
+
 const DRAG_SCALE = 1.18; // карты «приподнимаются» при захвате (визуальный акцент)
 const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-клик), больше — реальный драг
 
@@ -143,6 +147,12 @@ export class RoomEngine {
   private hoverSeat: string | null = null; // место под курсором во время драга колоды
   private deckHolder: string | null = null; // чьё место держит колоду (deckZone === "seat")
   private onDeckDropToSeat: ((playerId: string) => void) | null = null;
+  // Выделение: тап по элементу сообщает наверх, кто это был; тап по пустому месту —
+  // что выделение пора снять. Что с этим делать, решает React (см. selection.ts).
+  private onDeckTap: ((deckId: string) => void) | null = null;
+  private onEmptyTap: (() => void) | null = null;
+  private selectedDecks: readonly string[] = [];
+  private focusG: Graphics | null = null; // рамка фокуса вокруг выделенного
 
   private cards: CardVisual[] = [];
   private layout: RoomLayout = computeLayout(1, 1);
@@ -331,6 +341,10 @@ export class RoomEngine {
     this.seatLayer.zIndex = 0.5; // под зонами и картами: места — часть «стола»
     this.seatG = new Graphics();
     this.seatLayer.addChild(this.seatG);
+    // Рамка фокуса рисуется НАД картами: она подсказывает, к чему сейчас относятся
+    // кнопки панели, и не должна прятаться под стопкой.
+    this.focusG = new Graphics();
+    this.focusG.zIndex = 9000;
     this.zoneLayer = new Graphics();
     this.zoneLayer.zIndex = 1;
     this.shadowLayer = new Container();
@@ -338,7 +352,7 @@ export class RoomEngine {
     this.cardLayer = new Container();
     this.cardLayer.zIndex = 3;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
-    this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer);
+    this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer, this.focusG);
 
     // Подписи зон живут в zoneLayer (под тенями/картами) — «водяной» текст на фоне.
     (Object.keys(ZONE_LABELS) as DropZone[]).forEach((z) => {
@@ -404,6 +418,8 @@ export class RoomEngine {
     hit.cursor = "grab";
     hit.zIndex = 10_000; // всегда над картами
     hit.on("pointerdown", (e: FederatedPointerEvent) => this.onDeckDown(e));
+    // Тап по колоде (нажали и отпустили, не двигая) — выделение. Драг сюда не попадает.
+    hit.on("pointertap", (e: FederatedPointerEvent) => this.handleDeckTap(e));
     hit.on("pointermove", (e: FederatedPointerEvent) => this.onDeckHover(e)); // ховер мышью (десктоп)
     hit.on("pointerout", (e: FederatedPointerEvent) => this.onDeckHoverOut(e));
     this.world.addChild(hit);
@@ -415,6 +431,12 @@ export class RoomEngine {
     app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
     app.stage.on("pointermove", (e: FederatedPointerEvent) => this.onPointerMove(e));
     app.stage.on("pointerup", (e: FederatedPointerEvent) => this.onPointerUp(e));
+    // Тап мимо всего — снять выделение. Тап по самой колоде сюда не попадает: её
+    // хит-зона гасит событие своим pointertap.
+    app.stage.on("pointertap", (e: FederatedPointerEvent) => {
+      if (this.deckHitContains(e.global.x, e.global.y)) return;
+      this.onEmptyTap?.();
+    });
     app.stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.onPointerUp(e));
 
     if (this.seats.length > 0) this.applySeats(); // места могли приехать до монтирования
@@ -517,6 +539,23 @@ export class RoomEngine {
     this.onDeckDropToSeat = fn;
   }
 
+  setOnDeckTap(fn: ((deckId: string) => void) | null): void {
+    this.onDeckTap = fn;
+  }
+
+  setOnEmptyTap(fn: (() => void) | null): void {
+    this.onEmptyTap = fn;
+  }
+
+  // Какие колоды сейчас выделены (id колод). Пока колода одна — см. DECK_ID.
+  setSelectedDecks(ids: readonly string[]): void {
+    const same = ids.length === this.selectedDecks.length && ids.every((id, i) => id === this.selectedDecks[i]);
+    if (same) return;
+    this.selectedDecks = [...ids];
+    this.drawFocus();
+    this.wake();
+  }
+
   // Высота топбара комнаты: он HTML и лежит поверх канваса, движок про него не знает.
   setTopInset(px: number): void {
     const next = Math.max(0, Math.round(px));
@@ -567,6 +606,34 @@ export class RoomEngine {
 
   // Место игрока: прямоугольник с именем, числом карт и метками (дилер/готов/бот/пауза).
   // Во время драга колоды место подсвечивается как дроп-зона — бросок отдаёт колоду ему.
+  // Рамка фокуса вокруг выделенной колоды: небольшая подсветка, чтобы было видно,
+  // к чему относятся кнопки панели.
+  private drawFocus(): void {
+    const g = this.focusG;
+    if (!g) return;
+    g.clear();
+    if (!this.selectedDecks.includes(DECK_ID) || this.cards.length === 0) return;
+    if (this.deckZone === "away") return;
+    const a = this.activeAnchor();
+    const scale = deckZoneScale(this.deckZone);
+    // В руке карты лежат веером — рамка охватывает всю дугу, иначе только стопку.
+    const w = this.fanned() ? this.fanGeom().width + this.layout.cardW : this.layout.cardW * scale;
+    const h = this.fanned() ? this.layout.cardH * 2.2 : this.layout.cardH * scale;
+    const pad = Math.max(6, this.layout.cardH * 0.12);
+    const x = (this.fanned() ? this.fanGeom().anchor.x : a.x) - w / 2 - pad;
+    const y = (this.fanned() ? this.fanGeom().anchor.y - this.layout.cardH * 0.6 : a.y) - h / 2 - pad;
+    g.roundRect(x, y, w + pad * 2, h + pad * 2, 14).stroke({ width: 3, color: 0xffe9a8, alpha: 0.95 });
+    g.roundRect(x, y, w + pad * 2, h + pad * 2, 14).fill({ color: 0xffe08a, alpha: 0.08 });
+  }
+
+  // Попадает ли точка в хит-зону колоды — по ней отличаем «тап по колоде» от «тапа мимо».
+  private deckHitContains(x: number, y: number): boolean {
+    const hit = this.deckHit;
+    if (!hit || hit.eventMode === "none") return false;
+    const area = hit.hitArea as { contains?: (px: number, py: number) => boolean } | null;
+    return !!area?.contains?.(x - hit.x, y - hit.y);
+  }
+
   private drawSeats(): void {
     const g = this.seatG;
     const layer = this.seatLayer;
@@ -684,6 +751,7 @@ export class RoomEngine {
     if (!away) this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.applyCardTextures(); // в сейфе карты всегда рубашкой вверх — текстуры меняются
+    this.drawFocus();
     this.onFanChange?.(this.fanned());
     this.wake();
   }
@@ -891,7 +959,7 @@ export class RoomEngine {
       return;
     }
     if (this.cardPress && e.pointerId === this.cardPress.id) {
-      this.cardPress = null; // пальцем не двинули — это тап (poke/дабл-клик ловит pointertap)
+      this.cardPress = null; // пальцем не двинули — это тап, его ловит pointertap
       return;
     }
     if (!this.press || e.pointerId !== this.press.id) return;
@@ -906,7 +974,7 @@ export class RoomEngine {
     if (this.deckHit) this.deckHit.cursor = this.deckDraggable ? "grab" : "pointer";
     this.drawZones();
 
-    // Не было смещения — это тап, дабл-клик обработает pointertap. Ничего не двигаем.
+    // Не было смещения — это тап (его обработает pointertap: выделение). Ничего не двигаем.
     if (!wasDragging) {
       this.wake();
       return;
@@ -1362,10 +1430,12 @@ export class RoomEngine {
       this.skipNextTap = false; // отпускание после драга карты — не тык и не дабл-клик
       return;
     }
+    // Тап (не драг) ВЫДЕЛЯЕТ колоду — панель действий перестроится под неё.
+    // Сюда попадаем только когда пальцем не двигали: драг обрабатывается отдельно.
+    this.onDeckTap?.(DECK_ID);
     if (!this.deckDraggable) return; // двигать колоду может только дилер (в лобби)
     // Любой тык приглаживает карты под пальцем: стопка перестаёт быть растрёпанной,
-    // отдельная карта в вее­ре ложится ровно. Дабл-клика больше нет: веер открывается
-    // не тумблером, а тем, что карты лежат в руке — а туда их только перетаскивают.
+    // отдельная карта в вее­ре ложится ровно.
     this.alignUnderTouch(e.global.x, e.global.y);
     if (this.fanned() && e.pointerType !== "mouse") {
       this.pokeFan(e.global.x); // тык «ковыряет» веер (на десктопе это делает ховер)
@@ -1640,6 +1710,7 @@ export class RoomEngine {
     this.seatTexts = [];
     this.seatLayer = null;
     this.seatG = null;
+    this.focusG = null;
     this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;

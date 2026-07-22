@@ -6,6 +6,9 @@ import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
 import { deckPlaceFor } from "./game/deckZone";
 import { tableSummary, type SeatView } from "./game/seats";
+import { EMPTY_SELECTION, toggleSelection, clearSelection, type Selection } from "./game/selection";
+import { barActionsFor, type BarActionId } from "./game/barActions";
+import { DECK_ID } from "./game/RoomEngine";
 import { ShuffleSession } from "./game/shuffleSession";
 import { FxClock, shouldPlayFx, type DeckFxMessage, type DeckFxIncoming } from "./game/deckFxClient";
 import { rejectionText } from "./game/rejections";
@@ -151,6 +154,15 @@ export function RoomScreen({
   const myVote = proposal ? proposal.votes[room.sessionId] : undefined;
   const amIDealer = players.find((p) => p.id === room.sessionId)?.isDealer ?? false;
   const summary = tableSummary(players);
+
+  // Выделение элементов стола. Тап выделяет, тап мимо — снимает; правила (что с чем
+  // складывается и что чем сбрасывается) живут в selection.ts.
+  const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
+  const onDeckTap = useCallback((deckId: string) => {
+    setSelection((sel) => toggleSelection(sel, "deck", deckId));
+  }, []);
+  const onEmptyTap = useCallback(() => setSelection(clearSelection()), []);
+  const selectedDecks = selection.type === "deck" ? selection.ids : [];
 
   // Топбар — HTML поверх канваса, и его высота зависит от контента (бейджи переносятся
   // на узком экране). Меряем её и отдаём движку, иначе места игроков сядут под бейджи.
@@ -313,6 +325,22 @@ export function RoomScreen({
   const deckIsMine = deckZone === "center" || deckZone === "hand" || deckZone === "safe";
   const showDeckTools = phase === "lobby" && amIDealer && !draggingDeck && deckIsMine;
 
+  // Кнопки панели перестраиваются под выделенное (см. barActions.ts). Панель ничего
+  // не знает про колоды — она показывает то, что ей дали.
+  const bar = barActionsFor(selection, { deckZone, canMoveDeck });
+  const runAction = useCallback(
+    (id: BarActionId) => {
+      if (id === "deck_to_hand") room.send("move_deck", { zone: "hand" });
+      else if (id === "deck_to_safe") room.send("move_deck", { zone: "safe", slot: 0 });
+      else if (id === "deck_to_center") room.send("move_deck", { zone: "center" });
+    },
+    [room],
+  );
+  const mainAction = bar.main ? { label: bar.main.label, onClick: () => runAction(bar.main!.id) } : undefined;
+  const secondaryAction = bar.secondary
+    ? { label: bar.secondary.label, onClick: () => runAction(bar.secondary!.id) }
+    : undefined;
+
   // Пункты слайд-ап меню. Здесь же будут настройки и выход — пока то, что уже умеет
   // комната. Список собирается по состоянию: недоступное просто не показываем.
   const menuItems: MenuItem[] = [];
@@ -374,6 +402,9 @@ export function RoomScreen({
         seats={seats}
         deckHolder={deckHolder}
         onDeckDropToSeat={onDeckDropToSeat}
+        selectedDecks={selectedDecks}
+        onDeckTap={onDeckTap}
+        onEmptyTap={onEmptyTap}
         topInset={topInset}
         bottomInset={bottomInset}
         deckZone={deckZone}
@@ -400,7 +431,7 @@ export function RoomScreen({
       {/* Панель действий: постоянный каркас из трёх слотов. Главный и второстепенный
           пока НЕ назначены — что в них появится, решится позже. Всё, что уже работает,
           живёт в слайд-ап меню гамбургера, чтобы ничего не потерять. */}
-      <ActionBar menuItems={menuItems} />
+      <ActionBar main={mainAction} secondary={secondaryAction} menuItems={menuItems} />
     </div>
   );
 }
