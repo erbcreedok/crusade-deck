@@ -1,5 +1,6 @@
 import { anim } from "../anim/config";
 import type { CardTargets } from "../CardBody";
+import type { Choreography } from "./types";
 
 export interface ShuffleParams {
   count: number;
@@ -22,7 +23,7 @@ export interface ShuffleParams {
 //
 // Детерминирована по seed (разброс углов и множители), чтобы поведение было
 // воспроизводимым/тестируемым.
-export class ShuffleChoreography {
+export class ShuffleChoreography implements Choreography {
   readonly durationSec: number;
 
   private readonly count: number;

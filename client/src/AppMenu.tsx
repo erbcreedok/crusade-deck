@@ -11,7 +11,6 @@ import {
 const LEVEL_OPTIONS: { value: AnimationLevel; label: string }[] = [
   { value: "full", label: "Полная" },
   { value: "moderate", label: "Умеренная" },
-  { value: "off", label: "Выкл" },
 ];
 
 export function AppMenu({
@@ -113,15 +112,12 @@ export function AppMenu({
               ))}
             </div>
 
-            <label className={`pixel-label${animation.level === "off" ? " pixel-label-dim" : ""}`}>
-              Скорость
-            </label>
+            <label className="pixel-label">Скорость</label>
             <div className="seg-row">
               {ANIMATION_SPEEDS.map((sp) => (
                 <button
                   key={sp}
                   className={`seg-btn${animation.speed === sp ? " seg-btn-active" : ""}`}
-                  disabled={animation.level === "off"}
                   onClick={() => onSetSpeed(sp)}
                 >
                   {sp}x

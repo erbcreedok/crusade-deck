@@ -8,7 +8,10 @@ import {
   shouldPlay,
   type AnimationProfile,
 } from "./anim/animationSettings";
+import { easeOutQuad } from "./anim/easing";
 import { ShuffleChoreography } from "./choreo/shuffle";
+import { SpinChoreography } from "./choreo/spin";
+import type { Choreography } from "./choreo/types";
 
 interface CardVisual {
   body: CardBody;
@@ -40,7 +43,7 @@ export class RoomEngine {
   private destroyed = false;
   private mounted = false;
   private awake = false;
-  private shuffleAnim: { choreo: ShuffleChoreography; t: number } | null = null;
+  private shuffleAnim: { choreo: Choreography; t: number } | null = null;
 
   // стрелка — стабильная ссылка для ticker.add/remove
   private readonly tick = (ticker: Ticker) => this.onTick(ticker);
@@ -123,13 +126,16 @@ export class RoomEngine {
       return;
     }
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1;
-    const choreo = new ShuffleChoreography({
-      count: this.cards.length,
-      anchor: this.layout.deckAnchor,
-      seed,
-      // «Умеренный» режим ужимает каскад/разброс и гасит масштабный пульс.
-      feel: { stagger: this.profile.stagger, jitter: this.profile.jitter, scaleBump: this.profile.scaleBump ? 1 : 0 },
-    });
+    // Полная — риффл-бридж (веер + чересполосица), умеренная — короткий оборот по часовой.
+    const choreo: Choreography =
+      this.profile.shuffleVariant === "spin"
+        ? new SpinChoreography({ count: this.cards.length, anchor: this.layout.deckAnchor, seed })
+        : new ShuffleChoreography({
+            count: this.cards.length,
+            anchor: this.layout.deckAnchor,
+            seed,
+            feel: { stagger: this.profile.stagger, jitter: this.profile.jitter, scaleBump: this.profile.scaleBump ? 1 : 0 },
+          });
     // z-порядок по чересполосице: чем позже стартует карта, тем выше слой — половины
     // визуально прошивают друг друга при складывании (riffle-bridge), а не лежат пачками.
     choreo.startOrder().forEach((cardIdx, k) => {
@@ -143,7 +149,6 @@ export class RoomEngine {
   setAnimationProfile(profile: AnimationProfile): void {
     this.profile = profile;
     this.applyProfile();
-    if (!profile.motion) this.shuffleAnim = null; // без анимаций — оборвать текущую растасовку
     this.wake();
   }
 
@@ -190,29 +195,31 @@ export class RoomEngine {
 
   private onTick(ticker: Ticker): void {
     if (this.destroyed || !this.app) return;
-    const snap = !this.profile.motion;
 
-    // Скорость (1х/2х/4х) масштабирует время. Интегрируем сабстепами не крупнее maxStepSec —
-    // иначе на 4х пружина «взрывается». Реальный лаг кадра тоже клампим (защита от фризов вкладки).
-    let remaining = snap ? anim.maxStepSec : Math.min(ticker.deltaMS / 1000, 0.05) * this.profile.speed;
+    // Скорость (1х/2х/3х) масштабирует время. Интегрируем сабстепами не крупнее maxStepSec —
+    // иначе на 3х пружина «взрывается». Реальный лаг кадра тоже клампим (защита от фризов вкладки).
+    let remaining = Math.min(ticker.deltaMS / 1000, 0.05) * this.profile.speed;
     do {
       const dt = Math.min(remaining, anim.maxStepSec);
       remaining -= dt;
 
       if (this.shuffleAnim) {
         this.shuffleAnim.t += dt;
-        const targets = this.shuffleAnim.choreo.sample(this.shuffleAnim.t);
+        // Ease-out воспроизведения: время растасовки замедляется под конец (мягкое оседание).
+        const dur = this.shuffleAnim.choreo.durationSec;
+        const warped = dur > 0 ? easeOutQuad(this.shuffleAnim.t / dur) * dur : dur;
+        const targets = this.shuffleAnim.choreo.sample(warped);
         for (let i = 0; i < this.cards.length && i < targets.length; i++) {
           this.cards[i].body.setTarget(targets[i]);
         }
-        if (this.shuffleAnim.choreo.done(this.shuffleAnim.t)) {
+        if (this.shuffleAnim.t >= dur) {
           this.shuffleAnim = null;
           this.cards.forEach((c, i) => (c.sprite.zIndex = i)); // вернуть z-порядок ровной стопки
         }
       }
 
-      for (const c of this.cards) c.body.step(dt, snap);
-    } while (remaining > 0 && !snap);
+      for (const c of this.cards) c.body.step(dt);
+    } while (remaining > 0);
 
     for (const c of this.cards) this.syncSprite(c);
 

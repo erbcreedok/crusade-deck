@@ -22,11 +22,13 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [restoreCode, setRestoreCode] = useState("");
   const [showRestore, setShowRestore] = useState(false);
-  const { settings: animation, setLevel, setSpeed, motionEnabled } = useAnimationSettings();
+  const { settings: animation, setLevel, setSpeed } = useAnimationSettings();
+  // Фон и Framer Motion движутся только при полной анимации; в умеренной — статичны.
+  const fullMotion = animation.level === "full";
 
   return (
-    <MotionConfig reducedMotion={motionEnabled ? "never" : "always"}>
-      <PixelBackground enabled={motionEnabled} />
+    <MotionConfig reducedMotion={fullMotion ? "never" : "always"}>
+      <PixelBackground enabled={fullMotion} />
       {renderContent()}
     </MotionConfig>
   );

@@ -535,15 +535,6 @@ textarea {
   color: #2b1d0a;
 }
 
-.seg-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.pixel-label-dim {
-  opacity: 0.4;
-}
-
 .pixel-btn-danger {
   background: var(--accent-red);
   color: #2b0d0a;

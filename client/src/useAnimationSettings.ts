@@ -18,10 +18,11 @@ function systemPrefersReducedMotion() {
 function initialLevel(): AnimationLevel {
   const saved = localStorage.getItem(LEVEL_KEY);
   if (saved && (ANIMATION_LEVELS as string[]).includes(saved)) return saved as AnimationLevel;
-  // Миграция со старого boolean-тумблера: "0" → выкл, иначе полная.
+  // Миграция со старого boolean-тумблера: "0" (было «выкл») → умеренная, иначе полная.
   const legacy = localStorage.getItem(LEGACY_KEY);
-  if (legacy !== null) return legacy === "0" ? "off" : "full";
-  return systemPrefersReducedMotion() ? "off" : "full";
+  if (legacy !== null) return legacy === "0" ? "moderate" : "full";
+  // Системное «меньше движения» → умеренная (совсем выключить анимацию нельзя).
+  return systemPrefersReducedMotion() ? "moderate" : "full";
 }
 
 function initialSpeed(): AnimationSpeed {
@@ -30,8 +31,7 @@ function initialSpeed(): AnimationSpeed {
 }
 
 // Настройки анимации: уровень + скорость, с сохранением в localStorage и миграцией
-// со старого boolean-тумблера. motionEnabled — производное для не-canvas UI
-// (Framer Motion, CSS-фон), которым достаточно знать «есть движение или нет».
+// со старого boolean-тумблера.
 export function useAnimationSettings() {
   const [level, setLevel] = useState<AnimationLevel>(initialLevel);
   const [speed, setSpeed] = useState<AnimationSpeed>(initialSpeed);
@@ -40,5 +40,5 @@ export function useAnimationSettings() {
   useEffect(() => localStorage.setItem(SPEED_KEY, String(speed)), [speed]);
 
   const settings: AnimationSettings = { level, speed };
-  return { settings, setLevel, setSpeed, motionEnabled: level !== "off" };
+  return { settings, setLevel, setSpeed };
 }
