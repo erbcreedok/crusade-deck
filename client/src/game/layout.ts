@@ -11,9 +11,9 @@ export interface RoundedRect {
 }
 
 export interface RoomLayout {
-  centerZone: RoundedRect; // общая зона игры (широкая, по центру)
-  safeZone: RoundedRect; // личная сейф-зона снизу
-  forbiddenZone: RoundedRect; // тестовая зона сверху, куда дропать НЕЛЬЗЯ
+  centerZone: RoundedRect; // общая зона игры (широкая, сверху)
+  safeZone: RoundedRect; // личная сейф-зона (посередине-снизу)
+  handZone: RoundedRect; // зона руки у нижнего края (пока недоступна для дропа)
   deckAnchor: { x: number; y: number }; // покой колоды в центре = центр centerZone
   safeAnchor: { x: number; y: number }; // покой колоды в сейф-зоне = центр safeZone
   cardW: number;
@@ -33,16 +33,16 @@ export function computeLayout(w: number, h: number): RoomLayout {
   const zoneW = Math.max(0, w * 0.86);
   const r = 18;
 
-  // Центр — широкая зона игры чуть выше середины. Сейф — полоса у нижнего края.
-  // Запретная — узкая полоса сверху (тестовая, дроп запрещён).
-  const centerZone: RoundedRect = { cx: w / 2, cy: h * 0.44, w: zoneW, h: clamp(h * 0.42, cardH * 1.6, h * 0.5), r };
-  const safeZone: RoundedRect = { cx: w / 2, cy: h * 0.85, w: zoneW, h: clamp(cardH * 1.7, 0, h * 0.28), r };
-  const forbiddenZone: RoundedRect = { cx: w / 2, cy: h * 0.1, w: Math.max(0, w * 0.5), h: cardH * 0.9, r: 14 };
+  // Три горизонтальные полосы снизу вверх: рука (у нижнего края) → сейф → центр.
+  // Сейф приподнят, чтобы освободить низ под руку.
+  const centerZone: RoundedRect = { cx: w / 2, cy: h * 0.34, w: zoneW, h: clamp(h * 0.36, cardH * 1.4, h * 0.42), r };
+  const safeZone: RoundedRect = { cx: w / 2, cy: h * 0.66, w: zoneW, h: clamp(h * 0.2, cardH * 1.2, h * 0.24), r };
+  const handZone: RoundedRect = { cx: w / 2, cy: h * 0.88, w: zoneW, h: clamp(h * 0.16, cardH * 1.1, h * 0.2), r };
 
   const deckAnchor = { x: centerZone.cx, y: centerZone.cy };
   const safeAnchor = { x: safeZone.cx, y: safeZone.cy };
 
-  return { centerZone, safeZone, forbiddenZone, deckAnchor, safeAnchor, cardW, cardH };
+  return { centerZone, safeZone, handZone, deckAnchor, safeAnchor, cardW, cardH };
 }
 
 function clamp(v: number, lo: number, hi: number): number {

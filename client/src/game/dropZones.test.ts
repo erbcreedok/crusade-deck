@@ -13,18 +13,18 @@ describe("pickDropZone", () => {
     expect(pickDropZone(layout.safeAnchor.x, layout.safeAnchor.y, layout)).toBe("safe");
   });
 
-  it("запретная зона сверху → 'forbidden'", () => {
-    expect(pickDropZone(layout.forbiddenZone.cx, layout.forbiddenZone.cy, layout)).toBe("forbidden");
+  it("зона руки у нижнего края → 'hand'", () => {
+    expect(pickDropZone(layout.handZone.cx, layout.handZone.cy, layout)).toBe("hand");
   });
 
   it("угол канваса вне всех зон → null", () => {
     expect(pickDropZone(2, 2, layout)).toBeNull();
   });
 
-  it("center/safe можно дропать, forbidden — нельзя", () => {
+  it("center/safe можно дропать, hand — пока нельзя", () => {
     const r = dropZoneRegions(layout);
     expect(r.center.droppable).toBe(true);
     expect(r.safe.droppable).toBe(true);
-    expect(r.forbidden.droppable).toBe(false);
+    expect(r.hand.droppable).toBe(false);
   });
 });

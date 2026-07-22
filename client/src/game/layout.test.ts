@@ -16,15 +16,16 @@ describe("computeLayout", () => {
     const l = computeLayout(800, 600);
     expect(inside(l.centerZone, 800, 600)).toBe(true);
     expect(inside(l.safeZone, 800, 600)).toBe(true);
-    expect(inside(l.forbiddenZone, 800, 600)).toBe(true);
+    expect(inside(l.handZone, 800, 600)).toBe(true);
   });
 
-  it("сейф ниже центра, запретная выше центра — зоны не наслаиваются по вертикали", () => {
+  it("порядок снизу вверх: рука → сейф → центр, полосы не наслаиваются", () => {
     const l = computeLayout(800, 600);
-    expect(l.safeZone.cy).toBeGreaterThan(l.centerZone.cy);
-    expect(l.forbiddenZone.cy).toBeLessThan(l.centerZone.cy);
-    // запретная целиком выше верхней кромки центра
-    expect(l.forbiddenZone.cy + l.forbiddenZone.h / 2).toBeLessThan(l.centerZone.cy - l.centerZone.h / 2);
+    expect(l.centerZone.cy).toBeLessThan(l.safeZone.cy);
+    expect(l.safeZone.cy).toBeLessThan(l.handZone.cy);
+    // центр целиком выше сейфа, сейф целиком выше руки
+    expect(l.centerZone.cy + l.centerZone.h / 2).toBeLessThan(l.safeZone.cy - l.safeZone.h / 2);
+    expect(l.safeZone.cy + l.safeZone.h / 2).toBeLessThan(l.handZone.cy - l.handZone.h / 2);
   });
 
   it("якоря колоды совпадают с центрами своих зон", () => {

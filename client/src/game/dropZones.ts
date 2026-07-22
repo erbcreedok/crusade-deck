@@ -1,9 +1,9 @@
 import type { RoomLayout, RoundedRect } from "./layout";
 
-// Дроп-зоны на столе. center/safe — куда колоду бросать МОЖНО, forbidden — тестовая
-// зона сверху, куда НЕЛЬЗЯ (проверка «ударной» анимации запрета). Геометрия —
+// Дроп-зоны на столе. center/safe — куда колоду бросать МОЖНО, hand (зона руки у
+// нижнего края) пока НЕДОСТУПНА (дроп → «ударная» анимация возврата). Геометрия —
 // скруглённые прямоугольники (для hit-теста и подсветки).
-export type DropZone = "center" | "safe" | "forbidden";
+export type DropZone = "center" | "safe" | "hand";
 
 export interface ZoneDef {
   rect: RoundedRect;
@@ -14,7 +14,7 @@ export function dropZoneRegions(layout: RoomLayout): Record<DropZone, ZoneDef> {
   return {
     center: { rect: layout.centerZone, droppable: true },
     safe: { rect: layout.safeZone, droppable: true },
-    forbidden: { rect: layout.forbiddenZone, droppable: false },
+    hand: { rect: layout.handZone, droppable: false },
   };
 }
 

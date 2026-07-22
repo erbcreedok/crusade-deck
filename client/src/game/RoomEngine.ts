@@ -4,6 +4,7 @@ import {
   Graphics,
   Rectangle,
   Sprite,
+  Text,
   Texture,
   type FederatedPointerEvent,
   type Ticker,
@@ -37,6 +38,13 @@ const TEX_H = 228;
 const DRAG_SCALE = 1.18; // карты «приподнимаются» при захвате (визуальный акцент)
 const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-клик), больше — реальный драг
 
+// Подписи зон — водяным текстом по центру каждой зоны, видны при отображении дроп-зон.
+const ZONE_LABELS: Record<DropZone, string> = {
+  center: "ЦЕНТР",
+  safe: "СЕЙФ-ЗОНА",
+  hand: "РУКА",
+};
+
 // Императивный движок комнаты: владеет ОДНИМ Pixi Application, тикером и всеми объектами.
 // Никакого React-реконсайлера и «дерева нод на карту» — карты это простые CardVisual,
 // которые мы мутируем сами. Именно это отличает подход от прошлого (@pixi/react + краш).
@@ -45,6 +53,7 @@ export class RoomEngine {
   private world: Container | null = null;
   private tableG: Graphics | null = null;
   private zoneLayer: Graphics | null = null; // подсветка дроп-зон при драге
+  private zoneLabels: Partial<Record<DropZone, Text>> = {}; // текстовые подписи зон
   private shadowLayer: Container | null = null; // слой под картами
   // ОДНА тень на всю колоду (стопка движется как целое). Раньше была тень на карту —
   // на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
@@ -134,6 +143,19 @@ export class RoomEngine {
     this.cardLayer.zIndex = 3;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
     this.world.addChild(this.tableG, this.zoneLayer, this.shadowLayer, this.cardLayer);
+
+    // Подписи зон живут в zoneLayer (под тенями/картами) — «водяной» текст на фоне.
+    (Object.keys(ZONE_LABELS) as DropZone[]).forEach((z) => {
+      const t = new Text({
+        text: ZONE_LABELS[z],
+        style: { fontFamily: "VT323, monospace", fontSize: 24, fill: 0xffffff, letterSpacing: 2 },
+      });
+      t.anchor.set(0.5);
+      t.visible = false;
+      this.zoneLayer!.addChild(t);
+      this.zoneLabels[z] = t;
+    });
+    this.styleZoneLabels();
 
     this.cardTex = this.makeCardBackTexture(app);
     this.shadowTex = this.makeShadowTexture(app);
@@ -321,13 +343,17 @@ export class RoomEngine {
     const g = this.zoneLayer;
     if (!g) return;
     g.clear();
-    if (!this.dragging) return; // подсветка зон только пока тащим
     const regions = dropZoneRegions(this.layout);
     (Object.keys(regions) as DropZone[]).forEach((z) => {
       const { rect, droppable } = regions[z];
-      if (rect.w <= 0 || rect.h <= 0) return;
+      const label = this.zoneLabels[z];
+      // Зоны и подписи видны только пока тащим колоду.
+      if (!this.dragging || rect.w <= 0 || rect.h <= 0) {
+        if (label) label.visible = false;
+        return;
+      }
       const active = this.hoverZone === z;
-      // Разрешённые зоны — золотые, запретная — серая (нейтральный сигнал «нельзя»).
+      // Разрешённые зоны — золотые, недоступная (рука) — серая.
       const base = droppable ? 0xd9b154 : 0x8a8a8a;
       const hot = droppable ? 0xffe9a8 : 0xbdbdbd;
       const x = rect.cx - rect.w / 2;
@@ -340,7 +366,23 @@ export class RoomEngine {
         color: active ? hot : base,
         alpha: active ? 0.95 : droppable ? 0.4 : 0.55,
       });
+      if (label) {
+        label.x = rect.cx;
+        label.y = rect.cy;
+        label.visible = true;
+        label.tint = active ? hot : base;
+        label.alpha = active ? 0.5 : 0.22; // «водяной» текст на фоне
+      }
     });
+  }
+
+  // Размер шрифта подписей от размера карты (обновляется на ресайзе).
+  private styleZoneLabels(): void {
+    const size = Math.min(44, Math.max(14, this.layout.cardH * 0.5));
+    for (const z of Object.keys(this.zoneLabels) as DropZone[]) {
+      const t = this.zoneLabels[z];
+      if (t) t.style.fontSize = size;
+    }
   }
 
   private handleDeckTap(): void {
@@ -436,6 +478,7 @@ export class RoomEngine {
     this.cards.forEach((c) => this.syncVisual(c));
     this.syncDeckShadow();
     this.positionDeckHit();
+    this.styleZoneLabels();
     this.drawZones();
     this.wake();
   }
@@ -454,6 +497,7 @@ export class RoomEngine {
     this.world = null;
     this.tableG = null;
     this.zoneLayer = null;
+    this.zoneLabels = {};
     this.shadowLayer = null;
     this.deckShadow = null;
     this.cardLayer = null;
