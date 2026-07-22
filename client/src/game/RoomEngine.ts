@@ -1,5 +1,6 @@
 import {
   Application,
+  Circle,
   Container,
   Graphics,
   Matrix,
@@ -97,6 +98,11 @@ const TEX_W = 160;
 const TEX_H = 228;
 
 const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
+
+// ВРЕМЕННО: рамки интерактивных областей поверх стола — видно, куда реально попадает
+// палец (хит-зона колоды/веера, кнопка сворачивания, границы карт). Выключается
+// адресом ?debug=0; когда наиграемся с раскладкой — убрать вместе с debugG.
+const DEBUG_BORDERS = typeof location !== "undefined" && !location.search.includes("debug=0");
 
 const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» при запрещённом дропе колоды
 
@@ -196,6 +202,7 @@ export class RoomEngine {
   private onFanChange: ((fanned: boolean) => void) | null = null;
   private onFanCollapse: (() => void) | null = null; // «сложить руку»: стрелка или свайп вниз
   private collapseBtn: Container | null = null; // кнопка-стрелка под веером
+  private debugG: Graphics | null = null; // временные рамки (см. DEBUG_BORDERS)
   private deckHit: Container | null = null;
 
   // Драг колоды дилером: press — палец/мышь прижаты у колоды (ещё не факт что драг),
@@ -447,6 +454,13 @@ export class RoomEngine {
     });
     this.world.addChild(collapse);
     this.collapseBtn = collapse;
+
+    if (DEBUG_BORDERS) {
+      this.debugG = new Graphics();
+      this.debugG.zIndex = 9800; // поверх всего, кроме «низяяя»
+      this.debugG.eventMode = "none"; // рамки не должны ловить палец
+      this.world.addChild(this.debugG);
+    }
     this.syncCollapseButton();
 
     // Move/up ловим на всей сцене — палец может уйти далеко за пределы колоды.
@@ -1755,6 +1769,7 @@ export class RoomEngine {
     this.seatG = null;
     this.focusG = null;
     this.collapseBtn = null;
+    this.debugG = null;
     this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;
@@ -1946,6 +1961,7 @@ export class RoomEngine {
     this.shake = this.rejectShake();
     this.updateVisibility(); // режим «кирпич/отдельные карты» может смениться прямо в тике
     this.syncCollapseButton();
+    this.drawDebugBorders();
     for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
     this.syncDeckShadow();
@@ -2229,7 +2245,9 @@ export class RoomEngine {
   }
 
   // Рука сложена (в руке, но не в фокусе) — карты стоят шеренгой.
-  // Стрелка вниз под веером: видна только у руки в фокусе, стоит по центру под дугой.
+  // Круглая кнопка «сложить руку». Стоит не просто внизу зоны, а ПОД ДУГОЙ веера: её
+  // верх подводится под нижний край средней карты, поэтому она садится ровно в тот
+  // карман, который дуга и оставляет. Видна только у руки в фокусе.
   private syncCollapseButton(): void {
     const btn = this.collapseBtn;
     if (!btn) return;
@@ -2237,14 +2255,56 @@ export class RoomEngine {
     btn.visible = show;
     if (!show) return;
     const z = this.layout.handZone;
-    const r = Math.max(12, this.layout.cardH * 0.22);
+    const cardH = this.layout.cardH;
+    const r = Math.max(18, cardH * 0.42);
+    const g0 = this.fanGeom();
+    // Середина веера сидит в якоре дуги; её нижняя кромка и есть «потолок» кармана.
+    const under = g0.anchor.y + cardH * 0.5 + r * 0.72;
+    const bottomLimit = z.cy + z.h / 2 - r * 0.6;
     btn.x = z.cx;
-    btn.y = z.cy + z.h / 2 - r * 1.15;
-    btn.hitArea = new Rectangle(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2); // палец толще стрелки
+    btn.y = Math.min(under, bottomLimit);
+    btn.hitArea = new Circle(0, 0, r * 1.25); // круглая зона под палец, чуть шире рисунка
     const g = btn.children[0] as Graphics;
     g.clear();
-    g.circle(0, 0, r).fill({ color: 0x14281c, alpha: 0.55 }).stroke({ width: 2, color: 0xd9b154, alpha: 0.5 });
-    g.poly([-r * 0.42, -r * 0.18, r * 0.42, -r * 0.18, 0, r * 0.36]).fill({ color: 0xd9b154, alpha: 0.9 });
+    g.circle(0, 0, r).fill({ color: 0x14281c, alpha: 0.72 }).stroke({ width: 3, color: 0xd9b154, alpha: 0.65 });
+    g.poly([-r * 0.44, -r * 0.16, r * 0.44, -r * 0.16, 0, r * 0.42]).fill({ color: 0xd9b154, alpha: 0.95 });
+  }
+
+  // ВРЕМЕННЫЕ рамки: хит-зона колоды/веера, кнопка сворачивания и габариты карт.
+  private drawDebugBorders(): void {
+    const g = this.debugG;
+    if (!g) return;
+    g.clear();
+    if (this.deckZone === "away") return;
+
+    // Габариты карт — тонко, чтобы было видно перекрытие в шеренге и вее­ре.
+    const w = this.layout.cardW;
+    const h = this.layout.cardH;
+    for (const c of this.cards) {
+      if (!c.sprite.visible) continue;
+      g.rect(c.sprite.x - w / 2, c.sprite.y - h / 2, w, h).stroke({ width: 1, color: 0x35c0ff, alpha: 0.35 });
+    }
+
+    // Хит-зона колоды: прямоугольник в стопке, полоса дуги — в вее­ре (рисуем как
+    // ломаную по слотам, чтобы форма была видна честно).
+    const hit = this.deckHit?.hitArea;
+    if (hit instanceof Rectangle) {
+      g.rect(hit.x, hit.y, hit.width, hit.height).stroke({ width: 2, color: 0xff44aa, alpha: 0.6 });
+    } else if (this.fanned()) {
+      const n = Math.max(2, this.deckCount);
+      const pts: number[] = [];
+      for (let k = 0; k <= 24; k++) {
+        const t = this.fanTarget(((n - 1) * k) / 24);
+        pts.push(t.x ?? 0, t.y ?? 0);
+      }
+      g.poly(pts, false).stroke({ width: 2, color: 0xff44aa, alpha: 0.6 });
+    }
+
+    // Кнопка сворачивания — её круглая зона под палец.
+    const btn = this.collapseBtn;
+    if (btn?.visible && btn.hitArea instanceof Circle) {
+      g.circle(btn.x, btn.y, btn.hitArea.radius).stroke({ width: 2, color: 0x7cff6b, alpha: 0.7 });
+    }
   }
 
   private rowMode(): boolean {
