@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { Account } from "./account";
+import { useClickOutside } from "./useClickOutside";
 import {
   ANIMATION_SPEEDS,
   type AnimationLevel,
@@ -12,6 +13,8 @@ const LEVEL_OPTIONS: { value: AnimationLevel; label: string }[] = [
   { value: "full", label: "Полная" },
   { value: "moderate", label: "Умеренная" },
 ];
+
+type MenuView = "main" | "profile";
 
 export function AppMenu({
   account,
@@ -33,11 +36,21 @@ export function AppMenu({
   onLeaveRoom: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<MenuView>("main");
   const [name, setName] = useState(account.name);
   const [copied, setCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const close = useCallback(() => setOpen(false), []);
+  useClickOutside(panelRef, close);
 
   useEffect(() => setName(account.name), [account.name]);
+
+  // Каждое закрытие сбрасывает навигацию — следующее открытие начинается с главного меню.
+  useEffect(() => {
+    if (!open) setView("main");
+  }, [open]);
 
   useEffect(() => {
     if (!room) return;
@@ -59,7 +72,7 @@ export function AppMenu({
   function leaveRoom() {
     room?.leave();
     onLeaveRoom();
-    setOpen(false);
+    close();
   }
 
   return (
@@ -69,91 +82,113 @@ export function AppMenu({
       </button>
 
       {open && (
-        <div className="modal-overlay" onClick={() => setOpen(false)}>
-          <div className="pixel-panel" onClick={(e) => e.stopPropagation()}>
-            <h2 className="pixel-title">♣ Меню ♦</h2>
-
-            <label className="pixel-label">Имя</label>
-            <input
-              className="pixel-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={() => name.trim() && onRename(name)}
-              maxLength={24}
-            />
-
-            <label className="pixel-label">Код восстановления</label>
-            <p className="recovery-code">{account.recoveryHash}</p>
-            <p className="pixel-hint">
-              Введи этот код на другом устройстве, чтобы зайти под тем же именем.
-              Никому не показывай — тот, у кого есть код, может действовать от твоего имени.
-            </p>
-            <div className="pixel-btn-row">
-              <button className="pixel-btn" onClick={copyCode}>
-                {copied ? "Скопировано!" : "Скопировать"}
-              </button>
-              <button className="pixel-btn pixel-btn-secondary" onClick={onRegenerateCode}>
-                Обновить код
+        <div className="modal-overlay">
+          <div className="pixel-panel" ref={panelRef}>
+            <div className="pixel-panel-header">
+              {view === "profile" ? (
+                <button className="pixel-icon-btn" aria-label="Назад" onClick={() => setView("main")}>
+                  ←
+                </button>
+              ) : (
+                <span className="pixel-icon-btn pixel-icon-spacer" aria-hidden />
+              )}
+              <h2 className="pixel-title">{view === "profile" ? "👤 Профиль" : "♣ Меню ♦"}</h2>
+              <button className="pixel-icon-btn" aria-label="Закрыть" onClick={close}>
+                ✕
               </button>
             </div>
 
-            <hr className="pixel-divider" />
-
-            <label className="pixel-label">Анимации</label>
-            <div className="seg-row">
-              {LEVEL_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  className={`seg-btn${animation.level === opt.value ? " seg-btn-active" : ""}`}
-                  onClick={() => onSetLevel(opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Скорость только для полной — на умеренной оборот всегда в одном темпе. */}
-            {animation.level === "full" && (
-              <>
-                <label className="pixel-label">Скорость</label>
-                <div className="seg-row">
-                  {ANIMATION_SPEEDS.map((sp) => (
-                    <button
-                      key={sp}
-                      className={`seg-btn${animation.speed === sp ? " seg-btn-active" : ""}`}
-                      onClick={() => onSetSpeed(sp)}
-                    >
-                      {sp}x
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {room && (
-              <>
-                <button className="menu-toggle-row" onClick={() => room.send("toggle_public")}>
-                  {isPublic ? "🌐 Комната: паблик" : "🔒 Комната: приват"}
-                </button>
-
-                <hr className="pixel-divider" />
-
-                <button className="pixel-btn pixel-btn-danger pixel-btn-full" onClick={leaveRoom}>
-                  Покинуть комнату
-                </button>
-              </>
-            )}
-
-            <button
-              className="pixel-btn pixel-btn-secondary pixel-btn-full"
-              style={{ marginTop: 10 }}
-              onClick={() => setOpen(false)}
-            >
-              Закрыть
-            </button>
+            {view === "main" ? renderMain() : renderProfile()}
           </div>
         </div>
       )}
     </>
   );
+
+  function renderMain() {
+    return (
+      <>
+        <button className="menu-toggle-row" onClick={() => setView("profile")}>
+          👤 Профиль
+        </button>
+
+        <hr className="pixel-divider" />
+
+        <label className="pixel-label">Анимации</label>
+        <div className="seg-row">
+          {LEVEL_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              className={`seg-btn${animation.level === opt.value ? " seg-btn-active" : ""}`}
+              onClick={() => onSetLevel(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Скорость только для полной — на умеренной оборот всегда в одном темпе. */}
+        {animation.level === "full" && (
+          <>
+            <label className="pixel-label">Скорость</label>
+            <div className="seg-row">
+              {ANIMATION_SPEEDS.map((sp) => (
+                <button
+                  key={sp}
+                  className={`seg-btn${animation.speed === sp ? " seg-btn-active" : ""}`}
+                  onClick={() => onSetSpeed(sp)}
+                >
+                  {sp}x
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {room && (
+          <>
+            <button className="menu-toggle-row" onClick={() => room.send("toggle_public")}>
+              {isPublic ? "🌐 Комната: паблик" : "🔒 Комната: приват"}
+            </button>
+
+            <hr className="pixel-divider" />
+
+            <button className="pixel-btn pixel-btn-danger pixel-btn-full" onClick={leaveRoom}>
+              Покинуть комнату
+            </button>
+          </>
+        )}
+      </>
+    );
+  }
+
+  function renderProfile() {
+    return (
+      <>
+        <label className="pixel-label">Имя</label>
+        <input
+          className="pixel-input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => name.trim() && onRename(name)}
+          maxLength={24}
+        />
+
+        <label className="pixel-label">Код восстановления</label>
+        <p className="recovery-code">{account.recoveryHash}</p>
+        <p className="pixel-hint">
+          Введи этот код на другом устройстве, чтобы зайти под тем же именем. Никому не показывай —
+          тот, у кого есть код, может действовать от твоего имени.
+        </p>
+        <div className="pixel-btn-row">
+          <button className="pixel-btn" onClick={copyCode}>
+            {copied ? "Скопировано!" : "Скопировать"}
+          </button>
+          <button className="pixel-btn pixel-btn-secondary" onClick={onRegenerateCode}>
+            Обновить код
+          </button>
+        </div>
+      </>
+    );
+  }
 }

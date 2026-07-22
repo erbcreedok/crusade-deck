@@ -511,6 +511,42 @@ textarea {
   text-align: left;
 }
 
+.pixel-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pixel-panel-header .pixel-title {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.pixel-icon-btn {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  font-family: "VT323", monospace;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pixel-icon-spacer {
+  visibility: hidden;
+  cursor: default;
+}
+
 .seg-row {
   display: flex;
   gap: 6px;
