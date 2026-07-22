@@ -32,9 +32,19 @@ export function isSwipeDown(vx: number, vy: number): boolean {
   return vy / speed > anim.flip.upSectorCos;
 }
 
-// Фактор переворота: 1 → 0 (ребро) → -1 (карта показана другой стороной).
+// Фактор переворота: 1 → 0 (ребро) → 1. Модуль здесь принципиален: без него карта
+// доезжала до -1, то есть оставалась ЗЕРКАЛЬНОЙ. Сторона меняется подменой текстуры ровно
+// на ребре (flipShowsOther), а геометрия возвращается в исходную — карта не «вывернута».
 export function flipFactor(p: number): number {
-  return Math.cos(Math.PI * Math.max(0, Math.min(1, p)));
+  return Math.abs(Math.cos(Math.PI * Math.max(0, Math.min(1, p))));
+}
+
+// Живой наклон во время переворота: карта кренится в сторону жеста на середине и сама
+// ПЛАВНО возвращается к своему углу к концу. Вертикальный жест наклона не даёт (крутить
+// не за что), диагональ — промежуточный, горизонталь — максимум.
+export function flipTilt(p: number, swipeAngle: number, amp: number): number {
+  const t = Math.max(0, Math.min(1, p));
+  return amp * Math.sin(Math.PI * t) * Math.cos(swipeAngle);
 }
 
 // Когда подменять текстуру: ровно на ребре, чтобы подмены не было видно.

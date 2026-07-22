@@ -26,7 +26,16 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
-import { classifyDeckSwipe, isSwipeDown, flipFactor, flipShowsOther, flipTransform, stretchOffset } from "./flip";
+import {
+  classifyDeckSwipe,
+  isSwipeDown,
+  flipFactor,
+  flipTilt,
+  flipShowsOther,
+  flipTransform,
+  stretchOffset,
+} from "./flip";
+import { cardsUnderTouch } from "./touch";
 import type { DeckFxMessage } from "./deckFxClient";
 import {
   swipeStrength,
@@ -775,6 +784,8 @@ export class RoomEngine {
       // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
       // промахе/дропе в ту же зону). Иначе карты остались бы в точке отпускания — врозь
       // с хит-зоной колоды (она у якоря), и колоду нельзя было бы снова схватить.
+      // Дроп ещё и выравнивает стопку: положил колоду — она легла ровно.
+      this.alignCards(this.cards.map((_, i) => i));
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       this.onDragChange?.(false); // взаимодействие завершено — вернуть кнопки
     }
@@ -900,6 +911,21 @@ export class RoomEngine {
     this.wake();
   }
 
+  // Выровнять карты: у стопки уходит случайный разброс углов, у любой карты — накопленная
+  // кривизна. Это «приглаживание» рукой: тык и каждый дроп колоды кладут карты ровно.
+  private alignCards(indices: number[]): void {
+    if (indices.length === 0) return;
+    for (const i of indices) this.restJitter[i] = 0;
+    for (const i of indices) this.cards[i]?.body.setTarget(this.restTarget(i));
+    this.wake();
+  }
+
+  // Карты под касанием: палец «толстый», поэтому берём всё в радиусе, а не одну карту.
+  private alignUnderTouch(x: number, y: number): void {
+    const positions = this.cards.map((c) => ({ x: c.sprite.x, y: c.sprite.y }));
+    this.alignCards(cardsUnderTouch(positions, x, y, this.layout.cardW * anim.touch.fatRadius));
+  }
+
   // Свайп по СТОПКЕ (не веер): вниз/вбок/диагональ — переворот, строго вверх — тянучка,
   // а повторный свайп поверх ещё играющей анимации — рассыпание.
   private handleDeckSwipe(vx: number, vy: number): boolean {
@@ -1019,6 +1045,7 @@ export class RoomEngine {
     if (this.inFanArea(x, y)) {
       // Отпустили над веером — карта меняет место в колоде, порядок уходит на сервер.
       this.reorderLocally(d.v.card, this.insertIndexAt(x));
+      this.alignUnderTouch(x, y); // положил карту — она и соседи легли ровно
       this.onCardReorder?.(d.v.card, this.insertIndexAt(x));
       this.onDragChange?.(false);
     } else if (this.cardDropZonesAllowed) {
@@ -1185,6 +1212,9 @@ export class RoomEngine {
       return;
     }
     if (!this.deckDraggable) return; // двигать/раскрывать колоду может только дилер (в лобби)
+    // Любой тык приглаживает карты под пальцем: стопка перестаёт быть растрёпанной,
+    // отдельная карта в вее­ре ложится ровно.
+    this.alignUnderTouch(e.global.x, e.global.y);
     const now = performance.now();
     const isDouble = now - this.lastDeckTapMs < 350;
     this.lastDeckTapMs = isDouble ? 0 : now;
@@ -1411,7 +1441,7 @@ export class RoomEngine {
       const m = flipTransform(
         top.body.px + this.stretch.dx,
         top.body.py + this.stretch.dy,
-        top.body.rotation,
+        top.body.rotation + flipTilt(p, this.flipAnim.angle, anim.flip.tiltAmp),
         top.body.scaleVal,
         this.flipAnim.angle,
         flipFactor(p),
@@ -1731,7 +1761,10 @@ export class RoomEngine {
     const fm = this.flipMap.get(c);
     if (this.flipAnim && fm) {
       const p = Math.max(0, Math.min(1, (this.flipAnim.t - fm.delay) / this.flipAnim.dur));
-      const m = flipTransform(x, y, rot + sh.rot, scale, this.flipAnim.angle, flipFactor(p));
+      // Крен «живого» переворота накладывается поверх собственного угла карты и сам
+      // сходит на нет к концу — карта возвращается ровно к своему положению.
+      const tilt = flipTilt(p, this.flipAnim.angle, anim.flip.tiltAmp);
+      const m = flipTransform(x, y, rot + sh.rot + tilt, scale, this.flipAnim.angle, flipFactor(p));
       c.sprite.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.tx, m.ty));
       return;
     }

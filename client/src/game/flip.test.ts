@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyDeckSwipe, isSwipeDown, flipFactor, flipShowsOther, flipTransform, stretchOffset } from "./flip";
+import { classifyDeckSwipe, isSwipeDown, flipFactor, flipTilt, flipShowsOther, flipTransform, stretchOffset } from "./flip";
 
 describe("classifyDeckSwipe", () => {
   const dir = (vx: number, vy: number) => classifyDeckSwipe(vx, vy);
@@ -37,10 +37,14 @@ describe("classifyDeckSwipe", () => {
 });
 
 describe("flipFactor / flipShowsOther", () => {
-  it("карта схлопывается в ребро на середине и раскрывается обратно", () => {
+  it("карта схлопывается в ребро на середине и раскрывается ОБРАТНО В НОРМУ", () => {
     expect(flipFactor(0)).toBeCloseTo(1, 6);
     expect(Math.abs(flipFactor(0.5))).toBeCloseTo(0, 6);
-    expect(flipFactor(1)).toBeCloseTo(-1, 6);
+    expect(flipFactor(1)).toBeCloseTo(1, 6); // не -1: карта не остаётся зеркальной
+  });
+
+  it("фактор нигде не уходит в минус — зеркального состояния не бывает", () => {
+    for (let k = 0; k <= 20; k++) expect(flipFactor(k / 20)).toBeGreaterThanOrEqual(0);
   });
 
   it("другая сторона показывается ровно на середине — в момент ребра, а не раньше", () => {
@@ -79,9 +83,13 @@ describe("flipTransform", () => {
     expect(Math.abs(side.d)).toBeCloseTo(1, 6);
   });
 
-  it("к концу переворота карта зеркальна — определитель отрицательный", () => {
-    const m = flipTransform(0, 0, 0, 1, Math.PI / 2, -1);
-    expect(m.a * m.d - m.b * m.c).toBeLessThan(0);
+  it("к концу переворота карта в норме: не зеркальна и не искажена", () => {
+    const m = flipTransform(10, 20, 0, 2, Math.PI / 4, flipFactor(1));
+    expect(m.a * m.d - m.b * m.c).toBeGreaterThan(0); // не зеркало
+    expect(m.a).toBeCloseTo(2, 6);
+    expect(m.d).toBeCloseTo(2, 6);
+    expect(m.b).toBeCloseTo(0, 6); // без перекоса
+    expect(m.c).toBeCloseTo(0, 6);
   });
 
   it("собственный поворот карты сохраняется (веер не «выпрямляется»)", () => {
@@ -121,5 +129,27 @@ describe("isSwipeDown", () => {
     expect(isSwipeDown(1500, 0)).toBe(false);
     expect(isSwipeDown(1500, 300)).toBe(false); // почти горизонталь — это глиссандо
     expect(isSwipeDown(0, 50)).toBe(false);
+  });
+});
+
+describe("flipTilt", () => {
+  const AMP = 0.22;
+
+  it("наклон появляется в середине переворота и ПЛАВНО уходит в ноль к концу", () => {
+    expect(flipTilt(0, 0, AMP)).toBeCloseTo(0, 6);
+    expect(flipTilt(1, 0, AMP)).toBeCloseTo(0, 6);
+    expect(Math.abs(flipTilt(0.5, 0, AMP))).toBeCloseTo(AMP, 6);
+  });
+
+  it("наклоняет в сторону жеста: вправо и влево — зеркально", () => {
+    expect(flipTilt(0.5, 0, AMP)).toBeCloseTo(-flipTilt(0.5, Math.PI, AMP), 6);
+  });
+
+  it("строго вертикальный жест наклона не даёт — крутить не за что", () => {
+    expect(flipTilt(0.5, Math.PI / 2, AMP)).toBeCloseTo(0, 6);
+  });
+
+  it("диагональ наклоняет слабее, чем чистая горизонталь", () => {
+    expect(Math.abs(flipTilt(0.5, Math.PI / 4, AMP))).toBeLessThan(Math.abs(flipTilt(0.5, 0, AMP)));
   });
 });
