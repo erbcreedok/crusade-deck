@@ -1,0 +1,67 @@
+client/src/App.tsx
+  s_39351dee8cd4d4::t_ee34365712c230 121
+client/src/game/layout.test.ts
+  s_39351dee8cd4d4::t_44a8f0b4173526 1-49
+client/src/game/RoomCanvas.tsx
+  s_39351dee8cd4d4::t_8f1efb2766e00e 25-26,29,34
+  s_39351dee8cd4d4::t_8e0560af10afb6 1-24,27-28,30-33,35-56,58
+  s_39351dee8cd4d4::t_161459354d4f35 57
+client/src/game/CardBody.ts
+  s_39351dee8cd4d4::t_e8f3c9e8ae83a3 60-69
+  s_39351dee8cd4d4::t_babade9a3e2b44 2
+  s_39351dee8cd4d4::t_8276b9b14ab162 1,3-59,70-83
+client/src/game/physics/spring.ts
+  s_39351dee8cd4d4::t_7285c70fae13fd 1-38
+client/src/game/physics/spring.test.ts
+  s_39351dee8cd4d4::t_1c8d8fe9c4b438 1-59
+client/src/theme.css
+  s_39351dee8cd4d4::t_bf1ede339c5634 339-353
+client/src/RoomScreen.tsx
+  s_39351dee8cd4d4::t_11e35ea5249e99 1,4
+  s_39351dee8cd4d4::t_ae32873db41e08 23,29-30
+  s_39351dee8cd4d4::t_aff4ed83990a19 47
+  s_39351dee8cd4d4::t_64aef05e1f242a 112-113,121-127
+client/src/game/layout.ts
+  s_39351dee8cd4d4::t_8a2e2a2eeed093 1-48
+client/src/game/choreo/shuffle.ts
+  s_39351dee8cd4d4::t_410a2eb139238d 1-110
+client/src/game/anim/config.ts
+  s_39351dee8cd4d4::t_ddfe6fd9076b72 29-31
+  s_39351dee8cd4d4::t_be36f152af4657 1-28,32-33,37-48
+  s_39351dee8cd4d4::t_e1d7f9480e5da6 34-36
+client/src/game/RoomEngine.ts
+  s_39351dee8cd4d4::t_149515baddf586 154
+  s_39351dee8cd4d4::t_1ec5760b31e970 35-36,47-50
+  s_39351dee8cd4d4::t_6ee4cefeea3efc 61,81-95
+  s_39351dee8cd4d4::t_79302edba34de8 132-136,145
+  s_39351dee8cd4d4::t_28a12f53df2125 1-34,37-41,51-60,62-65,67-69,71-80,96-99,102-103,105-113,115-121,123-127,129-131,137-144,146-153,155-182,188-262
+  s_39351dee8cd4d4::t_ce7c41e97b062a 100-101,104
+  s_39351dee8cd4d4::t_3f10e44746ac3e 42-46,66,70
+  s_39351dee8cd4d4::t_d6951885a211d7 114,122,128
+  s_39351dee8cd4d4::t_2fbcf6bd85a8c6 183-187
+client/src/game/choreo/shuffle.test.ts
+  s_39351dee8cd4d4::t_a242b27c019902 1-88
+client/src/game/CardBody.test.ts
+  s_39351dee8cd4d4::t_50871e4e0365eb 52-62
+  s_39351dee8cd4d4::t_169ae758ebe49c 1-51,63-71
+client/package-lock.json
+  s_39351dee8cd4d4::t_156d3d9e2a1a13 14,1713-1718,2572-2577,2729-2743,3028-3033,3125-3130,3290-3298,3359-3370,3862-3867,3908-3933,4317-4325
+client/package.json
+  s_39351dee8cd4d4::t_39771e230fede1 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "36fcc264fa7d9b458faf0d2d9a19276ecbc68031",
+  "prompts": {},
+  "sessions": {
+    "s_39351dee8cd4d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5f70660-78a9-466b-95e8-a249236964ac",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
