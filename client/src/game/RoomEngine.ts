@@ -1,6 +1,7 @@
-import { Application, Container, Graphics, Sprite, Texture, type Ticker } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, Texture, type Ticker } from "pixi.js";
 import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
+import type { DeckZone } from "./deckZone";
 import { anim } from "./anim/config";
 import {
   DEFAULT_ANIMATION_SETTINGS,
@@ -38,6 +39,10 @@ export class RoomEngine {
   private baseScale = 1;
 
   private deckCount = 0;
+  private deckZone: DeckZone = "center";
+  private deckHit: Container | null = null;
+  private lastDeckTapMs = 0;
+  private onDeckDoubleClick: (() => void) | null = null;
   private restJitter: number[] = [];
   private profile: AnimationProfile = resolveProfile(DEFAULT_ANIMATION_SETTINGS);
   private destroyed = false;
@@ -87,6 +92,17 @@ export class RoomEngine {
     this.buildTable();
     this.reconcileCards();
 
+    // Невидимая интерактивная зона поверх колоды — ловит дабл-клик/тап, чтобы
+    // дилер притягивал колоду в сейф-зону и обратно. Реагирует и на мышь, и на тач.
+    const hit = new Container();
+    hit.eventMode = "static";
+    hit.cursor = "pointer";
+    hit.zIndex = 10_000; // всегда над картами (world.sortableChildren)
+    hit.on("pointertap", () => this.handleDeckTap());
+    this.world.addChild(hit);
+    this.deckHit = hit;
+    this.positionDeckHit();
+
     app.ticker.add(this.tick);
     this.applyProfile(); // применить текущий профиль (FPS-кап, tilt) к свежему тикеру/картам
     this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
@@ -115,6 +131,49 @@ export class RoomEngine {
     this.wake();
   }
 
+  // Зона колоды с точки зрения локального игрока (см. deckZone.ts). "center"/"safe"
+  // — рисуем у соответствующего якоря; "away" (чужая сейф-зона) — колода прячется.
+  setDeckZone(zone: DeckZone): void {
+    if (zone === this.deckZone) return;
+    this.deckZone = zone;
+    const away = zone === "away";
+    for (const c of this.cards) c.sprite.visible = !away;
+    if (this.deckHit) this.deckHit.eventMode = away ? "none" : "static";
+    // Не «away» — карты плавно летят к новому якорю (setTarget, а не snap).
+    if (!away) this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    this.positionDeckHit();
+    this.wake();
+  }
+
+  // Колбэк на дабл-клик по колоде (решение «куда двигать» принимает React-слой).
+  setOnDeckDoubleClick(fn: (() => void) | null): void {
+    this.onDeckDoubleClick = fn;
+  }
+
+  // Якорь, у которого сейчас покоится колода: центр или своя сейф-зона.
+  private activeAnchor(): { x: number; y: number } {
+    return this.deckZone === "safe" ? this.layout.safeAnchor : this.layout.deckAnchor;
+  }
+
+  // Ручная реализация дабл-тапа (в Pixi нет нативного): два тапа подряд в окне.
+  private handleDeckTap(): void {
+    const now = performance.now();
+    if (now - this.lastDeckTapMs < 350) {
+      this.lastDeckTapMs = 0;
+      this.onDeckDoubleClick?.();
+    } else {
+      this.lastDeckTapMs = now;
+    }
+  }
+
+  private positionDeckHit(): void {
+    if (!this.deckHit) return;
+    const a = this.activeAnchor();
+    const w = this.layout.cardW * 1.3;
+    const h = this.layout.cardH * 1.3;
+    this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
+  }
+
   // Запуск анимации растасовки. Реальную тасовку делает сервер — тут только фил.
   shuffle(): void {
     if (this.destroyed || this.cards.length === 0) return;
@@ -127,12 +186,13 @@ export class RoomEngine {
     }
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1;
     // Полная — риффл-бридж (веер + чересполосица), умеренная — короткий оборот по часовой.
+    const anchor = this.activeAnchor();
     const choreo: Choreography =
       this.profile.shuffleVariant === "spin"
-        ? new SpinChoreography({ count: this.cards.length, anchor: this.layout.deckAnchor, seed })
+        ? new SpinChoreography({ count: this.cards.length, anchor, seed })
         : new ShuffleChoreography({
             count: this.cards.length,
-            anchor: this.layout.deckAnchor,
+            anchor,
             seed,
             feel: { stagger: this.profile.stagger, jitter: this.profile.jitter, scaleBump: this.profile.scaleBump ? 1 : 0 },
           });
@@ -173,6 +233,7 @@ export class RoomEngine {
     // при ресайзе не анимируем — телепортируем стопку к новому якорю
     this.cards.forEach((c, i) => c.body.snapTo(this.restTarget(i)));
     this.cards.forEach((c) => this.syncSprite(c));
+    this.positionDeckHit();
     this.wake();
   }
 
@@ -188,6 +249,8 @@ export class RoomEngine {
     this.world = null;
     this.tableG = null;
     this.cardTex = null;
+    this.deckHit = null;
+    this.onDeckDoubleClick = null;
     this.cards = [];
   }
 
@@ -254,11 +317,14 @@ export class RoomEngine {
       const c = this.cards.pop()!;
       c.sprite.destroy();
     }
+    // В чужой сейф-зоне колода скрыта — новые спрайты не должны «проявиться».
+    const away = this.deckZone === "away";
+    this.cards.forEach((c) => (c.sprite.visible = !away));
     this.cards.forEach((c) => this.syncSprite(c));
   }
 
   private restTarget(i: number): CardTargets {
-    const a = this.layout.deckAnchor;
+    const a = this.activeAnchor();
     return { x: a.x, y: a.y - i * anim.deck.stackDy, rot: this.restJitter[i] ?? 0, scale: 1 };
   }
 

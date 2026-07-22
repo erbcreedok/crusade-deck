@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
 import { RoomCanvas, type RoomCanvasHandle } from "./game/RoomCanvas";
+import { deckZoneFor, type DeckZone } from "./game/deckZone";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
 interface RoomPlayer {
@@ -28,6 +29,7 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
   const [phase, setPhase] = useState<"lobby" | "playing" | "finished">("lobby");
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deckCount, setDeckCount] = useState(0);
+  const [deckZone, setDeckZone] = useState<DeckZone>("center");
   const canvasRef = useRef<RoomCanvasHandle>(null);
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
       setIsPublic(room.state.isPublic);
       setPhase(room.state.phase);
       setDeckCount(room.state.deck?.length ?? 0);
+      setDeckZone(deckZoneFor(room.state.deckLocation ?? "center", room.sessionId));
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -85,6 +88,13 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
   const myVote = proposal ? proposal.votes[room.sessionId] : undefined;
   const amIDealer = players.find((p) => p.id === room.sessionId)?.isDealer ?? false;
 
+  // Дабл-клик по колоде: дилер в лобби притягивает её в свою сейф-зону и обратно.
+  // Для остальных клик по колоде ничего не делает (сервер всё равно проигнорит).
+  const onDeckDoubleClick = useCallback(() => {
+    if (!amIDealer || phase !== "lobby") return;
+    room.send("move_deck", { zone: deckZone === "safe" ? "center" : "safe" });
+  }, [amIDealer, phase, deckZone, room]);
+
   return (
     <div className="table-screen">
       <div className="table-topbar">
@@ -110,7 +120,13 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
         />
       )}
 
-      <RoomCanvas ref={canvasRef} deckCount={deckCount} animation={animation} />
+      <RoomCanvas
+        ref={canvasRef}
+        deckCount={deckCount}
+        deckZone={deckZone}
+        onDeckDoubleClick={onDeckDoubleClick}
+        animation={animation}
+      />
 
       <div className="table-bottombar">
         {phase === "lobby" && (

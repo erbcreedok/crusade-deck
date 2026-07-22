@@ -24,6 +24,13 @@ describe("computeLayout", () => {
     expect(Math.abs(l.deckAnchor.y - 300)).toBeLessThan(l.table.ry * 0.5);
   });
 
+  it("якорь сейф-зоны — по центру снизу, ниже центра и в пределах канваса", () => {
+    const l = computeLayout(800, 600);
+    expect(l.safeAnchor.x).toBeCloseTo(400, 0);
+    expect(l.safeAnchor.y).toBeGreaterThan(l.deckAnchor.y); // ниже колоды в центре
+    expect(l.safeAnchor.y).toBeLessThanOrEqual(600); // не за нижним краем
+  });
+
   it("карта имеет пропорции игральной (узкая по ширине)", () => {
     const l = computeLayout(800, 600);
     expect(l.cardW / l.cardH).toBeCloseTo(0.7, 1);

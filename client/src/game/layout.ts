@@ -13,6 +13,9 @@ export interface RoomLayout {
   table: Ellipse;
   center: Ellipse;
   deckAnchor: { x: number; y: number };
+  // Личная сейф-зона локального игрока — по центру снизу. Сюда дилер притягивает
+  // колоду (позже — и лежат личные/общие карты). Чужие сейф-зоны пока не рисуем.
+  safeAnchor: { x: number; y: number };
   cardW: number;
   cardH: number;
 }
@@ -40,7 +43,11 @@ export function computeLayout(w: number, h: number): RoomLayout {
   // Колода покоится чуть выше геометрического центра — читается как «лежит на столе».
   const deckAnchor = { x: cx, y: cy - ry * 0.08 };
 
-  return { table, center, deckAnchor, cardW, cardH };
+  // Сейф-зона своего игрока — у нижнего края, с отступом на высоту карты, чтобы
+  // стопка целиком была видна (карты растут вверх от якоря).
+  const safeAnchor = { x: cx, y: Math.max(cy, h - cardH * 0.75) };
+
+  return { table, center, deckAnchor, safeAnchor, cardW, cardH };
 }
 
 function clamp(v: number, lo: number, hi: number): number {

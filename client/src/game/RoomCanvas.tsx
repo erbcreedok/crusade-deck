@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { RoomEngine } from "./RoomEngine";
 import { resolveProfile, type AnimationSettings } from "./anim/animationSettings";
+import type { DeckZone } from "./deckZone";
 
 export interface RoomCanvasHandle {
   shuffle: () => void;
@@ -8,6 +9,8 @@ export interface RoomCanvasHandle {
 
 interface Props {
   deckCount: number;
+  deckZone: DeckZone;
+  onDeckDoubleClick: () => void;
   animation: AnimationSettings;
 }
 
@@ -15,7 +18,7 @@ interface Props {
 // управление императивному RoomEngine. React больше не трогает содержимое канваса —
 // только прокидывает пропсы (deckCount/animation) в движок и вызывает shuffle() через ref.
 export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanvas(
-  { deckCount, animation },
+  { deckCount, deckZone, onDeckDoubleClick, animation },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -51,6 +54,12 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
   useEffect(() => {
     engineRef.current?.setDeckCount(deckCount);
   }, [deckCount]);
+  useEffect(() => {
+    engineRef.current?.setDeckZone(deckZone);
+  }, [deckZone]);
+  useEffect(() => {
+    engineRef.current?.setOnDeckDoubleClick(onDeckDoubleClick);
+  }, [onDeckDoubleClick]);
   useEffect(() => {
     engineRef.current?.setAnimationProfile(resolveProfile(animation));
   }, [animation.level, animation.speed]);

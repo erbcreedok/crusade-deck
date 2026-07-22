@@ -165,6 +165,69 @@ describe("CardRoom", () => {
     expect(room.state.players.has(target.sessionId)).toBe(false);
   });
 
+  it("deck starts in the center", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    expect(room.state.deckLocation).toBe("center");
+  });
+
+  it("move_deck 'safe' (dealer) registers the deck in the dealer's safe zone without emptying it", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    const waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "safe" });
+    await waiter;
+
+    // Колода «уехала» в сейф-зону дилера — привязана к его sessionId, рубашкой вверх.
+    expect(room.state.deckLocation).toBe(dealer.sessionId);
+    // Карты не раздаются и не исчезают — просто меняют зону.
+    expect(room.state.deck.length).toBe(36);
+  });
+
+  it("move_deck 'center' returns the deck to the center", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+
+    let waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "safe" });
+    await waiter;
+    expect(room.state.deckLocation).toBe(dealer.sessionId);
+
+    waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "center" });
+    await waiter;
+    expect(room.state.deckLocation).toBe("center");
+  });
+
+  it("ignores move_deck from a non-dealer", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+
+    const waiter = room.waitForMessage("move_deck");
+    second.send("move_deck", { zone: "safe" });
+    await waiter;
+
+    expect(room.state.deckLocation).toBe("center");
+  });
+
+  it("ignores move_deck once the game has started (not in lobby)", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    await colyseus.connectTo(room, { name: "Bob" });
+
+    let waiter = room.waitForMessage("start_game");
+    dealer.send("start_game");
+    await waiter;
+    expect(room.state.phase).toBe("playing");
+
+    waiter = room.waitForMessage("move_deck");
+    dealer.send("move_deck", { zone: "safe" });
+    await waiter;
+
+    expect(room.state.deckLocation).toBe("center");
+  });
+
   it("toggle_public can be sent by any player, not only the dealer", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     await colyseus.connectTo(room, { name: "Alice" });

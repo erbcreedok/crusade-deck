@@ -32,4 +32,9 @@ export class GameState extends Schema {
   @type("boolean") isPublic: boolean = false;
   @type(Proposal) activeProposal?: Proposal;
   @type({ array: "string" }) deck = new ArraySchema<string>();
+  // Где сейчас лежит колода: "center" — общий центр стола, иначе sessionId
+  // игрока, в чью личную сейф-зону её притянули (рубашкой вверх). Двигать может
+  // только дилер (см. move_deck в CardRoom). Клиент по своему sessionId решает,
+  // рисовать колоду в своей сейф-зоне или она просто пропала из центра.
+  @type("string") deckLocation: string = "center";
 }
