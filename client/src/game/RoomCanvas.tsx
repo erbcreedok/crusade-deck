@@ -8,9 +8,10 @@ export interface RoomCanvasHandle {
 }
 
 interface Props {
-  deckCount: number;
+  deck: string[]; // порядок колоды ["10♠",…] — для лицевых текстур
   deckZone: DeckZone;
   deckDraggable: boolean;
+  fourColor: boolean;
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
   onDragChange: (active: boolean) => void;
@@ -21,9 +22,10 @@ interface Props {
 // управление императивному RoomEngine. React больше не трогает содержимое канваса —
 // только прокидывает пропсы (deckCount/animation) в движок и вызывает shuffle() через ref.
 export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanvas(
-  { deckCount, deckZone, deckDraggable, onDeckDoubleClick, onDeckDrop, onDragChange, animation },
+  { deck, deckZone, deckDraggable, fourColor, onDeckDoubleClick, onDeckDrop, onDragChange, animation },
   ref,
 ) {
+  const deckKey = deck.join(",");
   const wrapRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RoomEngine | null>(null);
 
@@ -55,14 +57,19 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
 
   // Синхронизация состояния комнаты → движок (императивно, без ре-рендера канваса).
   useEffect(() => {
-    engineRef.current?.setDeckCount(deckCount);
-  }, [deckCount]);
+    engineRef.current?.setDeck(deck);
+    // deckKey — стабильная сигнатура содержимого (массив пересоздаётся каждый sync).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckKey]);
   useEffect(() => {
     engineRef.current?.setDeckZone(deckZone);
   }, [deckZone]);
   useEffect(() => {
     engineRef.current?.setDeckDraggable(deckDraggable);
   }, [deckDraggable]);
+  useEffect(() => {
+    engineRef.current?.setFourColor(fourColor);
+  }, [fourColor]);
   useEffect(() => {
     engineRef.current?.setOnDeckDoubleClick(onDeckDoubleClick);
   }, [onDeckDoubleClick]);

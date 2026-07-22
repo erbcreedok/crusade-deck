@@ -22,13 +22,21 @@ interface ActiveProposal {
 
 // Экран комнаты без отрисованной сцены (стол/места/рука/колода сняты).
 // Осталась рабочая обвязка: топбар, баннер голосования, кнопки лобби.
-export function RoomScreen({ room, animation }: { room: Room; animation: AnimationSettings }) {
+export function RoomScreen({
+  room,
+  animation,
+  fourColor,
+}: {
+  room: Room;
+  animation: AnimationSettings;
+  fourColor: boolean;
+}) {
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
   const [isPublic, setIsPublic] = useState(false);
   const [phase, setPhase] = useState<"lobby" | "playing" | "finished">("lobby");
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
-  const [deckCount, setDeckCount] = useState(0);
+  const [deck, setDeck] = useState<string[]>([]);
   const [deckZone, setDeckZone] = useState<DeckZone>("center");
   const [draggingDeck, setDraggingDeck] = useState(false);
   const canvasRef = useRef<RoomCanvasHandle>(null);
@@ -48,7 +56,7 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
       setInviteCode(room.state.inviteCode);
       setIsPublic(room.state.isPublic);
       setPhase(room.state.phase);
-      setDeckCount(room.state.deck?.length ?? 0);
+      setDeck(room.state.deck ? [...room.state.deck] : []);
       setDeckZone(deckZoneFor(room.state.deckLocation ?? "center", room.sessionId));
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
@@ -142,9 +150,10 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
 
       <RoomCanvas
         ref={canvasRef}
-        deckCount={deckCount}
+        deck={deck}
         deckZone={deckZone}
         deckDraggable={canMoveDeck}
+        fourColor={fourColor}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
         onDragChange={onDragChange}

@@ -23,6 +23,8 @@ export function AppMenu({
   onSetLevel,
   onSetSpeed,
   onSetShadows,
+  fourColor,
+  onSetFourColor,
   room,
   onLeaveRoom,
 }: {
@@ -33,6 +35,8 @@ export function AppMenu({
   onSetLevel: (level: AnimationLevel) => void;
   onSetSpeed: (speed: AnimationSpeed) => void;
   onSetShadows: (shadows: boolean) => void;
+  fourColor: boolean;
+  onSetFourColor: (v: boolean) => void;
   room: Room | null;
   onLeaveRoom: () => void;
 }) {
@@ -151,6 +155,10 @@ export function AppMenu({
           onClick={() => onSetShadows(animation.shadows === false)}
         >
           {animation.shadows === false ? "🃏 Тени карт: выкл" : "🃏 Тени карт: вкл"}
+        </button>
+
+        <button className="menu-toggle-row" onClick={() => onSetFourColor(!fourColor)}>
+          {fourColor ? "🎨 Четырёхцветная колода: вкл" : "🎨 Четырёхцветная колода: выкл"}
         </button>
 
         {room && (

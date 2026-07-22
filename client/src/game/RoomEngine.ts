@@ -14,6 +14,7 @@ import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
 import { fanCard } from "./fan";
+import { parseCard, isCourt, suitColor } from "./card";
 import { anim } from "./anim/config";
 import {
   DEFAULT_ANIMATION_SETTINGS,
@@ -29,6 +30,7 @@ import type { Choreography } from "./choreo/types";
 interface CardVisual {
   body: CardBody;
   sprite: Sprite;
+  card: string; // идентичность карты ("10♠") — для лицевой текстуры
   phase: number; // фазовый сдвиг idle-покачивания (чтобы стопка не «дышала» унисоном)
 }
 
@@ -61,8 +63,9 @@ export class RoomEngine {
   // на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
   private deckShadow: Sprite | null = null;
   private cardLayer: Container | null = null; // сами карты (сортируется для риффла)
-  private cardTex: Texture | null = null;
+  private backTex: Texture | null = null; // рубашка (общая; стиль сменяем)
   private shadowTex: Texture | null = null;
+  private faceCache = new Map<string, Texture>(); // лицевые текстуры по ключу card|fourColor
 
   private cards: CardVisual[] = [];
   private layout: RoomLayout = computeLayout(1, 1);
@@ -70,6 +73,8 @@ export class RoomEngine {
   private h = 1;
   private baseScale = 1;
 
+  private deckCards: string[] = []; // порядок колоды (из состояния сервера)
+  private fourColor = false; // четырёхцветная колода (♦ оранж, ♣ голубой) для слабовидящих
   private deckCount = 0;
   private deckZone: DeckZone = "center";
   private deckFanned = false; // колода в сейф-зоне раскрыта веером (дабл-клик тоглит)
@@ -177,7 +182,7 @@ export class RoomEngine {
     this.world.addChild(this.rejectText);
     this.styleZoneLabels();
 
-    this.cardTex = this.makeCardBackTexture(app);
+    this.backTex = this.makeCardBackTexture(app);
     this.shadowTex = this.makeShadowTexture(app);
     this.baseScale = this.layout.cardH / TEX_H;
     this.buildTable();
@@ -227,12 +232,21 @@ export class RoomEngine {
     this.awake = false;
   }
 
-  // Сколько карт в собранной колоде (из состояния сервера). Идемпотентно.
-  setDeckCount(n: number): void {
-    // клампим сверху — защита от абсурдного состояния, чтобы не наплодить тысячи спрайтов
-    this.deckCount = Math.min(60, Math.max(0, Math.floor(n)));
+  // Порядок колоды из состояния сервера (["10♠","A♥",…]). Идентичности нужны для лицевых
+  // текстур. Клампим сверху — защита от абсурдного состояния.
+  setDeck(cards: string[]): void {
+    this.deckCards = cards.slice(0, 60);
+    this.deckCount = this.deckCards.length;
     this.ensureJitter(this.deckCount);
     this.reconcileCards();
+    this.wake();
+  }
+
+  // Четырёхцветная колода (для слабовидящих) — переключение перекрашивает лица.
+  setFourColor(v: boolean): void {
+    if (v === this.fourColor) return;
+    this.fourColor = v;
+    this.applyCardTextures(); // фейсы возьмут новый цвет (кэш по fourColor)
     this.wake();
   }
 
@@ -243,6 +257,7 @@ export class RoomEngine {
     this.deckZone = zone;
     if (zone !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
     const away = zone === "away";
+    this.applyCardTextures();
     this.updateVisibility();
     if (this.deckHit) this.deckHit.eventMode = away ? "none" : "static";
     // Не «away» — карты плавно летят к новому якорю (setTarget, а не snap).
@@ -332,6 +347,7 @@ export class RoomEngine {
       if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
         this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
         if (drop !== "safe") this.deckFanned = false; // веер живёт только в сейф-зоне
+        this.applyCardTextures();
         this.onDeckDrop?.(drop);
       }
       // Всегда укладываем колоду у якоря активной зоны (новой при переносе, текущей при
@@ -439,20 +455,31 @@ export class RoomEngine {
   }
 
   private handleDeckTap(): void {
+    if (!this.deckDraggable) return; // двигать/раскрывать колоду может только дилер (в лобби)
     const now = performance.now();
     if (now - this.lastDeckTapMs >= 350) {
       this.lastDeckTapMs = now;
       return;
     }
     this.lastDeckTapMs = 0;
-    // В сейф-зоне дабл-клик раскрывает/собирает веер (локально). В центре — как раньше
-    // (React решает: переместить колоду в сейф-зону).
-    if (this.deckZone === "safe") this.toggleFan();
-    else this.onDeckDoubleClick?.();
+    if (this.deckZone === "safe") {
+      // В сейф-зоне дабл-клик раскрывает/собирает веер (локально).
+      this.toggleFan();
+    } else {
+      // В центре дабл-клик переносит колоду в сейф-зону и СРАЗУ раскрывает веер.
+      this.deckZone = "safe";
+      this.deckFanned = true;
+      this.applyCardTextures();
+      this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+      this.positionDeckHit();
+      this.onDeckDoubleClick?.(); // сервер подтвердит перенос эхом
+      this.wake();
+    }
   }
 
   private toggleFan(): void {
     this.deckFanned = !this.deckFanned;
+    this.applyCardTextures();
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.wake();
@@ -572,8 +599,10 @@ export class RoomEngine {
     this.shadowLayer = null;
     this.deckShadow = null;
     this.cardLayer = null;
-    this.cardTex = null;
+    this.backTex = null;
     this.shadowTex = null;
+    this.faceCache.forEach((t) => t.destroy(true));
+    this.faceCache.clear();
     this.deckHit = null;
     this.onDeckDoubleClick = null;
     this.onDeckDrop = null;
@@ -696,25 +725,83 @@ export class RoomEngine {
 
   // Привести число спрайтов к deckCount, новые — уложить в стопку у якоря.
   private reconcileCards(): void {
-    if (!this.cardLayer || !this.cardTex) return;
+    if (!this.cardLayer || !this.backTex) return;
 
     while (this.cards.length < this.deckCount) {
-      const sprite = new Sprite(this.cardTex);
+      const sprite = new Sprite(this.backTex);
       sprite.anchor.set(0.5);
       sprite.zIndex = this.cards.length; // покой: выше по стопке = выше в z (совпадает с restTarget по Y)
       const body = new CardBody();
       body.tiltScale = this.profile.tilt ? 1 : 0;
       body.snapTo(this.restTarget(this.cards.length));
       this.cardLayer.addChild(sprite);
-      this.cards.push({ body, sprite, phase: this.cards.length * anim.idle.phaseStep });
+      this.cards.push({ body, sprite, card: "", phase: this.cards.length * anim.idle.phaseStep });
     }
     while (this.cards.length > this.deckCount) {
       const c = this.cards.pop()!;
       c.sprite.destroy();
     }
+    this.cards.forEach((c, i) => (c.card = this.deckCards[i] ?? "")); // идентичности по порядку
+    this.applyCardTextures();
     this.updateVisibility(); // в чужой зоне / при выкл тенях спрайты/тень не «проявятся»
     this.cards.forEach((c) => this.syncVisual(c));
     this.syncDeckShadow();
+  }
+
+  // Лицо или рубашка на каждой карте: лица показываем только у раскрытого веера в сейф-зоне,
+  // иначе рубашка. Рубашка/лицо — сменяемые текстуры (стиль колоды).
+  private applyCardTextures(): void {
+    const showFaces = this.deckZone === "safe" && this.deckFanned;
+    for (const c of this.cards) {
+      c.sprite.texture = showFaces && c.card ? this.faceTexFor(c.card) : this.backTex!;
+    }
+  }
+
+  private faceTexFor(card: string): Texture {
+    const key = `${card}|${this.fourColor ? 1 : 0}`;
+    let tex = this.faceCache.get(key);
+    if (!tex) {
+      tex = this.makeCardFaceTexture(card);
+      this.faceCache.set(key, tex);
+    }
+    return tex;
+  }
+
+  // Лицевая текстура: кремовый фон, ранг+масть по углам и крупный символ по центру
+  // (для J/Q/K — буква-заглушка, картинки добавим позже), цвет по масти (четырёхцв./классика).
+  private makeCardFaceTexture(card: string): Texture {
+    if (!this.app) return this.backTex!;
+    const { rank, suit } = parseCard(card);
+    const color = suitColor(suit, this.fourColor);
+    const root = new Container();
+
+    const bg = new Graphics();
+    bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xf4ecd8 }).stroke({ width: 4, color: 0x14281c });
+    root.addChild(bg);
+
+    const cornerStyle = { fontFamily: "VT323, monospace", fontSize: 40, fill: color, align: "center" as const, lineHeight: 34 };
+    const tl = new Text({ text: `${rank}\n${suit}`, style: cornerStyle });
+    tl.anchor.set(0.5);
+    tl.position.set(28, 42);
+    root.addChild(tl);
+    const br = new Text({ text: `${rank}\n${suit}`, style: cornerStyle });
+    br.anchor.set(0.5);
+    br.position.set(TEX_W - 28, TEX_H - 42);
+    br.rotation = Math.PI;
+    root.addChild(br);
+
+    const court = isCourt(rank);
+    const center = new Text({
+      text: court ? rank : suit,
+      style: { fontFamily: "VT323, monospace", fontSize: court ? 96 : 120, fill: color },
+    });
+    center.anchor.set(0.5);
+    center.position.set(TEX_W / 2, TEX_H / 2 + 6);
+    root.addChild(center);
+
+    const tex = this.app.renderer.generateTexture({ target: root, resolution: 2 });
+    root.destroy({ children: true });
+    return tex;
   }
 
   private restTarget(i: number): CardTargets {

@@ -7,6 +7,7 @@ import { RoomScreen } from "./RoomScreen";
 import { AppMenu } from "./AppMenu";
 import { PixelBackground } from "./PixelBackground";
 import { useAnimationSettings } from "./useAnimationSettings";
+import { useFourColor } from "./useFourColor";
 import { joinByInviteCode } from "./colyseus";
 import {
   parseRoomCode,
@@ -35,6 +36,7 @@ export default function App() {
   const [restoreCode, setRestoreCode] = useState("");
   const [showRestore, setShowRestore] = useState(false);
   const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
+  const { fourColor, setFourColor } = useFourColor();
   // Фон и Framer Motion движутся только при полной анимации; в умеренной — статичны.
   const fullMotion = animation.level === "full";
 
@@ -206,12 +208,14 @@ export default function App() {
             onSetLevel={setLevel}
             onSetSpeed={setSpeed}
             onSetShadows={setShadows}
+            fourColor={fourColor}
+            onSetFourColor={setFourColor}
             room={room}
             onLeaveRoom={forgetRoom}
           />
         )}
         {room ? (
-          <RoomScreen room={room} animation={animation} />
+          <RoomScreen room={room} animation={animation} fourColor={fourColor} />
         ) : targetCode ? (
           <div className="pixel-screen">
             <div className="pixel-panel" style={{ textAlign: "center" }}>

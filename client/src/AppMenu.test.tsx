@@ -18,6 +18,8 @@ function renderMenu() {
       onSetLevel={vi.fn()}
       onSetSpeed={vi.fn()}
       onSetShadows={vi.fn()}
+      fourColor={false}
+      onSetFourColor={vi.fn()}
       room={null}
       onLeaveRoom={vi.fn()}
     />
