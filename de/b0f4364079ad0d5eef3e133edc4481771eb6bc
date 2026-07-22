@@ -1,0 +1,32 @@
+server/src/deckFx.ts
+  s_3b000dfed76439::t_686dcc1461adfc 1-73
+server/src/deckFacing.test.ts
+  s_3b000dfed76439::t_d6e51d8deed87c 1-53
+server/src/deckFacing.ts
+  s_3b000dfed76439::t_d6e51d8deed87c 1-23
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_f4354e0779ed3a 335-338
+  s_3b000dfed76439::t_373dec96d6285f 11-12,60-61,70-73,107-140,275,312-317
+server/src/GameState.ts
+  s_3b000dfed76439::t_373dec96d6285f 40-43
+server/src/deckFx.test.ts
+  s_3b000dfed76439::t_686dcc1461adfc 1-68
+server/src/CardRoom.test.ts
+  s_3b000dfed76439::t_f4354e0779ed3a 447-511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "deb0f4364079ad0d5eef3e133edc4481771eb6bc",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
