@@ -3,7 +3,7 @@ import { rejectionText, isRejectReason } from "./rejections";
 
 describe("rejectionText", () => {
   it("у каждой известной причины есть короткий человеческий текст", () => {
-    for (const r of ["not_dealer", "not_lobby", "empty_deck", "unknown_cards"] as const) {
+    for (const r of ["not_dealer", "not_lobby", "deal_mode", "empty_deck", "unknown_cards"] as const) {
       const t = rejectionText(r);
       expect(t.length).toBeGreaterThan(0);
       expect(t.length).toBeLessThanOrEqual(28); // это надпись поверх стола, а не абзац
@@ -13,6 +13,7 @@ describe("rejectionText", () => {
   it("текст объясняет ПОЧЕМУ, а не просто «ошибка»", () => {
     expect(rejectionText("not_dealer")).toContain("дилер");
     expect(rejectionText("empty_deck")).toContain("олод");
+    expect(rejectionText("deal_mode")).toContain("разда");
   });
 
   it("незнакомая причина не роняет клиент, а даёт нейтральный текст", () => {

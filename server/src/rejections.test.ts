@@ -9,6 +9,11 @@ describe("flipRejectReason", () => {
     expect(flipRejectReason(dealer, "lobby", ["A♠"], ["A♠"])).toBeNull();
   });
 
+  it("в режиме раздачи переворот запрещён даже дилеру — номиналов не видит никто", () => {
+    expect(flipRejectReason(dealer, "lobby", ["A♠"], ["A♠"], true)).toBe("deal_mode");
+    expect(flipRejectReason(dealer, "lobby", ["A♠"], [], true)).toBe("deal_mode");
+  });
+
   it("не дилер — отказ с причиной", () => {
     expect(flipRejectReason(guest, "lobby", ["A♠"], ["A♠"])).toBe("not_dealer");
   });
@@ -31,5 +36,9 @@ describe("flipRejectReason", () => {
 
   it("причина «нет дилера» важнее причины «не та фаза» — сообщаем главную", () => {
     expect(flipRejectReason(guest, "playing", ["A♠"], ["A♠"])).toBe("not_dealer");
+  });
+
+  it("режим раздачи проверяется после роли: не-дилеру сообщаем про роль", () => {
+    expect(flipRejectReason(guest, "lobby", ["A♠"], ["A♠"], true)).toBe("not_dealer");
   });
 });

@@ -27,6 +27,14 @@ function createGameServer() {
   return server;
 }
 
+
+// Переворот колоды живёт ВНЕ режима раздачи: пока идёт раздача, номиналов не видит никто.
+async function leaveDealMode(room: any, dealer: any) {
+  const w = room.waitForMessage("toggle_deal_mode");
+  dealer.send("toggle_deal_mode");
+  await w;
+}
+
 describe("CardRoom", () => {
   let colyseus: ColyseusTestServer;
 
@@ -612,14 +620,19 @@ describe("CardRoom", () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const before = [...room.state.deck];
-    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
+    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true); // раздача прячет всё
+
+    // Выход из раздачи сам раскрывает колоду — дальше переворот ИНВЕРТИРУЕТ сторону,
+    // а не «делает лицом вверх»: это и есть физика стопки в руке.
+    await leaveDealMode(room, dealer);
+    expect([...room.state.faceUp.values()].every((v) => v === true)).toBe(true);
 
     const waiter = room.waitForMessage("flip_deck");
     dealer.send("flip_deck");
     await waiter;
 
     expect([...room.state.deck]).toEqual([...before].reverse());
-    expect([...room.state.faceUp.values()].every((v) => v === true)).toBe(true);
+    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
   });
 
   it("flip_cards flips only the given cards and keeps the order", async () => {
@@ -627,14 +640,15 @@ describe("CardRoom", () => {
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const before = [...room.state.deck];
     const target = before[4];
+    await leaveDealMode(room, dealer);
 
     const waiter = room.waitForMessage("flip_cards");
     dealer.send("flip_cards", { cards: [target] });
     await waiter;
 
     expect([...room.state.deck]).toEqual(before); // порядок не тронут
-    expect(room.state.faceUp.get(target)).toBe(true);
-    expect(room.state.faceUp.get(before[5])).toBe(false); // соседей не задело
+    expect(room.state.faceUp.get(target)).toBe(false); // сторона инвертирована
+    expect(room.state.faceUp.get(before[5])).toBe(true); // соседей не задело
   });
 
   it("ignores flips from a non-dealer", async () => {
@@ -658,6 +672,7 @@ describe("CardRoom", () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const card = room.state.deck[0];
+    await leaveDealMode(room, dealer);
 
     let waiter = room.waitForMessage("flip_cards");
     dealer.send("flip_cards", { cards: [card] });
@@ -668,7 +683,7 @@ describe("CardRoom", () => {
     await waiter;
 
     expect(room.state.deck[20]).toBe(card);
-    expect(room.state.faceUp.get(card)).toBe(true); // сторона уехала вместе с картой
+    expect(room.state.faceUp.get(card)).toBe(false); // перевёрнутая сторона уехала с картой
   });
 
   // Клиент показывает переворот СРАЗУ, поэтому отказ обязан быть явным: иначе он
@@ -702,6 +717,7 @@ describe("CardRoom", () => {
     const dealer = await colyseus.connectTo(room, { name: "Alice" });
     const rejects: any[] = [];
     dealer.onMessage("action_rejected", (m) => rejects.push(m));
+    await leaveDealMode(room, dealer);
 
     const waiter = room.waitForMessage("flip_cards");
     dealer.send("flip_cards", { cards: ["джокер"] });

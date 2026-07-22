@@ -119,7 +119,7 @@ export class CardRoom extends Room<GameState> {
     this.onMessage("flip_deck", (client, message: { rev?: number }) => {
       const player = this.state.players.get(client.sessionId);
       const deck = this.state.deck.toArray();
-      const reason = flipRejectReason(player, this.state.phase, deck, []);
+      const reason = flipRejectReason(player, this.state.phase, deck, [], this.state.dealMode);
       if (reason) {
         // Клиент уже показал карты другой стороной — молчать нельзя, иначе он останется
         // с неверной картинкой. Отвечаем отказом, он вернёт колоду и объяснит почему.
@@ -143,7 +143,7 @@ export class CardRoom extends Room<GameState> {
       const raw = message?.cards;
       const cards = Array.isArray(raw) ? raw.filter((c): c is string => typeof c === "string") : [];
       if (cards.length === 0) return; // пустой запрос — нечего ни делать, ни откатывать
-      const reason = flipRejectReason(player, this.state.phase, this.state.deck.toArray(), cards);
+      const reason = flipRejectReason(player, this.state.phase, this.state.deck.toArray(), cards, this.state.dealMode);
       if (reason) {
         client.send("action_rejected", { action: "flip_cards", reason, cards });
         return;

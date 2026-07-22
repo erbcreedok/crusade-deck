@@ -2,12 +2,13 @@
 // не подтвердил — карты возвращаются, и игрок должен понять ПОЧЕМУ, а не увидеть, как
 // колода необъяснимо дёрнулась обратно. Текст короткий: он рисуется поверх стола.
 
-export const REJECT_REASONS = ["not_dealer", "not_lobby", "empty_deck", "unknown_cards"] as const;
+export const REJECT_REASONS = ["not_dealer", "not_lobby", "deal_mode", "empty_deck", "unknown_cards"] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
 const TEXTS: Record<RejectReason, string> = {
   not_dealer: "колоду крутит дилер",
   not_lobby: "игра уже идёт",
+  deal_mode: "идёт раздача",
   empty_deck: "колода пуста",
   unknown_cards: "этих карт нет в колоде",
 };
