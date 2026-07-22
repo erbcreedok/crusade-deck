@@ -30,6 +30,7 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deckCount, setDeckCount] = useState(0);
   const [deckZone, setDeckZone] = useState<DeckZone>("center");
+  const [draggingDeck, setDraggingDeck] = useState(false);
   const canvasRef = useRef<RoomCanvasHandle>(null);
 
   useEffect(() => {
@@ -106,6 +107,14 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
     [canMoveDeck, room],
   );
 
+  const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
+
+  // Набор кнопок «Готов/Растасовать/Раздать» доступен ТОЛЬКО когда колода в центре и
+  // не идёт драг. Если колода вне центра — вместо них плейсхолдер (позже — свои кнопки).
+  const deckInCenter = deckZone === "center";
+  const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
+  const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
+
   return (
     <div className="table-screen">
       <div className="table-topbar">
@@ -138,11 +147,12 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
         deckDraggable={canMoveDeck}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
+        onDragChange={onDragChange}
         animation={animation}
       />
 
       <div className="table-bottombar">
-        {phase === "lobby" && (
+        {showCenterActions && (
           <>
             <button className="pixel-btn" onClick={() => room.send("ready")}>
               Готов
@@ -164,6 +174,13 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
               </button>
             )}
           </>
+        )}
+
+        {/* Колода вне центра — тут будут свои кнопки зоны; пока плейсхолдер-возврат. */}
+        {showDeckPlaceholder && amIDealer && (
+          <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("move_deck", { zone: "center" })}>
+            ↩ Вернуть колоду в центр
+          </button>
         )}
       </div>
     </div>

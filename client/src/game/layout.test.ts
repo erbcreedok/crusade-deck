@@ -1,34 +1,36 @@
 import { describe, it, expect } from "vitest";
-import { computeLayout } from "./layout";
+import { computeLayout, type RoundedRect } from "./layout";
 
-function inside(e: { cx: number; cy: number; rx: number; ry: number }, w: number, h: number) {
-  return e.cx - e.rx >= 0 && e.cx + e.rx <= w && e.cy - e.ry >= 0 && e.cy + e.ry <= h;
+function inside(r: RoundedRect, w: number, h: number) {
+  return r.cx - r.w / 2 >= -1 && r.cx + r.w / 2 <= w + 1 && r.cy - r.h / 2 >= -1 && r.cy + r.h / 2 <= h + 1;
 }
 
 describe("computeLayout", () => {
-  it("овал стола вписан в канвас", () => {
+  it("зоны центра и сейфа занимают ≥80% ширины", () => {
     const l = computeLayout(800, 600);
-    expect(inside(l.table, 800, 600)).toBe(true);
+    expect(l.centerZone.w).toBeGreaterThanOrEqual(800 * 0.8);
+    expect(l.safeZone.w).toBeGreaterThanOrEqual(800 * 0.8);
   });
 
-  it("центральная зона лежит внутри стола", () => {
+  it("все зоны вписаны в канвас", () => {
     const l = computeLayout(800, 600);
-    expect(l.center.rx).toBeLessThan(l.table.rx);
-    expect(l.center.ry).toBeLessThan(l.table.ry);
-    expect(l.center.cx).toBeCloseTo(l.table.cx, 5);
+    expect(inside(l.centerZone, 800, 600)).toBe(true);
+    expect(inside(l.safeZone, 800, 600)).toBe(true);
+    expect(inside(l.forbiddenZone, 800, 600)).toBe(true);
   });
 
-  it("якорь колоды примерно в центре стола", () => {
+  it("сейф ниже центра, запретная выше центра — зоны не наслаиваются по вертикали", () => {
     const l = computeLayout(800, 600);
-    expect(l.deckAnchor.x).toBeCloseTo(400, 0);
-    expect(Math.abs(l.deckAnchor.y - 300)).toBeLessThan(l.table.ry * 0.5);
+    expect(l.safeZone.cy).toBeGreaterThan(l.centerZone.cy);
+    expect(l.forbiddenZone.cy).toBeLessThan(l.centerZone.cy);
+    // запретная целиком выше верхней кромки центра
+    expect(l.forbiddenZone.cy + l.forbiddenZone.h / 2).toBeLessThan(l.centerZone.cy - l.centerZone.h / 2);
   });
 
-  it("якорь сейф-зоны — по центру снизу, ниже центра и в пределах канваса", () => {
+  it("якоря колоды совпадают с центрами своих зон", () => {
     const l = computeLayout(800, 600);
-    expect(l.safeAnchor.x).toBeCloseTo(400, 0);
-    expect(l.safeAnchor.y).toBeGreaterThan(l.deckAnchor.y); // ниже колоды в центре
-    expect(l.safeAnchor.y).toBeLessThanOrEqual(600); // не за нижним краем
+    expect(l.deckAnchor).toEqual({ x: l.centerZone.cx, y: l.centerZone.cy });
+    expect(l.safeAnchor).toEqual({ x: l.safeZone.cx, y: l.safeZone.cy });
   });
 
   it("карта имеет пропорции игральной (узкая по ширине)", () => {
@@ -47,10 +49,10 @@ describe("computeLayout", () => {
     expect(huge.cardH).toBeLessThanOrEqual(140);
   });
 
-  it("устойчив к вырожденным размерам (0/крошечный) — без NaN и отрицательных радиусов", () => {
+  it("устойчив к вырожденным размерам (0/крошечный) — без NaN и отрицательных размеров", () => {
     const l = computeLayout(0, 0);
-    expect(Number.isFinite(l.table.rx)).toBe(true);
-    expect(l.table.rx).toBeGreaterThanOrEqual(0);
+    expect(Number.isFinite(l.centerZone.w)).toBe(true);
+    expect(l.centerZone.w).toBeGreaterThanOrEqual(0);
     expect(l.cardH).toBeGreaterThan(0);
   });
 });

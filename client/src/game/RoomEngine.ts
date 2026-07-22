@@ -71,7 +71,11 @@ export class RoomEngine {
   private press: { id: number; startX: number; startY: number; x: number; y: number } | null = null;
   private dragging = false;
   private hoverZone: DropZone | null = null;
-  private onDeckDrop: ((zone: DropZone) => void) | null = null;
+  private onDeckDrop: ((zone: "center" | "safe") => void) | null = null;
+  private onDragChange: ((active: boolean) => void) | null = null;
+  // «Ударная» анимация отбоя при запрещённом дропе: затухающая тряска, t/dur — прогресс.
+  private reject: { t: number; dur: number; dirX: number; dirY: number } | null = null;
+  private shake = { dx: 0, dy: 0, rot: 0 }; // текущее смещение тряски отбоя (общее для колоды)
 
   private restJitter: number[] = [];
   private profile: AnimationProfile = resolveProfile(DEFAULT_ANIMATION_SETTINGS);
@@ -215,9 +219,14 @@ export class RoomEngine {
     this.onDeckDoubleClick = fn;
   }
 
-  // Колбэк на дроп колоды в дроп-зону (React шлёт move_deck на сервер).
-  setOnDeckDrop(fn: ((zone: DropZone) => void) | null): void {
+  // Колбэк на дроп колоды в разрешённую зону (React шлёт move_deck на сервер).
+  setOnDeckDrop(fn: ((zone: "center" | "safe") => void) | null): void {
     this.onDeckDrop = fn;
+  }
+
+  // Колбэк на старт/конец драга колоды (React прячет кнопки действий на время драга).
+  setOnDragChange(fn: ((active: boolean) => void) | null): void {
+    this.onDragChange = fn;
   }
 
   // Якорь, у которого сейчас покоится колода: центр или своя сейф-зона.
@@ -242,6 +251,7 @@ export class RoomEngine {
       const dy = this.press.y - this.press.startY;
       if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return; // ещё тап, не драг
       this.dragging = true;
+      this.onDragChange?.(true); // React прячет кнопки действий на время драга
     }
     this.hoverZone = pickDropZone(this.press.x, this.press.y, this.layout);
     this.applyDragTargets();
@@ -265,16 +275,33 @@ export class RoomEngine {
       this.wake();
       return;
     }
+    this.onDragChange?.(false); // драг закончился — вернуть кнопки действий
 
     const drop = pickDropZone(px, py, this.layout);
-    if (drop && drop !== this.deckZone) {
+    const droppable = drop ? dropZoneRegions(this.layout)[drop].droppable : false;
+    if (drop && droppable && (drop === "center" || drop === "safe") && drop !== this.deckZone) {
       this.deckZone = drop; // оптимистично двигаем локально, сервер подтвердит эхом
       this.onDeckDrop?.(drop);
+    } else if (drop && !droppable) {
+      // Бросок в запретную зону — «ударная» тряска и возврат на место (см. reject-анимацию).
+      this.startReject(px, py);
     }
-    // уложить стопку у активного якоря (drop=null → вернётся в текущую зону), масштаб назад к 1
+    // уложить стопку у активного якоря (промах/запрет → вернётся в текущую зону), масштаб назад к 1
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.wake();
+  }
+
+  // «Ударная» анимация запрета: короткая затухающая тряска колоды в сторону, откуда
+  // её отбили (от текущего якоря к точке запретного дропа), поверх пружинного возврата.
+  private startReject(px: number, py: number): void {
+    const a = this.activeAnchor();
+    let dx = px - a.x;
+    let dy = py - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    this.reject = { t: 0, dur: 0.42, dirX: dx, dirY: dy };
   }
 
   private applyDragTargets(): void {
@@ -294,16 +321,24 @@ export class RoomEngine {
     const g = this.zoneLayer;
     if (!g) return;
     g.clear();
-    if (!this.dragging) return; // подсветка только пока тащим
+    if (!this.dragging) return; // подсветка зон только пока тащим
     const regions = dropZoneRegions(this.layout);
     (Object.keys(regions) as DropZone[]).forEach((z) => {
-      const e = regions[z];
+      const { rect, droppable } = regions[z];
+      if (rect.w <= 0 || rect.h <= 0) return;
       const active = this.hoverZone === z;
-      if (active) g.ellipse(e.cx, e.cy, e.rx, e.ry).fill({ color: 0xffe08a, alpha: 0.12 });
-      g.ellipse(e.cx, e.cy, e.rx, e.ry).stroke({
+      // Разрешённые зоны — золотые, запретная — серая (нейтральный сигнал «нельзя»).
+      const base = droppable ? 0xd9b154 : 0x8a8a8a;
+      const hot = droppable ? 0xffe9a8 : 0xbdbdbd;
+      const x = rect.cx - rect.w / 2;
+      const y = rect.cy - rect.h / 2;
+      if (active) {
+        g.roundRect(x, y, rect.w, rect.h, rect.r).fill({ color: droppable ? 0xffe08a : 0x9a9a9a, alpha: 0.12 });
+      }
+      g.roundRect(x, y, rect.w, rect.h, rect.r).stroke({
         width: active ? 5 : 2.5,
-        color: active ? 0xffe9a8 : 0xd9b154,
-        alpha: active ? 0.95 : 0.4,
+        color: active ? hot : base,
+        alpha: active ? 0.95 : droppable ? 0.4 : 0.55,
       });
     });
   }
@@ -427,6 +462,8 @@ export class RoomEngine {
     this.deckHit = null;
     this.onDeckDoubleClick = null;
     this.onDeckDrop = null;
+    this.onDragChange = null;
+    this.reject = null;
     this.cards = [];
   }
 
@@ -460,15 +497,36 @@ export class RoomEngine {
       for (const c of this.cards) c.body.step(dt);
     } while (remaining > 0);
 
-    if (this.idleRunning()) this.idleT += Math.min(ticker.deltaMS / 1000, 0.05);
+    const frameDt = Math.min(ticker.deltaMS / 1000, 0.05);
+    if (this.idleRunning()) this.idleT += frameDt;
+    if (this.reject) {
+      this.reject.t += frameDt;
+      if (this.reject.t >= this.reject.dur) this.reject = null;
+    }
+    this.shake = this.rejectShake();
     for (const c of this.cards) this.syncVisual(c);
     this.syncDeckShadow();
 
-    // Всё осело, нет растасовки/драга И нет живой idle → усыпляем цикл. При включённой
-    // idle-анимации цикл не спит (карты постоянно чуть «дышат»); умеренная её гасит.
-    if (!this.shuffleAnim && !this.press && !this.idleRunning() && this.cards.every((c) => c.body.isResting())) {
+    // Всё осело, нет растасовки/драга/отбоя И нет живой idle → усыпляем цикл. При
+    // включённой idle-анимации цикл не спит (карты постоянно чуть «дышат»).
+    if (
+      !this.shuffleAnim &&
+      !this.press &&
+      !this.reject &&
+      !this.idleRunning() &&
+      this.cards.every((c) => c.body.isResting())
+    ) {
       this.sleep();
     }
+  }
+
+  // Смещение/угол «ударной» тряски отбоя (одинаковы для всей колоды). Резко затухает.
+  private rejectShake(): { dx: number; dy: number; rot: number } {
+    if (!this.reject) return { dx: 0, dy: 0, rot: 0 };
+    const k = 1 - this.reject.t / this.reject.dur; // 1 → 0
+    const osc = Math.sin(this.reject.t * 46) * k * k; // быстрая тряска с резким затуханием
+    const amp = this.layout.cardH * 0.22;
+    return { dx: this.reject.dirX * amp * osc, dy: this.reject.dirY * amp * osc, rot: osc * 0.14 };
   }
 
   // Живёт ли idle-анимация прямо сейчас (для keep-awake и накопления фазы).
@@ -487,9 +545,9 @@ export class RoomEngine {
       scale *= 1 + anim.idle.scaleAmp * Math.sin(this.idleT * anim.idle.scaleFreq + c.phase);
     }
 
-    c.sprite.x = c.body.px;
-    c.sprite.y = c.body.py;
-    c.sprite.rotation = rot;
+    c.sprite.x = c.body.px + this.shake.dx;
+    c.sprite.y = c.body.py + this.shake.dy;
+    c.sprite.rotation = rot + this.shake.rot;
     c.sprite.scale.set(scale);
   }
 
@@ -506,9 +564,9 @@ export class RoomEngine {
     s.visible = true;
     const elev = Math.max(0, base.body.scaleVal - 1); // 0 в покое, ~0.18 при захвате
     const off = this.layout.cardH;
-    s.x = base.body.px + off * (0.04 + elev * 0.5);
-    s.y = base.body.py + off * (0.06 + elev * 0.75);
-    s.rotation = base.body.rotation;
+    s.x = base.body.px + this.shake.dx + off * (0.04 + elev * 0.5);
+    s.y = base.body.py + this.shake.dy + off * (0.06 + elev * 0.75);
+    s.rotation = base.body.rotation + this.shake.rot;
     s.scale.set(this.baseScale * base.body.scaleVal * 1.05);
     s.alpha = 0.5 + elev * 0.4;
   }
@@ -547,18 +605,10 @@ export class RoomEngine {
     }
   }
 
+  // Стол больше не рисуется овалом — визуально это весь экран (фон рисует CSS).
+  // Метод оставлен пустым как точка расширения (напр. подложка/виньетка позже).
   private buildTable(): void {
-    const g = this.tableG;
-    if (!g) return;
-    g.clear();
-    const { table, center } = this.layout;
-
-    // виртуальный овал стола: полупрозрачное сукно + золотая кромка (не буквальный стол)
-    g.ellipse(table.cx, table.cy, table.rx, table.ry)
-      .fill({ color: 0x123726, alpha: 0.55 })
-      .stroke({ width: 6, color: 0xd9b154, alpha: 0.85 });
-    // зона центра — тонкое золотое кольцо
-    g.ellipse(center.cx, center.cy, center.rx, center.ry).stroke({ width: 3, color: 0xd9b154, alpha: 0.3 });
+    this.tableG?.clear();
   }
 
   private makeCardBackTexture(app: Application): Texture {

@@ -1,37 +1,38 @@
-import type { RoomLayout } from "./layout";
+import type { RoomLayout, RoundedRect } from "./layout";
 
-// Дроп-зоны на столе, куда дилер может бросить колоду при драге. Пока две:
-// общий центр и своя сейф-зона снизу. Геометрия — эллипсы (для hit-теста и подсветки).
-export type DropZone = "center" | "safe";
+// Дроп-зоны на столе. center/safe — куда колоду бросать МОЖНО, forbidden — тестовая
+// зона сверху, куда НЕЛЬЗЯ (проверка «ударной» анимации запрета). Геометрия —
+// скруглённые прямоугольники (для hit-теста и подсветки).
+export type DropZone = "center" | "safe" | "forbidden";
 
-export interface ZoneEllipse {
-  cx: number;
-  cy: number;
-  rx: number;
-  ry: number;
+export interface ZoneDef {
+  rect: RoundedRect;
+  droppable: boolean;
 }
 
-export function dropZoneRegions(layout: RoomLayout): Record<DropZone, ZoneEllipse> {
-  const { center, safeAnchor, cardW, cardH } = layout;
+export function dropZoneRegions(layout: RoomLayout): Record<DropZone, ZoneDef> {
   return {
-    center: { cx: center.cx, cy: center.cy, rx: center.rx, ry: center.ry },
-    safe: { cx: safeAnchor.x, cy: safeAnchor.y, rx: cardW * 1.3, ry: cardH * 0.95 },
+    center: { rect: layout.centerZone, droppable: true },
+    safe: { rect: layout.safeZone, droppable: true },
+    forbidden: { rect: layout.forbiddenZone, droppable: false },
   };
 }
 
-function normDist(e: ZoneEllipse, x: number, y: number): number {
-  const dx = (x - e.cx) / e.rx;
-  const dy = (y - e.cy) / e.ry;
-  return dx * dx + dy * dy; // <= 1 внутри эллипса
+function inRect(r: RoundedRect, x: number, y: number): boolean {
+  return r.w > 0 && r.h > 0 && Math.abs(x - r.cx) <= r.w / 2 && Math.abs(y - r.cy) <= r.h / 2;
 }
 
-// Какая дроп-зона под точкой (x,y), или null если ни одной. При перекрытии —
-// та, к центру которой ближе (нормированно на радиусы).
+function normDist(r: RoundedRect, x: number, y: number): number {
+  const dx = (x - r.cx) / (r.w / 2);
+  const dy = (y - r.cy) / (r.h / 2);
+  return dx * dx + dy * dy;
+}
+
+// Какая зона под точкой (x,y), включая запретную, или null. При перекрытии — ближайшая
+// по нормированному расстоянию до центра зоны. Проверку «можно ли дропать» делает вызывающий.
 export function pickDropZone(x: number, y: number, layout: RoomLayout): DropZone | null {
   const regions = dropZoneRegions(layout);
-  const inside = (Object.keys(regions) as DropZone[]).filter(
-    (z) => regions[z].rx > 0 && regions[z].ry > 0 && normDist(regions[z], x, y) <= 1,
-  );
+  const inside = (Object.keys(regions) as DropZone[]).filter((z) => inRect(regions[z].rect, x, y));
   if (inside.length === 0) return null;
-  return inside.sort((a, b) => normDist(regions[a], x, y) - normDist(regions[b], x, y))[0];
+  return inside.sort((a, b) => normDist(regions[a].rect, x, y) - normDist(regions[b].rect, x, y))[0];
 }

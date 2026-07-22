@@ -1,21 +1,21 @@
 // Геометрия комнаты из размеров канваса. Чистая математика (тестируется юнитами) —
-// движок только рисует по этим числам. Овал стола — виртуальный (не буквальный),
-// центр — зона игры, deckAnchor — где покоится собранная колода.
+// движок только рисует по этим числам. Стол больше не рисуется овалом: визуально это
+// весь экран. Зоны (центр/сейф/запретная) — скруглённые прямоугольники во всю ширину.
 
-export interface Ellipse {
+export interface RoundedRect {
   cx: number;
   cy: number;
-  rx: number;
-  ry: number;
+  w: number;
+  h: number;
+  r: number; // радиус скругления углов
 }
 
 export interface RoomLayout {
-  table: Ellipse;
-  center: Ellipse;
-  deckAnchor: { x: number; y: number };
-  // Личная сейф-зона локального игрока — по центру снизу. Сюда дилер притягивает
-  // колоду (позже — и лежат личные/общие карты). Чужие сейф-зоны пока не рисуем.
-  safeAnchor: { x: number; y: number };
+  centerZone: RoundedRect; // общая зона игры (широкая, по центру)
+  safeZone: RoundedRect; // личная сейф-зона снизу
+  forbiddenZone: RoundedRect; // тестовая зона сверху, куда дропать НЕЛЬЗЯ
+  deckAnchor: { x: number; y: number }; // покой колоды в центре = центр centerZone
+  safeAnchor: { x: number; y: number }; // покой колоды в сейф-зоне = центр safeZone
   cardW: number;
   cardH: number;
 }
@@ -25,29 +25,24 @@ const CARD_MIN_H = 48;
 const CARD_MAX_H = 140;
 
 export function computeLayout(w: number, h: number): RoomLayout {
-  const cx = w / 2;
-  const cy = h / 2;
-
-  // Овал стола с полями по краям.
-  const rx = Math.max(0, w * 0.46);
-  const ry = Math.max(0, h * 0.42);
-  const table: Ellipse = { cx, cy, rx, ry };
-
-  // Центральная зона игры — заметно меньше стола, по тому же центру.
-  const center: Ellipse = { cx, cy, rx: rx * 0.42, ry: ry * 0.44 };
-
   // Карта масштабируется от меньшей стороны канваса, с потолком/полом.
   const cardH = clamp(Math.min(w, h) * 0.16, CARD_MIN_H, CARD_MAX_H);
   const cardW = cardH * CARD_RATIO;
 
-  // Колода покоится чуть выше геометрического центра — читается как «лежит на столе».
-  const deckAnchor = { x: cx, y: cy - ry * 0.08 };
+  // Зоны занимают почти всю ширину (≥80%) — удобнее целиться и дропать.
+  const zoneW = Math.max(0, w * 0.86);
+  const r = 18;
 
-  // Сейф-зона своего игрока — у нижнего края, с отступом на высоту карты, чтобы
-  // стопка целиком была видна (карты растут вверх от якоря).
-  const safeAnchor = { x: cx, y: Math.max(cy, h - cardH * 0.75) };
+  // Центр — широкая зона игры чуть выше середины. Сейф — полоса у нижнего края.
+  // Запретная — узкая полоса сверху (тестовая, дроп запрещён).
+  const centerZone: RoundedRect = { cx: w / 2, cy: h * 0.44, w: zoneW, h: clamp(h * 0.42, cardH * 1.6, h * 0.5), r };
+  const safeZone: RoundedRect = { cx: w / 2, cy: h * 0.85, w: zoneW, h: clamp(cardH * 1.7, 0, h * 0.28), r };
+  const forbiddenZone: RoundedRect = { cx: w / 2, cy: h * 0.1, w: Math.max(0, w * 0.5), h: cardH * 0.9, r: 14 };
 
-  return { table, center, deckAnchor, safeAnchor, cardW, cardH };
+  const deckAnchor = { x: centerZone.cx, y: centerZone.cy };
+  const safeAnchor = { x: safeZone.cx, y: safeZone.cy };
+
+  return { centerZone, safeZone, forbiddenZone, deckAnchor, safeAnchor, cardW, cardH };
 }
 
 function clamp(v: number, lo: number, hi: number): number {

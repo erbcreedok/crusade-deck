@@ -5,22 +5,26 @@ import { pickDropZone, dropZoneRegions } from "./dropZones";
 describe("pickDropZone", () => {
   const layout = computeLayout(800, 600);
 
-  it("центр стола → 'center'", () => {
-    expect(pickDropZone(layout.center.cx, layout.center.cy, layout)).toBe("center");
+  it("центр зоны игры → 'center'", () => {
+    expect(pickDropZone(layout.centerZone.cx, layout.centerZone.cy, layout)).toBe("center");
   });
 
-  it("точка у нижнего якоря → 'safe'", () => {
+  it("центр сейф-зоны → 'safe'", () => {
     expect(pickDropZone(layout.safeAnchor.x, layout.safeAnchor.y, layout)).toBe("safe");
+  });
+
+  it("запретная зона сверху → 'forbidden'", () => {
+    expect(pickDropZone(layout.forbiddenZone.cx, layout.forbiddenZone.cy, layout)).toBe("forbidden");
   });
 
   it("угол канваса вне всех зон → null", () => {
     expect(pickDropZone(2, 2, layout)).toBeNull();
   });
 
-  it("зоны имеют положительные радиусы и различимы по позиции", () => {
+  it("center/safe можно дропать, forbidden — нельзя", () => {
     const r = dropZoneRegions(layout);
-    expect(r.center.rx).toBeGreaterThan(0);
-    expect(r.safe.ry).toBeGreaterThan(0);
-    expect(r.safe.cy).toBeGreaterThan(r.center.cy); // сейф ниже центра
+    expect(r.center.droppable).toBe(true);
+    expect(r.safe.droppable).toBe(true);
+    expect(r.forbidden.droppable).toBe(false);
   });
 });

@@ -2,7 +2,6 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { RoomEngine } from "./RoomEngine";
 import { resolveProfile, type AnimationSettings } from "./anim/animationSettings";
 import type { DeckZone } from "./deckZone";
-import type { DropZone } from "./dropZones";
 
 export interface RoomCanvasHandle {
   shuffle: () => void;
@@ -13,7 +12,8 @@ interface Props {
   deckZone: DeckZone;
   deckDraggable: boolean;
   onDeckDoubleClick: () => void;
-  onDeckDrop: (zone: DropZone) => void;
+  onDeckDrop: (zone: "center" | "safe") => void;
+  onDragChange: (active: boolean) => void;
   animation: AnimationSettings;
 }
 
@@ -21,7 +21,7 @@ interface Props {
 // управление императивному RoomEngine. React больше не трогает содержимое канваса —
 // только прокидывает пропсы (deckCount/animation) в движок и вызывает shuffle() через ref.
 export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanvas(
-  { deckCount, deckZone, deckDraggable, onDeckDoubleClick, onDeckDrop, animation },
+  { deckCount, deckZone, deckDraggable, onDeckDoubleClick, onDeckDrop, onDragChange, animation },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -69,6 +69,9 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
   useEffect(() => {
     engineRef.current?.setOnDeckDrop(onDeckDrop);
   }, [onDeckDrop]);
+  useEffect(() => {
+    engineRef.current?.setOnDragChange(onDragChange);
+  }, [onDragChange]);
   useEffect(() => {
     engineRef.current?.setAnimationProfile(resolveProfile(animation));
   }, [animation.level, animation.speed, animation.shadows]);
