@@ -1165,119 +1165,142 @@ export class RoomEngine {
     return [{ x: e.global.x, y: e.global.y, t: performance.now() }];
   }
 
+  // Движение пальца адресуется тому жесту, который он начал: карта в драге, нажатие на
+  // карту (ещё не решено, что это), или драг всей колоды.
   private onPointerMove(e: FederatedPointerEvent): void {
     if (this.cardDrag && e.pointerId === this.cardDrag.id) {
-      pushSample(this.cardDrag.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
-      // Резкий бросок ВНИЗ прерывает драг: карта возвращается на место, рука складывается.
-      // При раздаче верхней карты свайп вниз просто отменяет жест (без сворачивания руки).
-      const v = swipeVelocity(this.cardDrag.samples, anim.swipe.windowMs);
-      if (!this.dealDrag && isSwipeDown(v.vx, v.vy)) {
-        const dragged = this.cardDrag.v;
-        this.cardDrag = null;
-        this.skipNextTap = true;
-        this.hoverZone = null;
-        this.returnCardHome(dragged);
-        this.drawZones();
-        this.onDragChange?.(false);
-        this.onFanCollapse?.();
-        this.wake();
-        return;
-      }
-      this.cardDrag.x = e.global.x;
-      this.cardDrag.y = e.global.y;
-      if (this.dealDrag) {
-        // Ховер и по неготовым — чтобы показать «Неа»; accept/reject решает дроп.
-        const seatHit = pickSeat(e.global.x, e.global.y, this.seatBoxes);
-        this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
-        const to = pickDealTarget(
-          e.global.x,
-          e.global.y,
-          this.seatBoxes,
-          this.layout,
-          this.selfId,
-          this.dealReadyIds(),
-        );
-        // Своя рука подсвечивается как дроп-зона hand.
-        this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
-        if (this.deckFanned) {
-          // Веер колоды раступается перед картой (дырка по x), как рука при реордере.
-          if (this.inDeckFanArea(e.global.x, e.global.y)) {
-            this.cardDrag.insertAt = this.insertDeckIndexAt(e.global.x);
-          }
-          this.applyCardDragTargets();
-        } else {
-          this.cardDrag.v.body.setTarget({ x: e.global.x, y: e.global.y, rot: 0, scale: DRAG_SCALE });
-        }
-        this.drawSeats();
-        this.drawZones();
-      } else {
-        this.cardDrag.insertAt = this.cardDrag.fromHand
-          ? this.insertHandIndexAt(e.global.x)
-          : this.insertIndexAt(e.global.x);
-        this.hoverZone = pickDropTarget(e.global.x, e.global.y, this.layout);
-        this.applyCardDragTargets();
-        this.drawZones();
-      }
-      this.wake();
+      this.moveDraggedCard(e);
       return;
     }
     if (this.cardPress && e.pointerId === this.cardPress.id) {
-      const p = this.cardPress;
-      pushSample(p.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
-      p.x = e.global.x;
-      p.y = e.global.y;
-      const v = swipeVelocity(p.samples, anim.swipe.windowMs);
-      // Что этот жест значит — решает engine/gestureIntent.ts (правила там же и проверены).
-      const intent = pressIntent({
-        dx: p.x - p.startX,
-        dy: p.y - p.startY,
-        vx: v.vx,
-        vy: v.vy,
-        travelUp: p.startY - p.y,
-        travelDown: p.y - p.startY,
-        cardH: this.layout.cardH,
-        fromHand: p.fromHand,
-        dealDrag: this.dealDrag,
-        canGrab: p.canGrab,
-        swipeable: this.fanOpen() && this.deckCount >= 2,
-        canShuffle: this.canDeal || !this.dealMode,
-      });
+      this.moveCardPress(e);
+      return;
+    }
+    if (this.press && e.pointerId === this.press.id) this.moveDeckPress(e);
+  }
 
-      if (intent === "wait") return;
-      if (intent === "deal") {
+  // Карта уже в руке у игрока: ведём её и подсвечиваем то, куда она может лечь.
+  private moveDraggedCard(e: FederatedPointerEvent): void {
+    const d = this.cardDrag!;
+    pushSample(d.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
+
+    // Резкий бросок ВНИЗ прерывает драг: карта возвращается на место, рука складывается.
+    // При раздаче верхней карты свайп вниз просто отменяет жест (без сворачивания руки).
+    const v = swipeVelocity(d.samples, anim.swipe.windowMs);
+    if (!this.dealDrag && isSwipeDown(v.vx, v.vy)) {
+      this.cancelCardDrag(d.v);
+      return;
+    }
+
+    d.x = e.global.x;
+    d.y = e.global.y;
+    if (this.dealDrag) this.aimDealDrag(e.global.x, e.global.y);
+    else this.aimReorderDrag(e.global.x, e.global.y);
+    this.wake();
+  }
+
+  private cancelCardDrag(dragged: CardVisual): void {
+    this.cardDrag = null;
+    this.skipNextTap = true;
+    this.hoverZone = null;
+    this.returnCardHome(dragged);
+    this.drawZones();
+    this.onDragChange?.(false);
+    this.onFanCollapse?.();
+    this.wake();
+  }
+
+  // Раздача: карта ищет чужое место или мою полосу руки.
+  private aimDealDrag(x: number, y: number): void {
+    // Ховерим и неготовых — чтобы показать «Неа»; принять или отбить решает дроп.
+    const seatHit = pickSeat(x, y, this.seatBoxes);
+    this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
+    const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds());
+    // Своя рука подсвечивается как обычная дроп-зона hand.
+    this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
+
+    if (this.deckFanned) {
+      // Веер колоды раступается перед картой (дырка по x), как рука при реордере.
+      if (this.inDeckFanArea(x, y)) this.cardDrag!.insertAt = this.insertDeckIndexAt(x);
+      this.applyCardDragTargets();
+    } else {
+      this.cardDrag!.v.body.setTarget({ x, y, rot: 0, scale: DRAG_SCALE });
+    }
+    this.drawSeats();
+    this.drawZones();
+  }
+
+  // Перестановка внутри веера: карта ищет свой новый слот.
+  private aimReorderDrag(x: number, y: number): void {
+    const d = this.cardDrag!;
+    d.insertAt = d.fromHand ? this.insertHandIndexAt(x) : this.insertIndexAt(x);
+    this.hoverZone = pickDropTarget(x, y, this.layout);
+    this.applyCardDragTargets();
+    this.drawZones();
+  }
+
+  // Палец прижат к карте, но что это за жест — ещё не решено. Решает pressIntent.
+  private moveCardPress(e: FederatedPointerEvent): void {
+    const p = this.cardPress!;
+    pushSample(p.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
+    p.x = e.global.x;
+    p.y = e.global.y;
+    const v = swipeVelocity(p.samples, anim.swipe.windowMs);
+    const intent = pressIntent({
+      dx: p.x - p.startX,
+      dy: p.y - p.startY,
+      vx: v.vx,
+      vy: v.vy,
+      travelUp: p.startY - p.y,
+      travelDown: p.y - p.startY,
+      cardH: this.layout.cardH,
+      fromHand: p.fromHand,
+      dealDrag: this.dealDrag,
+      canGrab: p.canGrab,
+      swipeable: this.fanOpen() && this.deckCount >= 2,
+      canShuffle: this.canDeal || !this.dealMode,
+    });
+
+    switch (intent) {
+      case "wait":
+        return;
+      case "deal":
         this.skipNextTap = true; // после драга верхней карты тап не откроет веер
         this.beginCardDrag();
         return;
-      }
-      if (intent === "collapse-hand") {
+      case "collapse-hand":
         this.cardPress = null;
         this.dealDrag = false;
         this.onFanCollapse?.();
         return;
-      }
-      if (intent === "shuffle") {
+      case "shuffle":
         this.startSwipeShuffle(v.vx, v.vy, p.index);
         this.cardPress = null;
         this.dealDrag = false;
         this.deckPointer = false;
         return;
-      }
-      if (intent === "grab") this.beginCardDrag();
-      else this.glissandoTo(e.global.x);
-      return;
+      case "grab":
+        this.beginCardDrag();
+        return;
+      case "glissando":
+        this.glissandoTo(e.global.x);
     }
-    if (!this.press || e.pointerId !== this.press.id) return;
-    this.press.x = e.global.x;
-    this.press.y = e.global.y;
-    pushSample(this.press.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
+  }
+
+  // Палец прижат к колоде: после порога это драг колоды целиком.
+  private moveDeckPress(e: FederatedPointerEvent): void {
+    const press = this.press!;
+    press.x = e.global.x;
+    press.y = e.global.y;
+    pushSample(press.samples, { x: e.global.x, y: e.global.y, t: performance.now() });
     if (!this.dragging) {
-      if (!movedEnough(this.press.x - this.press.startX, this.press.y - this.press.startY)) return; // ещё тап
+      if (!movedEnough(press.x - press.startX, press.y - press.startY)) return; // ещё тап
       this.dragging = true;
       this.onDragChange?.(true); // React прячет кнопки действий на время драга
     }
-    this.hoverZone = pickDropTarget(this.press.x, this.press.y, this.layout);
+    this.hoverZone = pickDropTarget(press.x, press.y, this.layout);
     // Место игрока под курсором подсвечивается так же, как обычная дроп-зона.
-    this.setHoverSeat(pickSeat(this.press.x, this.press.y, this.seatBoxes));
+    this.setHoverSeat(pickSeat(press.x, press.y, this.seatBoxes));
     this.applyDragTargets();
     this.drawZones();
     this.wake();
