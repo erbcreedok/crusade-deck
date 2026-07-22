@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swipeStrength, swipeCardCount, swipeDirections } from "./swipeShuffle";
+import { swipeStrength, swipeCardCount, swipeDirections, swipeVelocity, swipeCardIndices } from "./swipeShuffle";
 import { anim } from "./anim/config";
 
 const s = anim.swipe;
@@ -77,5 +77,54 @@ describe("swipeDirections", () => {
   it("вырожденные входы безопасны", () => {
     expect(swipeDirections(0, 0, -2000)).toEqual([]);
     expect(swipeDirections(3, 0, 0).length).toBe(3);
+  });
+});
+
+describe("swipeVelocity", () => {
+  // Скорость по ОКНУ выборок, а не по последней паре событий: одиночный рывок пальца
+  // в конце медленного ведения не должен выглядеть как свайп.
+  const track = (vy: number, n = 6, step = 16) =>
+    Array.from({ length: n }, (_, i) => ({ x: 0, y: -vy * (i * step) * 0.001, t: i * step }));
+
+  it("равномерное движение — та самая скорость", () => {
+    const v = swipeVelocity(track(2000), 100);
+    expect(v.vy).toBeCloseTo(-2000, 0);
+    expect(v.vx).toBeCloseTo(0, 6);
+  });
+
+  it("рывок в конце медленного ведения не даёт скорости свайпа", () => {
+    const slow = track(300, 6);
+    const jerk = [...slow, { x: 0, y: slow[slow.length - 1].y - 60, t: 5 * 16 + 8 }];
+    expect(Math.abs(swipeVelocity(jerk, 100).vy)).toBeLessThan(2000);
+  });
+
+  it("выборки старше окна не учитываются", () => {
+    const old = [{ x: 0, y: 500, t: 0 }, ...track(1500).map((s) => ({ ...s, t: s.t + 400 }))];
+    expect(swipeVelocity(old, 100).vy).toBeCloseTo(swipeVelocity(track(1500), 100).vy, 0);
+  });
+
+  it("одной выборки мало — скорости нет", () => {
+    expect(swipeVelocity([{ x: 0, y: 0, t: 0 }], 100)).toEqual({ vx: 0, vy: 0 });
+    expect(swipeVelocity([], 100)).toEqual({ vx: 0, vy: 0 });
+  });
+});
+
+describe("swipeCardIndices", () => {
+  it("берёт соседние карты вокруг точки свайпа, а не по всей колоде", () => {
+    expect(swipeCardIndices(20, 5, 36)).toEqual([18, 19, 20, 21, 22]);
+  });
+
+  it("у края колоды сдвигается внутрь, но количество сохраняет", () => {
+    expect(swipeCardIndices(0, 4, 36)).toEqual([0, 1, 2, 3]);
+    expect(swipeCardIndices(35, 4, 36)).toEqual([32, 33, 34, 35]);
+  });
+
+  it("карт в колоде меньше, чем просят — берём всю колоду", () => {
+    expect(swipeCardIndices(1, 8, 3)).toEqual([0, 1, 2]);
+  });
+
+  it("вырожденные входы безопасны", () => {
+    expect(swipeCardIndices(0, 5, 0)).toEqual([]);
+    expect(swipeCardIndices(0, 0, 36)).toEqual([]);
   });
 });

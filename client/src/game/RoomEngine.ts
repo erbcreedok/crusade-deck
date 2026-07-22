@@ -25,7 +25,15 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
-import { swipeStrength, swipeCardCount, swipeDirections, type Dir } from "./swipeShuffle";
+import {
+  swipeStrength,
+  swipeCardCount,
+  swipeDirections,
+  swipeVelocity,
+  swipeCardIndices,
+  type Dir,
+  type SwipeSample,
+} from "./swipeShuffle";
 import {
   stackOffset,
   stackExtent,
@@ -142,9 +150,7 @@ export class RoomEngine {
     y: number;
     index: number;
     canGrab: boolean; // на момент нажатия карта была видна достаточно, чтобы её взять
-    lastT: number; // время последней выборки (для скорости свайпа)
-    vx: number;
-    vy: number;
+    samples: SwipeSample[]; // короткая история движения — по ней считается скорость свайпа
   } | null = null;
   private cardDrag: { id: number; v: CardVisual; insertAt: number; x: number; y: number } | null = null;
   private cardShadow: Sprite | null = null;
@@ -507,9 +513,7 @@ export class RoomEngine {
         y: e.global.y,
         index,
         canGrab,
-        lastT: performance.now(),
-        vx: 0,
-        vy: 0,
+        samples: [{ x: e.global.x, y: e.global.y, t: performance.now() }],
       };
       this.wake();
       return;
@@ -531,17 +535,16 @@ export class RoomEngine {
       return;
     }
     if (this.cardPress && e.pointerId === this.cardPress.id) {
-      const now = performance.now();
-      const dt = Math.max(1, now - this.cardPress.lastT) / 1000;
-      this.cardPress.vx = (e.global.x - this.cardPress.x) / dt;
-      this.cardPress.vy = (e.global.y - this.cardPress.y) / dt;
-      this.cardPress.lastT = now;
-      this.cardPress.x = e.global.x;
-      this.cardPress.y = e.global.y;
-      // Резкое движение ВВЕРХ по вееру — это «перемешать»: жест выигрывает и у драга,
-      // и у глиссандо (их движения медленные и не вверх).
-      if (this.isSwipeUp(this.cardPress.vx, this.cardPress.vy)) {
-        this.startSwipeShuffle(this.cardPress.vx, this.cardPress.vy);
+      const p = this.cardPress;
+      p.samples.push({ x: e.global.x, y: e.global.y, t: performance.now() });
+      if (p.samples.length > 12) p.samples.shift();
+      p.x = e.global.x;
+      p.y = e.global.y;
+      // Резкий бросок ВВЕРХ по вееру — это «перемешать». Медленное ведение (скролл/
+      // глиссандо) сюда не проходит: нужна и скорость по окну, и пройденный путь вверх.
+      const v = swipeVelocity(p.samples, anim.swipe.windowMs);
+      if (this.isSwipeUp(v.vx, v.vy, p.startY - p.y)) {
+        this.startSwipeShuffle(v.vx, v.vy, p.index);
         this.cardPress = null;
         return;
       }
@@ -1537,16 +1540,19 @@ export class RoomEngine {
   // Свайп вверх: быстрое движение, у которого вертикальная составляющая направлена вверх
   // и весома. Наклон вбок допускаем (он потом задаёт сторону разлёта) — не пускаем только
   // движения вниз и «горизонтальные протяжки», которые на деле глиссандо.
-  private isSwipeUp(vx: number, vy: number): boolean {
+  private isSwipeUp(vx: number, vy: number, travelUp: number): boolean {
     if (!this.fanOpen() || this.deckCount < 2) return false;
     if (vy >= 0) return false; // вниз — не тот жест
     if (-vy < Math.abs(vx) * anim.swipe.upBias) return false; // почти горизонтально — не свайп
+    // Путь вверх обязателен: он отсекает медленное ведение и мелкое дрожание пальца,
+    // на которых одна только скорость иногда даёт ложный свайп.
+    if (travelUp < this.layout.cardH * anim.swipe.minTravel) return false;
     return swipeStrength(vx, vy) > 0;
   }
 
   // Выплеск: несколько карт вылетают из веера в стороны и возвращаются. Сам порядок тасует
   // сервер (onSwipeShuffle шлёт shuffle_deck) — анимация не ждёт ответа и не зависит от него.
-  private startSwipeShuffle(vx: number, vy: number): void {
+  private startSwipeShuffle(vx: number, vy: number, startIndex: number): void {
     const strength = swipeStrength(vx, vy);
     const n = this.cards.length;
     const count = Math.min(n, swipeCardCount(strength));
@@ -1554,11 +1560,16 @@ export class RoomEngine {
     const dirs = swipeDirections(count, vx, vy);
     const s = anim.swipe;
     const dist = this.layout.cardH * (s.dist.base + s.dist.perStrength * strength);
-    // Берём карты, равномерно разбросанные по вееру, — вылетает «из колоды», а не с краю.
-    const entries = dirs.map((dir, k) => {
-      const idx = Math.min(n - 1, Math.round(((k + 0.5) / count) * (n - 1)));
-      return { v: this.cards[idx], dir, dist, spin: (dir.dx >= 0 ? 1 : -1) * s.spin, z: 50_000 + k };
-    });
+    // Берём НЕПРЕРЫВНУЮ пачку карт вокруг той, с которой начался свайп: выплеск идёт
+    // из-под пальца, а не выдёргивает карты по всему вееру.
+    const picked = swipeCardIndices(startIndex, count, n);
+    const entries = picked.map((idx, k) => ({
+      v: this.cards[idx],
+      dir: dirs[k] ?? dirs[dirs.length - 1],
+      dist,
+      spin: ((dirs[k] ?? dirs[0]).dx >= 0 ? 1 : -1) * s.spin,
+      z: 50_000 + k,
+    }));
     for (const e of entries) e.v.sprite.zIndex = e.z; // летят поверх веера
     this.splashAnim = { t: 0, dur: s.dur, entries };
     this.poke = null;

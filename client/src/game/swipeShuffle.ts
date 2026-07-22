@@ -8,6 +8,39 @@ export interface Dir {
   dy: number;
 }
 
+export interface SwipeSample {
+  x: number;
+  y: number;
+  t: number; // мс
+}
+
+// Скорость пальца по ОКНУ последних выборок (px/с), а не по последней паре событий:
+// иначе одиночный рывок в конце медленного ведения читается как свайп. Берём крайние
+// выборки внутри окна — это средняя скорость за окно, шум одного кадра в неё не пролезает.
+export function swipeVelocity(samples: readonly SwipeSample[], windowMs: number): { vx: number; vy: number } {
+  if (samples.length < 2) return { vx: 0, vy: 0 };
+  const last = samples[samples.length - 1];
+  let first = last;
+  for (let i = samples.length - 1; i >= 0; i--) {
+    if (last.t - samples[i].t > windowMs) break;
+    first = samples[i];
+  }
+  const dt = (last.t - first.t) / 1000;
+  if (dt <= 0) return { vx: 0, vy: 0 };
+  return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+}
+
+// Какие карты выплеснуть: НЕПРЕРЫВНЫЙ участок вокруг той карты, с которой начался свайп —
+// «взял пачку из этого места колоды», а не выдернул карты по всему вееру. У края колоды
+// участок сдвигается внутрь, сохраняя количество.
+export function swipeCardIndices(startIndex: number, count: number, deckCount: number): number[] {
+  const n = Math.min(Math.max(0, count), Math.max(0, deckCount));
+  if (n <= 0) return [];
+  const half = Math.floor(n / 2);
+  const from = Math.max(0, Math.min(deckCount - n, startIndex - half));
+  return Array.from({ length: n }, (_, k) => from + k);
+}
+
 // Сила свайпа 0..1 по ПОЛНОЙ скорости пальца (px/с): ниже minSpeed — жеста нет, выше
 // maxSpeed — сильнее уже некуда.
 export function swipeStrength(vx: number, vy: number): number {
