@@ -1,0 +1,60 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, fireEvent, cleanup } from "@testing-library/react";
+import { AppMenu } from "./AppMenu";
+import { DEFAULT_ANIMATION_SETTINGS } from "./game/anim/animationSettings";
+import type { Account } from "./account";
+
+afterEach(cleanup);
+
+const account: Account = { id: "a1", name: "Тест", recoveryHash: "ABC123" };
+
+function renderMenu() {
+  return render(
+    <AppMenu
+      account={account}
+      onRename={vi.fn()}
+      onRegenerateCode={vi.fn()}
+      animation={DEFAULT_ANIMATION_SETTINGS}
+      onSetLevel={vi.fn()}
+      onSetSpeed={vi.fn()}
+      room={null}
+      onLeaveRoom={vi.fn()}
+    />
+  );
+}
+
+function open(container: HTMLElement) {
+  fireEvent.click(container.querySelector(".menu-fab")!);
+  return container.querySelector(".modal-overlay") as HTMLElement;
+}
+
+describe("AppMenu overlay", () => {
+  it("открывает оверлей поверх экрана", () => {
+    const { container } = renderMenu();
+    expect(open(container)).toBeTruthy();
+  });
+
+  // Регресс: раньше меню закрывалось по mousedown (useClickOutside), оверлей
+  // размонтировался до click — и клик проваливался на кнопку под ним (ghost-click).
+  // Оверлей должен оставаться на нажатие, чтобы перехватывать событие.
+  it("НЕ закрывается по mousedown на подложке (оверлей остаётся перекрывать зону)", () => {
+    const { container } = renderMenu();
+    const overlay = open(container);
+    fireEvent.mouseDown(overlay);
+    expect(container.querySelector(".modal-overlay")).toBeTruthy();
+  });
+
+  it("закрывается по клику на подложку", () => {
+    const { container } = renderMenu();
+    const overlay = open(container);
+    fireEvent.click(overlay);
+    expect(container.querySelector(".modal-overlay")).toBeFalsy();
+  });
+
+  it("НЕ закрывается по клику внутри панели", () => {
+    const { container } = renderMenu();
+    open(container);
+    fireEvent.click(container.querySelector(".pixel-panel")!);
+    expect(container.querySelector(".modal-overlay")).toBeTruthy();
+  });
+});

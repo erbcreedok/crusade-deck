@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { Account } from "./account";
-import { useClickOutside } from "./useClickOutside";
 import {
   ANIMATION_SPEEDS,
   type AnimationLevel,
@@ -40,10 +39,8 @@ export function AppMenu({
   const [name, setName] = useState(account.name);
   const [copied, setCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => setOpen(false), []);
-  useClickOutside(panelRef, close);
 
   useEffect(() => setName(account.name), [account.name]);
 
@@ -82,8 +79,10 @@ export function AppMenu({
       </button>
 
       {open && (
-        <div className="modal-overlay">
-          <div className="pixel-panel" ref={panelRef}>
+        // Подложка перехватывает нажатие и остаётся смонтированной до click —
+        // иначе меню закрылось бы по mousedown, а клик провалился бы на кнопку под ним.
+        <div className="modal-overlay" onClick={close}>
+          <div className="pixel-panel" onClick={(e) => e.stopPropagation()}>
             <div className="pixel-panel-header">
               {view === "profile" ? (
                 <button className="pixel-icon-btn" aria-label="Назад" onClick={() => setView("main")}>
