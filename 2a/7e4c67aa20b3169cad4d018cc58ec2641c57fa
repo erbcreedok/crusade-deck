@@ -1,0 +1,34 @@
+client/src/RoomScreen.tsx
+  s_3b000dfed76439::t_6fbcbadadb6de5 131-133,135-137
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_84d0d802400a7e 10,87-90,93-96
+client/src/game/deckOrder.test.ts
+  s_3b000dfed76439::t_54b6d7579efc6f 2,34-59,61
+  s_3b000dfed76439::t_9468e0c9641267 60,62
+server/src/deckOrder.test.ts
+  s_3b000dfed76439::t_84d0d802400a7e 2,26-27,29-31,34-37,40-42
+server/src/CardRoom.test.ts
+  s_3b000dfed76439::t_84d0d802400a7e 408-410,414,416-417,420,423,425,429-437,441-443
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_6fbcbadadb6de5 27,160-164,744-758,1586-1589,1594-1600,1604,1615-1616,1620,1622-1624
+server/src/deckOrder.ts
+  s_3b000dfed76439::t_84d0d802400a7e 17-22
+client/src/game/deckOrder.ts
+  s_3b000dfed76439::t_54b6d7579efc6f 16-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2a7e4c67aa20b3169cad4d018cc58ec2641c57fa",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
