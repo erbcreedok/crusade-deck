@@ -88,12 +88,23 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
   const myVote = proposal ? proposal.votes[room.sessionId] : undefined;
   const amIDealer = players.find((p) => p.id === room.sessionId)?.isDealer ?? false;
 
-  // Дабл-клик по колоде: дилер в лобби притягивает её в свою сейф-зону и обратно.
-  // Для остальных клик по колоде ничего не делает (сервер всё равно проигнорит).
+  // Колоду двигает только дилер и только в лобби (во время раздачи).
+  const canMoveDeck = amIDealer && phase === "lobby";
+
+  // Дабл-клик по колоде: быстрый тоггл центр ⇄ своя сейф-зона.
   const onDeckDoubleClick = useCallback(() => {
-    if (!amIDealer || phase !== "lobby") return;
+    if (!canMoveDeck) return;
     room.send("move_deck", { zone: deckZone === "safe" ? "center" : "safe" });
-  }, [amIDealer, phase, deckZone, room]);
+  }, [canMoveDeck, deckZone, room]);
+
+  // Драг-н-дроп: колода брошена в дроп-зону — шлём её на сервер (там валидируется).
+  const onDeckDrop = useCallback(
+    (zone: "center" | "safe") => {
+      if (!canMoveDeck) return;
+      room.send("move_deck", { zone });
+    },
+    [canMoveDeck, room],
+  );
 
   return (
     <div className="table-screen">
@@ -124,7 +135,9 @@ export function RoomScreen({ room, animation }: { room: Room; animation: Animati
         ref={canvasRef}
         deckCount={deckCount}
         deckZone={deckZone}
+        deckDraggable={canMoveDeck}
         onDeckDoubleClick={onDeckDoubleClick}
+        onDeckDrop={onDeckDrop}
         animation={animation}
       />
 
