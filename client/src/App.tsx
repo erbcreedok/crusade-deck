@@ -118,7 +118,7 @@ export default function App() {
           />
         )}
         {room ? (
-          <RoomScreen room={room} />
+          <RoomScreen room={room} motionEnabled={motionEnabled} />
         ) : (
           <Lobby
             accountId={user.uid}

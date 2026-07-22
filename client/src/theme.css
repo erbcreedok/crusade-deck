@@ -336,6 +336,21 @@ textarea {
   margin: 12px 0;
 }
 
+/* Игровое поле — единый WebGL-канвас. Занимает всю среднюю зону; кнопки идут ПОД ним
+   в общем потоке, поэтому ничего из action-элементов (колода/центр) не перекрывают. */
+.room-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 12px 0;
+}
+
+.room-canvas > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .table-center {
   position: absolute;
   left: 50%;

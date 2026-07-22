@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
+import { RoomCanvas, type RoomCanvasHandle } from "./game/RoomCanvas";
 
 interface RoomPlayer {
   id: string;
@@ -19,12 +20,14 @@ interface ActiveProposal {
 
 // Экран комнаты без отрисованной сцены (стол/места/рука/колода сняты).
 // Осталась рабочая обвязка: топбар, баннер голосования, кнопки лобби.
-export function RoomScreen({ room }: { room: Room }) {
+export function RoomScreen({ room, motionEnabled }: { room: Room; motionEnabled: boolean }) {
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
   const [isPublic, setIsPublic] = useState(false);
   const [phase, setPhase] = useState<"lobby" | "playing" | "finished">("lobby");
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
+  const [deckCount, setDeckCount] = useState(0);
+  const canvasRef = useRef<RoomCanvasHandle>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -41,6 +44,7 @@ export function RoomScreen({ room }: { room: Room }) {
       setInviteCode(room.state.inviteCode);
       setIsPublic(room.state.isPublic);
       setPhase(room.state.phase);
+      setDeckCount(room.state.deck?.length ?? 0);
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -105,6 +109,8 @@ export function RoomScreen({ room }: { room: Room }) {
         />
       )}
 
+      <RoomCanvas ref={canvasRef} deckCount={deckCount} motionEnabled={motionEnabled} />
+
       <div className="table-bottombar">
         {phase === "lobby" && (
           <>
@@ -112,7 +118,13 @@ export function RoomScreen({ room }: { room: Room }) {
               Готов
             </button>
             {amIDealer && (
-              <button className="pixel-btn pixel-btn-secondary" onClick={() => room.send("shuffle_deck")}>
+              <button
+                className="pixel-btn pixel-btn-secondary"
+                onClick={() => {
+                  room.send("shuffle_deck"); // сервер тасует по-настоящему
+                  canvasRef.current?.shuffle(); // движок показывает анимацию растасовки
+                }}
+              >
                 Растасовать
               </button>
             )}
