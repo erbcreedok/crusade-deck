@@ -23,6 +23,7 @@ process.env.SHUFFLE_LOCK_MS = "300"; // сторож сессии тасовки
 function createGameServer() {
   const server = new Server({ transport: new WebSocketTransport() });
   server.define("card_room", CardRoom);
+  server.define("test_room", TestRoom);
   return server;
 }
 
