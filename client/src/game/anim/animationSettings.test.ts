@@ -18,11 +18,15 @@ describe("resolveProfile", () => {
     expect(p.minPriority).toBe(anim.priority.shuffle);
   });
 
-  it("скорость пробрасывается в профиль как множитель времени (1/2/3)", () => {
+  it("полная: скорость из настройки (1/2/3)", () => {
     for (const speed of [1, 2, 3] as const) {
       expect(resolveProfile({ level: "full", speed }).speed).toBe(speed);
-      expect(resolveProfile({ level: "moderate", speed }).speed).toBe(speed);
     }
+  });
+
+  it("умеренная: скорость всегда 2х независимо от настройки (нет выбора скорости)", () => {
+    expect(resolveProfile({ level: "moderate", speed: 1 }).speed).toBe(2);
+    expect(resolveProfile({ level: "moderate", speed: 3 }).speed).toBe(2);
   });
 });
 

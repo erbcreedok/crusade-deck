@@ -35,12 +35,16 @@ export interface AnimationProfile {
   shuffleVariant: "riffle" | "spin";
 }
 
+// Умеренный уровень не даёт выбора скорости — оборот колоды всегда идёт в этом темпе.
+const MODERATE_SPEED = 2;
+
 // Уровень + скорость → профиль движка. Единственное место, где «умеренный» описан явно.
 export function resolveProfile(s: AnimationSettings): AnimationProfile {
   if (s.level === "moderate") {
-    // Сброшенный фреймрейт, без «сока», короткая растасовка-оборот. Idle-анимации
-    // отсекаются приоритетом (ниже shuffle), а сама растасовка всегда остаётся.
-    return { speed: s.speed, fpsCap: 30, tilt: false, scaleBump: false, jitter: 0.35, stagger: 0.4, minPriority: anim.priority.shuffle, shuffleVariant: "spin" };
+    // Сброшенный фреймрейт, без «сока», короткая растасовка-оборот в фиксированном темпе
+    // (настройка скорости на умеренном не показывается). Idle-анимации отсекаются
+    // приоритетом (ниже shuffle), а сама растасовка всегда остаётся.
+    return { speed: MODERATE_SPEED, fpsCap: 30, tilt: false, scaleBump: false, jitter: 0.35, stagger: 0.4, minPriority: anim.priority.shuffle, shuffleVariant: "spin" };
   }
   // full — всё включено, полный фил и риффл-бридж.
   return { speed: s.speed, fpsCap: 60, tilt: true, scaleBump: true, jitter: 1, stagger: 1, minPriority: anim.priority.idle, shuffleVariant: "riffle" };

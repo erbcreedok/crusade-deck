@@ -112,18 +112,23 @@ export function AppMenu({
               ))}
             </div>
 
-            <label className="pixel-label">Скорость</label>
-            <div className="seg-row">
-              {ANIMATION_SPEEDS.map((sp) => (
-                <button
-                  key={sp}
-                  className={`seg-btn${animation.speed === sp ? " seg-btn-active" : ""}`}
-                  onClick={() => onSetSpeed(sp)}
-                >
-                  {sp}x
-                </button>
-              ))}
-            </div>
+            {/* Скорость только для полной — на умеренной оборот всегда в одном темпе. */}
+            {animation.level === "full" && (
+              <>
+                <label className="pixel-label">Скорость</label>
+                <div className="seg-row">
+                  {ANIMATION_SPEEDS.map((sp) => (
+                    <button
+                      key={sp}
+                      className={`seg-btn${animation.speed === sp ? " seg-btn-active" : ""}`}
+                      onClick={() => onSetSpeed(sp)}
+                    >
+                      {sp}x
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {room && (
               <>
