@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина сейф-зоны
@@ -75,5 +75,35 @@ describe("fanCrowd", () => {
   it("вырожденные входы безопасны", () => {
     expect(fanCrowd(1, W, cardW, WF, gap, ramp)).toBe(0);
     expect(fanCrowd(52, W, 0, WF, gap, ramp)).toBe(0);
+  });
+});
+
+describe("energyEnvelope", () => {
+  it("в момент тычка = boost, к decayTime = 1 (базовое)", () => {
+    expect(energyEnvelope(0, 4, 2.2)).toBeCloseTo(2.2, 5);
+    expect(energyEnvelope(4, 4, 2.2)).toBeCloseTo(1, 5);
+  });
+
+  it("монотонно спадает", () => {
+    expect(energyEnvelope(1, 4, 2.2)).toBeGreaterThan(energyEnvelope(3, 4, 2.2));
+    expect(energyEnvelope(3, 4, 2.2)).toBeGreaterThan(1);
+  });
+});
+
+describe("pokeEnvelope", () => {
+  const IN = 0.15;
+  const HOLD = 2.5;
+  const OUT = 0.8;
+
+  it("держится на 1 во время hold", () => {
+    expect(pokeEnvelope(1.0, IN, HOLD, OUT)).toBe(1);
+    expect(pokeEnvelope(HOLD, IN, HOLD, OUT)).toBe(1);
+  });
+
+  it("нарастает к началу и гаснет после hold", () => {
+    expect(pokeEnvelope(0, IN, HOLD, OUT)).toBe(0);
+    expect(pokeEnvelope(IN, IN, HOLD, OUT)).toBeCloseTo(1, 5);
+    expect(pokeEnvelope(HOLD + OUT, IN, HOLD, OUT)).toBeCloseTo(0, 10);
+    expect(pokeEnvelope(HOLD + OUT + 1, IN, HOLD, OUT)).toBe(0);
   });
 });

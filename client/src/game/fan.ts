@@ -33,6 +33,21 @@ export function fanCrowd(
   return Math.min(1, (needed - step) / (needed * ramp));
 }
 
+// Огибающая «энергии» эффекта: в момент тычка/раскрытия = boost, плавно спадает к 1
+// (базовый червячок) за decayTime секунд. Квадрат — быстро в начале, потом медленнее.
+export function energyEnvelope(kickT: number, decayTime: number, boost: number): number {
+  const d = Math.max(0, Math.min(1, decayTime > 0 ? 1 - kickT / decayTime : 0));
+  return 1 + (boost - 1) * d * d;
+}
+
+// Огибающая локального «раскрытия» при тыке: быстрый ease-in за inSec, держится hold
+// секунд на 1, затем ease-out за outSec к 0. Вне интервала — 0 (поке завершён).
+export function pokeEnvelope(t: number, inSec: number, hold: number, outSec: number): number {
+  const inn = inSec > 0 ? Math.min(1, t / inSec) : 1;
+  const out = t <= hold ? 1 : Math.max(0, 1 - (t - hold) / (outSec > 0 ? outSec : 1));
+  return Math.max(0, Math.min(inn, out));
+}
+
 export function fanCard(
   i: number,
   count: number,

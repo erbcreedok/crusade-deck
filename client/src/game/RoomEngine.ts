@@ -13,7 +13,7 @@ import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
-import { fanCard, fanCrowd } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope } from "./fan";
 import { parseCard, isCourt, suitColor } from "./card";
 import { anim } from "./anim/config";
 import {
@@ -107,9 +107,13 @@ export class RoomEngine {
   private profile: AnimationProfile = resolveProfile(DEFAULT_ANIMATION_SETTINGS);
   private idleEnabled = true; // лёгкая idle-анимация карт (гасится на умеренной)
   private idleT = 0; // накопленное время для фазы idle-колебаний
-  private fanT = 0; // время для «червячка» тесного веера
   private fanWiggling = false; // сейчас активна волна/дрожание тесного веера
   private fanCrowdNow = 0; // текущая теснота (0..1) — сила эффекта
+  private fanWavePhase = 0; // интегрированная фаза бегущей волны (freq меняется с энергией)
+  private fanJitterPhase = 0; // интегрированная фаза дрожания
+  private fanKickT = 0; // время с последнего «толчка» (раскрытие/тык) — для спада энергии
+  private fanEnergy = 1; // текущий множитель энергии (boost→1)
+  private poke: { index: number; t: number } | null = null; // локальное «раскрытие» у тыка
   private destroyed = false;
   private mounted = false;
   private awake = false;
@@ -232,7 +236,7 @@ export class RoomEngine {
     hit.cursor = "grab";
     hit.zIndex = 10_000; // всегда над картами
     hit.on("pointerdown", (e: FederatedPointerEvent) => this.onDeckDown(e));
-    hit.on("pointertap", () => this.handleDeckTap());
+    hit.on("pointertap", (e: FederatedPointerEvent) => this.handleDeckTap(e));
     this.world.addChild(hit);
     this.deckHit = hit;
     this.positionDeckHit();
@@ -518,18 +522,19 @@ export class RoomEngine {
     t.alpha = Math.max(0, Math.min(1, (1 - p) * 1.8)); // держится, затем гаснет
   }
 
-  private handleDeckTap(): void {
+  private handleDeckTap(e: FederatedPointerEvent): void {
     if (!this.deckDraggable) return; // двигать/раскрывать колоду может только дилер (в лобби)
     const now = performance.now();
-    if (now - this.lastDeckTapMs >= 350) {
-      this.lastDeckTapMs = now;
-      return;
-    }
-    this.lastDeckTapMs = 0;
-    if (this.deckZone === "safe") {
-      // В сейф-зоне дабл-клик раскрывает/собирает веер (локально).
-      this.toggleFan();
-    } else {
+    const isDouble = now - this.lastDeckTapMs < 350;
+    this.lastDeckTapMs = isDouble ? 0 : now;
+
+    if (this.deckZone === "safe" && this.deckFanned) {
+      // Одиночный тык = «поковырять»: ре-энергия + локально раздвинуть карты у тыка.
+      this.pokeFan(e.global.x);
+      if (isDouble) this.toggleFan(); // двойной — собрать веер
+    } else if (this.deckZone === "safe") {
+      if (isDouble) this.toggleFan(); // раскрыть веер
+    } else if (isDouble) {
       // В центре дабл-клик переносит колоду в сейф-зону и СРАЗУ раскрывает веер.
       this.deckZone = "safe";
       this.deckFanned = true;
@@ -760,16 +765,29 @@ export class RoomEngine {
     const frameDt = Math.min(ticker.deltaMS / 1000, 0.05);
     if (this.idleRunning()) this.idleT += frameDt;
 
-    // «Червячок» тесного веера: гоним карты по бегущей волне, пока тесно.
+    // «Червячок» тесного веера + локальный поке.
     const wiggle = this.fanWiggleActive();
     if (wiggle) {
-      this.fanT += frameDt;
+      if (!this.fanWiggling) this.fanKickT = 0; // старт — с буста энергии
+      const w = anim.fan.wiggle;
+      this.fanKickT += frameDt;
       this.fanCrowdNow = this.fanCrowd();
+      this.fanEnergy = energyEnvelope(this.fanKickT, w.decayTime, w.boost);
+      const baseFreq = this.profile.tilt ? w.freq : w.moderateFreq; // умеренная медленнее
+      this.fanWavePhase += baseFreq * this.fanEnergy * frameDt; // быстрее при высокой энергии
+      this.fanJitterPhase += w.jitterFreq * this.fanEnergy * frameDt;
+      if (this.poke) {
+        this.poke.t += frameDt;
+        if (pokeEnvelope(this.poke.t, w.poke.in, w.poke.hold, w.poke.out) <= 0 && this.poke.t > w.poke.in) {
+          this.poke = null; // поке доиграл
+        }
+      }
       this.applyFanWave();
     } else if (this.fanWiggling) {
-      // тесно перестало быть / веер собрали — вернуть карты в ровный веер
+      // эффект закончился (собрали веер / стало просторно / поке доиграл) — ровный веер
       this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
       this.fanCrowdNow = 0;
+      this.poke = null;
     }
     this.fanWiggling = wiggle;
 
@@ -830,10 +848,10 @@ export class RoomEngine {
     }
 
     // Дрожание тесного веера — только на полной анимации (умеренная = лишь волна),
-    // амплитуда ×crowd (чем теснее, тем сильнее). Поверх пружинного состояния.
+    // амплитуда ×crowd×energy (теснее/после тыка — сильнее). Поверх пружинного состояния.
     if (this.fanWiggling && this.profile.tilt) {
       const w = anim.fan.wiggle;
-      rot += this.fanCrowdNow * w.jitterRotAmp * Math.sin(this.fanT * w.jitterFreq + c.phase);
+      rot += this.fanCrowdNow * this.fanEnergy * w.jitterRotAmp * Math.sin(this.fanJitterPhase + c.phase);
     }
 
     c.sprite.x = c.body.px + this.shake.dx;
@@ -978,7 +996,8 @@ export class RoomEngine {
     return fanCrowd(this.deckCount, this.layout.safeZone.w, this.layout.cardW, anim.fan.widthFactor, w.gap, w.ramp);
   }
 
-  // Активен ли «червячок»: раскрытый веер в сейф-зоне И тесно, и не идёт другая анимация.
+  // Активен ли «червячок»: раскрытый веер в сейф-зоне (тесно ИЛИ идёт локальный поке),
+  // и не идёт другая анимация.
   private fanWiggleActive(): boolean {
     return (
       this.deckZone === "safe" &&
@@ -987,21 +1006,58 @@ export class RoomEngine {
       !this.shuffleAnim &&
       !this.scrambleAnim &&
       !this.press &&
-      this.fanCrowd() > 0
+      (this.fanCrowd() > 0 || this.poke !== null)
     );
   }
 
-  // Бегущая волна: каждая карта ездит вдоль веера по синусу (фаза от её позиции, бег от
-  // времени) — соседи сближаются/раздвигаются, зазор бежит «червячком». Амплитуда ×crowd.
-  // На умеренной волна медленнее; дрожание (в syncVisual) — только на полной.
+  // Индекс карты веера, ближайшей по x к точке тыка (по текущим позициям спрайтов).
+  private nearestFanIndex(x: number): number {
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < this.cards.length; i++) {
+      const d = Math.abs(this.cards[i].sprite.x - x);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  // Тык по вееру: ре-энергия (волна/дрожь ускоряются), гребень волны — от точки тыка,
+  // и локальное «раскрытие» ~cards карт вокруг, чтобы прочитать номиналы.
+  private pokeFan(x: number): void {
+    if (this.deckZone !== "safe" || !this.deckFanned || this.deckCount < 2) return;
+    const n = Math.max(2, this.deckCount);
+    const pi = this.nearestFanIndex(x);
+    this.poke = { index: pi, t: 0 };
+    this.fanKickT = 0; // ре-энергия
+    // Гребень бегущей волны стартует у точки тыка — «усиленно с того места».
+    this.fanWavePhase = anim.fan.wiggle.cycles * Math.PI * 2 * (pi / (n - 1)) - Math.PI / 2;
+    this.wake();
+  }
+
+  // Локальный сдвиг карты i из-за поке: карты слева от тыка едут влево, справа — вправо,
+  // раздвигая ~cards карт у точки тыка (в окне — линейно, дальше — постоянный сдвиг).
+  private pokeShiftAt(i: number): number {
+    if (!this.poke) return 0;
+    const p = anim.fan.wiggle.poke;
+    const env = pokeEnvelope(this.poke.t, p.in, p.hold, p.out);
+    if (env <= 0) return 0;
+    const half = p.cards / 2;
+    const s = Math.max(-1, Math.min(1, (i - this.poke.index) / half)); // -1..1 через окно
+    return p.amp * env * s * 0.5;
+  }
+
+  // Бегущая волна + локальный поке: каждая карта ездит вдоль веера. Волна ×crowd×energy,
+  // фаза интегрируется (см. onTick). Дрожание — оверлеем в syncVisual (только полная).
   private applyFanWave(): void {
     const n = Math.max(2, this.deckCount);
     const w = anim.fan.wiggle;
-    const crowd = this.fanCrowdNow;
-    const freq = this.profile.tilt ? w.freq : w.moderateFreq; // полная быстрее, умеренная медленнее
+    const waveScale = this.fanCrowdNow * w.amp * this.fanEnergy;
     for (let i = 0; i < this.cards.length; i++) {
-      const off = Math.sin(w.cycles * Math.PI * 2 * (i / (n - 1)) - freq * this.fanT);
-      const vi = Math.max(0, Math.min(n - 1, i + crowd * w.amp * off));
+      const wave = waveScale * Math.sin(w.cycles * Math.PI * 2 * (i / (n - 1)) - this.fanWavePhase);
+      const vi = Math.max(0, Math.min(n - 1, i + wave + this.pokeShiftAt(i)));
       const t = this.fanTarget(vi);
       this.cards[i].body.setTarget({ x: t.x, y: t.y, rot: t.rot });
     }
