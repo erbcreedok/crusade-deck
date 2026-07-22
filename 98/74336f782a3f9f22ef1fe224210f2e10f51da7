@@ -1,0 +1,67 @@
+client/src/game/deckZone.ts
+  s_45aab95818ff9f::t_ee99d79d708ea5 1-2,7,19-20
+client/src/game/dropZones.ts
+  s_45aab95818ff9f::t_ee99d79d708ea5 4,6-7
+  s_45aab95818ff9f::t_7c1fcf9df78c25 42
+server/src/CardRoom.ts
+  s_45aab95818ff9f::t_7884795b94b7a5 183,190,193
+  s_45aab95818ff9f::t_586aaa8babcaeb 178
+client/src/game/layout.ts
+  s_45aab95818ff9f::t_661143f32adf19 3,30,36
+  s_45aab95818ff9f::t_ee99d79d708ea5 15-16,42,63-64
+client/src/game/deckZone.test.ts
+  s_45aab95818ff9f::t_378d7a836662fa 8,12,15-16,19-20,23-24,27-28
+client/src/game/layout.test.ts
+  s_45aab95818ff9f::t_7c1fcf9df78c25 9,76
+  s_45aab95818ff9f::t_661143f32adf19 100
+  s_45aab95818ff9f::t_9406a20b7eaeff 12,18,79,103,120
+client/src/game/deckStack.ts
+  s_45aab95818ff9f::t_7c1fcf9df78c25 28-29
+client/src/RoomScreen.tsx
+  s_45aab95818ff9f::t_dc3d73903b1f80 196,200
+  s_45aab95818ff9f::t_e40ffc2456d6e2 199,210,319-320
+client/src/game/dragMode.test.ts
+  s_45aab95818ff9f::t_8c8dcf9ab2a673 14
+client/src/game/fan.ts
+  s_45aab95818ff9f::t_661143f32adf19 1,97
+client/src/game/anim/config.ts
+  s_45aab95818ff9f::t_ddbab8b144cc4d 34
+  s_45aab95818ff9f::t_586aaa8babcaeb 45-46
+client/src/game/deckStack.test.ts
+  s_45aab95818ff9f::t_dc3d73903b1f80 146
+  s_45aab95818ff9f::t_8c8dcf9ab2a673 141-143
+client/src/game/RoomEngine.ts
+  s_45aab95818ff9f::t_dc3d73903b1f80 565,757-758,768,865
+  s_45aab95818ff9f::t_30b120071b47a6 577
+  s_45aab95818ff9f::t_7c1fcf9df78c25 997,1209,1403,1449-1450
+client/src/game/RoomCanvas.tsx
+  s_45aab95818ff9f::t_e40ffc2456d6e2 28
+client/src/game/dropZones.test.ts
+  s_45aab95818ff9f::t_9406a20b7eaeff 25
+  s_45aab95818ff9f::t_7c1fcf9df78c25 30
+client/src/game/fan.test.ts
+  s_45aab95818ff9f::t_ddbab8b144cc4d 112,114
+  s_45aab95818ff9f::t_661143f32adf19 5
+client/src/game/barActions.test.ts
+  s_45aab95818ff9f::t_8c8dcf9ab2a673 15,18,21-22,49-50
+client/src/game/seatLayout.ts
+  s_45aab95818ff9f::t_661143f32adf19 37
+client/src/game/barActions.ts
+  s_45aab95818ff9f::t_8c8dcf9ab2a673 8,33-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "9874336f782a3f9f22ef1fe224210f2e10f51da7",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
