@@ -2248,7 +2248,18 @@ export class RoomEngine {
   }
 
   private rowMode(): boolean {
-    return this.fanned() && !this.handFocused && !this.detailedCards();
+    // Именно !handFocused, а НЕ !detailedCards(): «детальный» режим включён всегда, пока
+    // колода в руке (карты рисуются поштучно), и через него проверка обратного порядка
+    // не срабатывала ни разу. Порядок наложения переворачиваем только в покое —
+    // во время растасовки, выплеска и драга карты порядок должен быть обычным.
+    return (
+      this.fanned() &&
+      !this.handFocused &&
+      !this.shuffleAnim &&
+      !this.scrambleAnim &&
+      !this.splashAnim &&
+      !this.cardDrag
+    );
   }
 
   private restTarget(i: number): CardTargets {

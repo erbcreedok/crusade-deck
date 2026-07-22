@@ -1,32 +1,27 @@
 import { describe, it, expect } from "vitest";
-import { rowOffsets, rowWidth } from "./handRow";
+import { rowOffsets, rowWidth, rowStep } from "./handRow";
 
 const CARD_W = 60;
 const MAX = 600;
 
 describe("rowOffsets", () => {
-  it("первая карта стоит открыто — её ничем не перекрывает", () => {
-    expect(rowOffsets(5, CARD_W, MAX)[0]).toBe(0);
-    expect(rowOffsets(5, CARD_W, MAX)[1]).toBeGreaterThanOrEqual(CARD_W);
-  });
-
-  it("остальные идут плотной пачкой: шаг заметно меньше ширины карты", () => {
-    const o = rowOffsets(6, CARD_W, MAX);
-    const step = o[2] - o[1];
-    expect(step).toBeGreaterThan(0);
-    expect(step).toBeLessThan(CARD_W * 0.5); // номиналы не прочитать
-  });
-
-  it("шаг одинаковый по всей пачке — ряд ровный", () => {
+  it("шаг равномерный по всему ряду — без дыр и без отступов у краёв", () => {
     const o = rowOffsets(8, CARD_W, MAX);
-    const first = o[2] - o[1];
-    for (let i = 3; i < o.length; i++) expect(o[i] - o[i - 1]).toBeCloseTo(first, 6);
+    expect(o[0]).toBe(0);
+    const step = o[1] - o[0];
+    for (let i = 1; i < o.length; i++) expect(o[i] - o[i - 1]).toBeCloseTo(step, 6);
   });
 
-  it("много карт — пачка сжимается, но каждая карта остаётся видна торцом", () => {
+  it("карты идут внахлёст: шаг заметно меньше ширины карты", () => {
+    // Именно нахлёст и прячет номиналы: видна полоска шириной в шаг, а не вся карта.
+    expect(rowStep(6, CARD_W, MAX)).toBeLessThan(CARD_W * 0.5);
+    expect(rowStep(6, CARD_W, MAX)).toBeGreaterThan(0);
+  });
+
+  it("много карт — ряд сжимается, но каждая карта остаётся видна торцом", () => {
     const o = rowOffsets(36, CARD_W, MAX);
     expect(o.length).toBe(36);
-    for (let i = 2; i < o.length; i++) expect(o[i] - o[i - 1]).toBeGreaterThan(0);
+    for (let i = 1; i < o.length; i++) expect(o[i] - o[i - 1]).toBeGreaterThan(0);
     expect(rowWidth(36, CARD_W, MAX)).toBeLessThanOrEqual(MAX + 1);
   });
 
@@ -39,11 +34,12 @@ describe("rowOffsets", () => {
     expect(rowOffsets(1, CARD_W, MAX)).toEqual([0]);
     expect(rowOffsets(0, CARD_W, MAX)).toEqual([]);
     expect(rowWidth(0, CARD_W, MAX)).toBe(0);
+    expect(rowWidth(1, CARD_W, MAX)).toBe(CARD_W);
   });
 
   it("узкая зона не ломает раскладку — шаг упирается в минимум", () => {
     const o = rowOffsets(20, CARD_W, CARD_W * 1.5);
-    for (let i = 2; i < o.length; i++) expect(o[i] - o[i - 1]).toBeGreaterThanOrEqual(2 - 1e-9);
+    for (let i = 1; i < o.length; i++) expect(o[i] - o[i - 1]).toBeGreaterThanOrEqual(2 - 1e-9);
   });
 });
 
