@@ -1,0 +1,48 @@
+server/src/lastRooms.test.ts
+  s_4864baaac43e63::t_057ef4580d2b90 1-35
+client/src/colyseus.test.ts
+  s_4864baaac43e63::t_5086254489dbd7 1-20
+client/src/Lobby.tsx
+  s_4864baaac43e63::t_c4e726158ca773 3-11
+  s_4864baaac43e63::t_552a5335ac2ae1 29,35-52
+  s_4864baaac43e63::t_96df789c7c4a6b 94-99
+  s_4864baaac43e63::t_21070bd21df0e1 53
+server/src/CardRoom.test.ts
+  s_4864baaac43e63::t_234c96cc2634c3 252-294
+  s_4864baaac43e63::t_cc85bd86eec561 1,6,8-16,18-19
+server/src/index.ts
+  s_4864baaac43e63::t_faf4a7ca7e916d 77-84
+  s_4864baaac43e63::t_697f1a8e607475 11
+server/src/lastRooms.ts
+  s_4864baaac43e63::t_aaf5ec12683b7a 1-30
+server/src/CardRoom.ts
+  s_4864baaac43e63::t_416d0908fd845b 175
+  s_4864baaac43e63::t_6e9e9ba81d3bda 64-65
+  s_4864baaac43e63::t_4275d9f79364ef 9-18
+  s_4864baaac43e63::t_9f093474e621fb 68-70
+  s_4864baaac43e63::t_40429e6d948d5f 162-163,165,167-174,176-194,196-204
+  s_4864baaac43e63::t_1f362bb1d5a615 231
+  s_4864baaac43e63::t_977c5a08b8eaa3 49-60
+  s_4864baaac43e63::t_fbbb4993e502e4 219,221-222,225,228-230,232-235,238,243-244,249-267
+  s_4864baaac43e63::t_c9f0fba58da2a9 268
+client/src/colyseus.ts
+  s_4864baaac43e63::t_e11c41dfef98a3 43-56
+client/src/Lobby.test.tsx
+  s_4864baaac43e63::t_8ea13c04de7a46 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2659a9294f9922d71d1cdc93d7648cdcbb6260aa",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
