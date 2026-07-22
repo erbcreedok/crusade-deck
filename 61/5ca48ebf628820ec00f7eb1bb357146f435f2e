@@ -1,0 +1,35 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_07937c6913d503 2343,2495-2498
+DEPLOY.md
+  s_dccaa1ea26722e::t_66cb1846d830cb 1-204
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_07937c6913d503 59-62
+client/src/game/layout.test.ts
+  s_3b000dfed76439::t_0f8c1a9fb385d6 2,126-142
+client/src/game/layout.ts
+  s_3b000dfed76439::t_07937c6913d503 1-2,26-32,68-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "615ca48ebf628820ec00f7eb1bb357146f435f2e",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_dccaa1ea26722e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23a87dfe-0d7a-414a-808b-7d7ce3c86708",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
