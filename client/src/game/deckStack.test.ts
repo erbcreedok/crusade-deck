@@ -138,14 +138,12 @@ describe("deckZoneScale", () => {
     expect(deckZoneScale("hand")).toBe(1);
   });
 
-  it("на месте игрока и в сейфе колода мельче — должна помещаться в прямоугольник", () => {
-    for (const zone of ["seat", "safe"] as const) {
-      expect(deckZoneScale(zone)).toBeLessThan(1);
-      expect(deckZoneScale(zone)).toBeGreaterThan(0);
-    }
+  it("на месте игрока колода мельче — должна помещаться в его прямоугольник", () => {
+    expect(deckZoneScale("seat")).toBeLessThan(1);
+    expect(deckZoneScale("seat")).toBeGreaterThan(0);
   });
 
-  it("скрытая колода (чужая сейф-зона) масштаб не меняет", () => {
+  it("скрытая колода (держателя нет за столом) масштаб не меняет", () => {
     expect(deckZoneScale("away")).toBe(1);
   });
 

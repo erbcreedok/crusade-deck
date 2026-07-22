@@ -61,7 +61,6 @@ export function RoomScreen({
   // Где лежит колода по мнению сервера ("center" или id держателя). В зону для движка
   // переводим ниже — для этого нужно знать, кто сейчас сидит за столом.
   const [deckLocation, setDeckLocation] = useState<string>("center");
-  // Где именно у держателя: "hand" или "safe0..2" (см. deckZone.ts).
   const [deckSlot, setDeckSlot] = useState<string>("");
   const [draggingDeck, setDraggingDeck] = useState(false);
   // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
@@ -114,7 +113,6 @@ export function RoomScreen({
         setFacing(nextFacing);
       }
       setDeckLocation(room.state.deckLocation ?? "center");
-      setDeckSlot(room.state.deckSlot ?? "");
 
       // @colyseus/schema всегда отдаёт пустую заглушку для optional nested-schema
       // поля, даже когда оно не установлено на сервере — proposerId остаётся ""
@@ -195,11 +193,11 @@ export function RoomScreen({
   }, []);
 
   // Чужие игроки — те, кого рисуем за столом (посадка «П»). Своё место не рисуем:
-  // низ экрана — мои сейф-зона и рука.
+  // низ экрана — моя рука.
   const seats: SeatView[] = players.filter((p) => p.id !== room.sessionId);
   const seatedIds = new Set(seats.map((s) => s.id));
-  const deckZone = deckPlaceFor(deckLocation, deckSlot, room.sessionId, (id: string) => seatedIds.has(id)).zone;
-  // Держатель колоды — только если это чужое место; своё — это рука или сейф.
+  const deckZone = deckPlaceFor(deckLocation, room.sessionId, (id: string) => seatedIds.has(id)).zone;
+  // Держатель колоды — только если это чужое место; своё — это рука.
   const deckHolder = deckZone === "seat" ? deckLocation : null;
   // Режим МОЕЙ руки: открытая — остальные видят её так же, как я; закрытая — оборотку.
   const handOpen = players.find((p) => p.id === room.sessionId)?.handOpen ?? false;
@@ -209,9 +207,8 @@ export function RoomScreen({
 
   // Драг-н-дроп: колода брошена в дроп-зону — шлём её на сервер (там валидируется).
   const onDeckDrop = useCallback(
-    (zone: "center" | "hand" | "safe") => {
+    (zone: "center" | "hand") => {
       if (!canMoveDeck) return;
-      // Целиться в конкретное место сейфа не нужно: колоды раскладываются там сами.
       room.send("move_deck", { zone });
     },
     [canMoveDeck, room],
@@ -319,8 +316,8 @@ export function RoomScreen({
   const showCenterActions = phase === "lobby" && deckInCenter && !draggingDeck;
   const showDeckPlaceholder = phase === "lobby" && !deckInCenter && !draggingDeck;
   // Инструменты колоды (Растасовать/Перевернуть) — доступны дилеру, ПОКА КОЛОДА У МЕНЯ
-  // (стол, рука или сейф), не во время драга.
-  const deckIsMine = deckZone === "center" || deckZone === "hand" || deckZone === "safe";
+  // (стол или рука), не во время драга.
+  const deckIsMine = deckZone === "center" || deckZone === "hand";
   const showDeckTools = phase === "lobby" && amIDealer && !draggingDeck && deckIsMine;
 
   // Кнопки панели перестраиваются под выделенное (см. barActions.ts). Панель ничего
@@ -329,7 +326,6 @@ export function RoomScreen({
   const runAction = useCallback(
     (id: BarActionId) => {
       if (id === "deck_to_hand") room.send("move_deck", { zone: "hand" });
-      else if (id === "deck_to_safe") room.send("move_deck", { zone: "safe" });
       else if (id === "deck_to_center") room.send("move_deck", { zone: "center" });
     },
     [room],

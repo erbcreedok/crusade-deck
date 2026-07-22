@@ -175,32 +175,25 @@ export class CardRoom extends Room<GameState> {
       else this.armShuffleLockTimer(); // промежуточный прогресс продлевает сессию
     });
 
-    // Дилер притягивает колоду в свою сейф-зону (zone "safe") или возвращает в
+    // Дилер притягивает колоду в свою руку (zone "hand") или возвращает в
     // центр (zone "center"). Только дилер и только в лобби (во время раздачи).
     // Карты не раздаются — колода целиком меняет зону, рубашкой вверх.
     this.onMessage(
       "move_deck",
-      (client, message: { zone?: "center" | "hand" | "safe" | "player"; targetId?: string }) => {
+      (client, message: { zone?: "center" | "hand" | "player"; targetId?: string }) => {
         const player = this.state.players.get(client.sessionId);
         if (!player?.isDealer || this.state.phase !== "lobby") return;
         const zone = message?.zone;
         if (zone === "center") {
           this.state.deckLocation = "center";
-          this.state.deckSlot = "";
         } else if (zone === "hand") {
-          // Рука — единственное место, где колода лежит веером и открыта.
+          // Рука — единственная личная зона: там колода лежит веером.
           this.state.deckLocation = client.sessionId;
-          this.state.deckSlot = "hand";
-        } else if (zone === "safe") {
-          // Сейф — одна зона: колоды раскладываются внутри сами, выбирать место не надо.
-          this.state.deckLocation = client.sessionId;
-          this.state.deckSlot = "safe";
         } else if (zone === "player") {
-          // Колоду бросили на место другого игрока: она ложится ему в сейф, закрытой.
+          // Колоду бросили на место другого игрока — она переходит к нему.
           const targetId = message?.targetId;
           if (typeof targetId !== "string" || !this.state.players.has(targetId)) return;
           this.state.deckLocation = targetId;
-          this.state.deckSlot = "safe";
         }
       },
     );

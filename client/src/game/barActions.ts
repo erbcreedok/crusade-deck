@@ -5,7 +5,7 @@ import type { Selection } from "./selection";
 // какому-то экрану — они перестраиваются под ТО, ЧТО ВЫДЕЛЕНО. Здесь только решение
 // «что предложить», без отправки на сервер: id действия исполняет вызывающий.
 
-export type BarActionId = "deck_to_hand" | "deck_to_safe" | "deck_to_center";
+export type BarActionId = "deck_to_hand" | "deck_to_center";
 
 export interface BarAction {
   id: BarActionId;
@@ -30,18 +30,8 @@ export function barActionsFor(sel: Selection, ctx: BarContext): BarActions {
   if (sel.type !== "deck" || sel.ids.length !== 1) return NOTHING;
   if (!ctx.canMoveDeck) return NOTHING;
 
-  if (ctx.deckZone === "center") {
-    return {
-      main: { id: "deck_to_hand", label: "В руку" },
-      secondary: { id: "deck_to_safe", label: "В сейф" },
-    };
-  }
-  if (ctx.deckZone === "safe") {
-    return {
-      main: { id: "deck_to_hand", label: "В руку" },
-      secondary: { id: "deck_to_center", label: "В центр" },
-    };
-  }
-  // Рука, чужое место, «нигде» — действия ещё не описаны, кнопки остаются пустыми.
+  if (ctx.deckZone === "center") return { main: { id: "deck_to_hand", label: "В руку" }, secondary: null };
+  if (ctx.deckZone === "hand") return { main: null, secondary: { id: "deck_to_center", label: "В центр" } };
+  // Чужое место и «нигде» — действия ещё не описаны, кнопки остаются пустыми.
   return NOTHING;
 }

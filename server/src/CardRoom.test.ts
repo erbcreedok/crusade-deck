@@ -163,21 +163,9 @@ describe("CardRoom", () => {
     await waiter;
 
     expect(room.state.deckLocation).toBe(dealer.sessionId);
-    expect(room.state.deckSlot).toBe("hand");
     expect(room.state.deck.length).toBe(36); // карты не раздаются, только меняют место
   });
 
-  it("move_deck 'safe' кладёт колоду в сейф — без выбора места", async () => {
-    const room = await colyseus.createRoom("card_room", { deckType: "36" });
-    const dealer = await colyseus.connectTo(room, { name: "Alice" });
-
-    const waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "safe" });
-    await waiter;
-
-    expect(room.state.deckLocation).toBe(dealer.sessionId);
-    expect(room.state.deckSlot).toBe("safe");
-  });
 
   it("move_deck 'center' возвращает колоду на стол и забывает слот", async () => {
     const room = await colyseus.createRoom("card_room", { deckType: "36" });
@@ -192,7 +180,6 @@ describe("CardRoom", () => {
     await waiter;
 
     expect(room.state.deckLocation).toBe("center");
-    expect(room.state.deckSlot).toBe("");
   });
 
   // Рука имеет два режима: открытая (все видят то же, что и я) и закрытая (всем видна

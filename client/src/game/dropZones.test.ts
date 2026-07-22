@@ -14,9 +14,6 @@ describe("pickDropTarget", () => {
     expect(pickDropTarget(layout.handAnchor.x, layout.handAnchor.y, layout)).toEqual({ zone: "hand" });
   });
 
-  it("сейф — одна зона: слот выбирать не надо, разложится само", () => {
-    expect(pickDropTarget(layout.safeZone.cx, layout.safeZone.cy, layout)).toEqual({ zone: "safe" });
-  });
 
   it("угол канваса вне всех зон → null", () => {
     expect(pickDropTarget(2, 2, layout)).toBeNull();
@@ -25,18 +22,12 @@ describe("pickDropTarget", () => {
   it("все зоны доступны для дропа — запретных больше нет", () => {
     const r = dropZoneRegions(layout);
     expect(Object.values(r).every((z) => z.droppable)).toBe(true);
-    expect(Object.keys(r).sort()).toEqual(["center", "hand", "safe"]);
+    expect(Object.keys(r).sort()).toEqual(["center", "hand"]);
   });
 
-  it("рука и сейф не перекрываются: точка в сейфе никогда не «рука»", () => {
-    const z = layout.safeZone;
-    for (const dy of [-z.h / 3, 0, z.h / 3]) {
-      expect(pickDropTarget(z.cx, z.cy + dy, layout)?.zone).toBe("safe");
-    }
-  });
 });
 
-// Место игрока — прямоугольная дроп-зона. Оно вне центра/сейфа (посадка отжимает их),
+// Место игрока — прямоугольная дроп-зона. Оно вне центра и руки (посадка отжимает их),
 // поэтому конфликтов быть не должно, но проверяем явно.
 describe("pickSeat — места игроков как дроп-зоны", () => {
   const seats = layoutSeats(["a", "b", "c"], 900, 700).seats;

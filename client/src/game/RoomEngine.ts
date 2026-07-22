@@ -15,7 +15,6 @@ import { computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropTarget, pickSeat, type DropZone, type DropTarget } from "./dropZones";
 import { layoutSeats, type SeatBox } from "./seatLayout";
-import { canFitAnother, safeStackAnchors } from "./safeStacks";
 import { dragModeFor } from "./dragMode";
 import type { SeatView } from "./seats";
 import {
@@ -98,7 +97,6 @@ const TEX_H = 228;
 const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
 
 const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» при запрещённом дропе колоды
-const SAFE_FULL_TEXT = "не влезет!"; // в сейфе не осталось места под ещё одну колоду
 
 // Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
 const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 };
@@ -114,7 +112,6 @@ const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-кли
 const ZONE_LABELS: Record<DropZone, string> = {
   center: "ЦЕНТР",
   hand: "РУКА",
-  safe: "СЕЙФ",
 };
 
 // Императивный движок комнаты: владеет ОДНИМ Pixi Application, тикером и всеми объектами.
@@ -171,10 +168,6 @@ export class RoomEngine {
   private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
   private deckCount = 0;
   private deckZone: DeckZone = "center";
-  private deckSlot = 0; // какое по счёту место в сейфе занимает эта колода
-  // Сколько колод сейчас в сейфе. Пока она может быть только одна, но вместимость
-  // считается по геометрии — когда колод станет больше, менять здесь нечего.
-  private safeStackCount = 1;
   // Сторона КАЖДОЙ карты (карта → лицом ли вверх) — приходит из состояния сервера.
   // Единого «колода лицом вверх» больше нет: карты переворачиваются по одной.
   private facing: Record<string, boolean> = {};
@@ -569,7 +562,7 @@ export class RoomEngine {
   }
 
   // Фокус на руке = выделена та самая колода, которая в руке лежит. Полоса
-  // перекраивается (рука на всю ширину, сейф — полоской позади), карты едут пружиной.
+  // разъезжается веером, карты едут пружиной.
   private applyHandFocus(): void {
     const next = this.deckZone === "hand" && this.selectedDecks.includes(DECK_ID);
     if (next === this.handFocused) return;
@@ -581,12 +574,7 @@ export class RoomEngine {
   }
 
   private rebuildLayout(): void {
-    this.layout = computeLayout(
-      this.w,
-      this.h,
-      { ...this.seatInsets, bottom: this.bottomInset },
-      { handFocused: this.handFocused },
-    );
+    this.layout = computeLayout(this.w, this.h, { ...this.seatInsets, bottom: this.bottomInset });
   }
 
   // Высота топбара комнаты: он HTML и лежит поверх канваса, движок про него не знает.
@@ -766,8 +754,8 @@ export class RoomEngine {
     this.authoritative = v;
   }
 
-  // Зона колоды с точки зрения локального игрока (см. deckZone.ts). "center"/"safe"
-  // — рисуем у соответствующего якоря; "away" (чужая сейф-зона) — колода прячется.
+  // Зона колоды с точки зрения локального игрока (см. deckZone.ts): рисуем у
+  // соответствующего якоря; "away" (держателя за столом нет) — колода прячется.
   setDeckZone(zone: DeckZone): void {
     if (zone === this.deckZone) return;
     this.deckZone = zone;
@@ -777,7 +765,7 @@ export class RoomEngine {
     // Не «away» — карты плавно летят к новому якорю (setTarget, а не snap).
     if (!away) this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
-    this.applyCardTextures(); // в сейфе карты всегда рубашкой вверх — текстуры меняются
+    this.applyCardTextures();
     this.applyHandFocus();
     this.drawFocus();
     this.onFanChange?.(this.fanned());
@@ -874,14 +862,9 @@ export class RoomEngine {
     this.onDragChange = fn;
   }
 
-  // Якорь, у которого сейчас покоится колода: центр или своя сейф-зона.
+  // Якорь, у которого сейчас покоится колода: центр, моя рука или чужое место.
   private activeAnchor(): { x: number; y: number } {
     if (this.deckZone === "hand") return this.layout.handAnchor;
-    if (this.deckZone === "safe") {
-      // Колоды в сейфе раскладываются сами; пока колода одна — она и стоит первой.
-      const anchors = safeStackAnchors(Math.max(1, this.safeStackCount), this.layout.safeZone, this.layout.cardH);
-      return anchors[Math.min(this.deckSlot, anchors.length - 1)] ?? { x: this.layout.safeZone.cx, y: this.layout.safeZone.cy };
-    }
     // Колода лежит на месте другого игрока — её якорь и есть центр его прямоугольника.
     if (this.deckZone === "seat") {
       const box = this.seatBox(this.deckHolder);
@@ -1011,7 +994,7 @@ export class RoomEngine {
       return;
     }
 
-    // Место игрока — тоже дроп-зона, и оно вне центра/сейфа, поэтому проверяется первым:
+    // Место игрока — тоже дроп-зона, и оно вне центра и руки, поэтому проверяется первым:
     // бросок туда отдаёт колоду этому игроку (сервер подтвердит эхом deckLocation).
     const seatDrop = pickSeat(px, py, this.seatBoxes);
     if (seatDrop) {
@@ -1030,15 +1013,6 @@ export class RoomEngine {
     }
 
     const drop = pickDropTarget(px, py, this.layout);
-    // В сейф целиться в конкретное место не надо — разложится само. Но если мест
-    // больше нет, колода туда не поедет: тряска и «не влезет!».
-    if (drop?.zone === "safe" && this.deckZone !== "safe" && !this.safeHasRoom()) {
-      this.showNotice(SAFE_FULL_TEXT);
-      this.startReject(px, py);
-      this.positionDeckHit();
-      this.wake();
-      return;
-    }
     {
       if (drop && drop.zone !== this.deckZone) {
         this.deckZone = drop.zone; // оптимистично двигаем локально, сервер подтвердит эхом
@@ -1207,12 +1181,6 @@ export class RoomEngine {
     return this.fanned() && this.handFocused && this.cards.length > 0;
   }
 
-  // Есть ли в сейфе место под ещё одну колоду.
-  private safeHasRoom(): boolean {
-    // Колода, которую сейчас тащим, места не занимает — считаем только оставшиеся.
-    return canFitAnother(this.safeStackCount - 1, this.layout.safeZone, this.layout.cardH);
-  }
-
   private dragMode(): "deck" | "card" | "none" {
     return dragModeFor({ zone: this.deckZone, handFocused: this.handFocused, draggable: this.deckDraggable });
   }
@@ -1238,7 +1206,7 @@ export class RoomEngine {
     );
   }
 
-  // Точка в области веера (полоса дуги ∪ прямоугольник сейф-зоны) — то же, что хит-зона:
+  // Точка в области веера (полоса дуги ∪ прямоугольник зоны руки) — то же, что хит-зона:
   // отпустил здесь → карта переставляется в колоде, а не «уходит» в другую зону.
   private inFanArea(x: number, y: number): boolean {
     const z = this.layout.handZone;
@@ -1432,8 +1400,7 @@ export class RoomEngine {
     for (const z of Object.keys(this.zoneLabels) as DropZone[]) {
       const t = this.zoneLabels[z];
       if (!t) continue;
-      // Подпись не должна вылезать за свою зону: сейф узкий, и «СЕЙФ» кеглем
-      // центра расползался на весь стол. Ужимаем по ширине зоны.
+      // Подпись не должна вылезать за свою зону — ужимаем по её ширине.
       const rect = regions[z].rect;
       const fit = (rect.w * 0.9) / Math.max(1, ZONE_LABELS[z].length * 0.62);
       t.style.fontSize = Math.max(9, Math.min(base, fit));
@@ -1479,8 +1446,8 @@ export class RoomEngine {
 
   private positionDeckHit(): void {
     if (!this.deckHit) return;
-    // Раскрытый веер — хит-зона это прямоугольник сейф-зоны (дабл-клик по пустому месту
-    // собирает веер / хватает колоду) ОБЪЕДИНЁННЫЙ с полосой самой дуги: веер проседает
+    // Раскрытый веер — хит-зона это прямоугольник зоны руки, ОБЪЕДИНЁННЫЙ с полосой
+    // самой дуги: веер проседает
     // ниже зоны (на широком экране — сильно), и без полосы тык/ховер по крайним картам
     // не срабатывал вовсе. См. fanBandContains.
     if (this.fanned()) {
@@ -2119,9 +2086,6 @@ export class RoomEngine {
   }
 
   private shownSide(card: string): boolean {
-    // Сейф — это «сейф»: что бы ни говорило состояние, лежащие там карты закрыты.
-    // Открывать их можно, только вынув колоду наружу.
-    if (this.deckZone === "safe") return false;
     return !!this.facing[card];
   }
 

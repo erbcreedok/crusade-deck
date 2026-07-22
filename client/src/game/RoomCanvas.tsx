@@ -25,7 +25,7 @@ interface Props {
   flipSignal: number; // растёт при нажатии «Перевернуть колоду»
   incomingFx: DeckFxIncoming | null; // чужой эффект с сервера — проиграть как есть
   rejectedFlip: { cards: string[]; text: string; seq: number } | null; // сервер не подтвердил переворот
-  onDeckDrop: (zone: "center" | "hand" | "safe") => void;
+  onDeckDrop: (zone: "center" | "hand") => void;
   onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
   onShuffleChange: (order: string[]) => void; // любая тасовка сообщила новый порядок колоды
   onFanChange: (fanned: boolean) => void; // веер раскрылся/собрался (от этого зависят кнопки)

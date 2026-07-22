@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver, fanSpreadShift } from "./fan";
 
 const anchor = { x: 200, y: 300 };
-const W = 344; // ширина сейф-зоны
+const W = 344; // ширина зоны руки
 const MAX = 30; // градусов
 const WF = 0.9;
 
@@ -109,9 +109,9 @@ describe("pokeEnvelope", () => {
 });
 
 describe("fanBandContains", () => {
-  // Веер на широком экране: дуга проседает намного ниже сейф-зоны, поэтому попадание
+  // Веер на широком экране: дуга проседает намного ниже зоны руки, поэтому попадание
   // по крайним картам НЕЛЬЗЯ проверять прямоугольником зоны — только полосой дуги.
-  const WIDE = 1204; // сейф-зона десктопа
+  const WIDE = 1204; // зона руки на десктопе
   const CARD_W = 90;
   const CARD_H = 128;
   const hit = (x: number, y: number, zoneW = WIDE) =>

@@ -12,22 +12,20 @@ describe("barActionsFor — кнопки под выделенное", () => {
     expect(a.secondary).toBeNull();
   });
 
-  it("одна колода в центре: A — в руку, Б — в сейф", () => {
+  it("колода в центре: A — в руку", () => {
     const a = barActionsFor(deckSelected, { deckZone: "center", canMoveDeck: true });
     expect(a.main?.id).toBe("deck_to_hand");
-    expect(a.secondary?.id).toBe("deck_to_safe");
+    expect(a.secondary).toBeNull();
   });
 
-  it("одна колода в сейфе: A — в руку, Б — в центр", () => {
-    const a = barActionsFor(deckSelected, { deckZone: "safe", canMoveDeck: true });
-    expect(a.main?.id).toBe("deck_to_hand");
+  it("колода в руке: Б — вернуть в центр", () => {
+    const a = barActionsFor(deckSelected, { deckZone: "hand", canMoveDeck: true });
     expect(a.secondary?.id).toBe("deck_to_center");
   });
 
   it("у действий есть человеческие подписи", () => {
     const a = barActionsFor(deckSelected, { deckZone: "center", canMoveDeck: true });
     expect(a.main?.label.trim()).not.toBe("");
-    expect(a.secondary?.label.trim()).not.toBe("");
   });
 
   it("колоду двигать нельзя (не дилер / не лобби) — действий нет", () => {
@@ -48,8 +46,8 @@ describe("barActionsFor — кнопки под выделенное", () => {
     expect(a.main).toBeNull();
   });
 
-  it("колода у чужого места или в руке — действий пока нет (не описаны)", () => {
-    for (const zone of ["seat", "away", "hand"] as const) {
+  it("колода у чужого места — действий пока нет (не описаны)", () => {
+    for (const zone of ["seat", "away"] as const) {
       const a = barActionsFor(deckSelected, { deckZone: zone, canMoveDeck: true });
       expect(a.main).toBeNull();
       expect(a.secondary).toBeNull();

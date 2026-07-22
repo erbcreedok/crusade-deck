@@ -11,7 +11,7 @@ describe("dragModeFor — что берёт палец на этой зоне", 
   });
 
   it("колоды в других местах тащатся целиком независимо от фокуса руки", () => {
-    for (const zone of ["center", "safe", "seat"] as const) {
+    for (const zone of ["center", "seat"] as const) {
       expect(dragModeFor({ zone, handFocused: true, draggable: true })).toBe("deck");
       expect(dragModeFor({ zone, handFocused: false, draggable: true })).toBe("deck");
     }

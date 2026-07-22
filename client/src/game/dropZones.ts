@@ -1,12 +1,10 @@
 import type { RoomLayout, RoundedRect } from "./layout";
 import type { SeatBox } from "./seatLayout";
 
-// Куда можно бросить колоду. Запретных зон больше нет: низ экрана — это моя рука
-// (слева) и сейф (справа), и то и другое — законная цель.
+// Куда можно бросить колоду:
 //   center — общий стол,
-//   hand   — моя рука: ЕДИНСТВЕННОЕ место, где карты лежат веером и открыты,
-//   safe   — сейф: сколько влезет отдельных колод, всегда рубашкой вверх.
-export type DropZone = "center" | "hand" | "safe";
+//   hand   — моя рука: единственное место, где карты лежат веером и открыты.
+export type DropZone = "center" | "hand";
 
 export interface DropTarget {
   zone: DropZone;
@@ -21,7 +19,6 @@ export function dropZoneRegions(layout: RoomLayout): Record<DropZone, ZoneDef> {
   return {
     center: { rect: layout.centerZone, droppable: true },
     hand: { rect: layout.handZone, droppable: true },
-    safe: { rect: layout.safeZone, droppable: true },
   };
 }
 
@@ -42,12 +39,11 @@ export function pickSeat(x: number, y: number, seats: SeatBox[]): string | null 
   return seats.find((s) => inRect(s.rect, x, y))?.id ?? null;
 }
 
-// Что под точкой (x,y): зона стола или конкретный слот сейфа. При перекрытии —
+// Что под точкой (x,y): зона стола или рука. При перекрытии —
 // ближайшая по нормированному расстоянию до центра зоны.
 export function pickDropTarget(x: number, y: number, layout: RoomLayout): DropTarget | null {
   const regions = dropZoneRegions(layout);
   const inside = (Object.keys(regions) as DropZone[]).filter((z) => inRect(regions[z].rect, x, y));
   if (inside.length === 0) return null;
-  // Сейф — одна зона: целиться в конкретное место не нужно, разложится само.
   return { zone: inside.sort((a, b) => normDist(regions[a].rect, x, y) - normDist(regions[b].rect, x, y))[0] };
 }
