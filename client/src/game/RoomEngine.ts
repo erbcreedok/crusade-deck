@@ -23,15 +23,23 @@ import {
   type AnimationProfile,
 } from "./anim/animationSettings";
 import { easeOutQuad } from "./anim/easing";
-import { ShuffleChoreography } from "./choreo/shuffle";
-import { SpinChoreography } from "./choreo/spin";
-import type { Choreography } from "./choreo/types";
 
 interface CardVisual {
   body: CardBody;
   sprite: Sprite;
   card: string; // идентичность карты ("10♠") — для лицевой текстуры
   phase: number; // фазовый сдвиг idle-покачивания (чтобы стопка не «дышала» унисоном)
+}
+
+// Позиция-цель одной карты в анимации растасовки.
+interface ShufflePose {
+  x: number;
+  y: number;
+  rot: number;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
 // Логический размер текстуры рубашки (соотношение 0.7). Спрайты масштабируются от него.
@@ -102,7 +110,14 @@ export class RoomEngine {
   private destroyed = false;
   private mounted = false;
   private awake = false;
-  private shuffleAnim: { choreo: Choreography; t: number } | null = null;
+  // Настоящая растасовка: каждая карта летит из старого положения через «разлёт» (далеко
+  // от центра) в новый слот; z-порядок меняем в апексе разлёта, когда карты врозь.
+  private shuffleAnim: {
+    t: number;
+    dur: number;
+    zSwapped: boolean;
+    entries: { v: CardVisual; from: ShufflePose; spread: ShufflePose; to: ShufflePose; newZ: number }[];
+  } | null = null;
 
   // стрелка — стабильная ссылка для ticker.add/remove
   private readonly tick = (ticker: Ticker) => this.onTick(ticker);
@@ -194,7 +209,7 @@ export class RoomEngine {
     this.shadowLayer.addChild(deckShadow);
     this.deckShadow = deckShadow;
 
-    this.reconcileCards();
+    // Карты приедут через setDeck() (порядок из состояния сервера) — на mount их нет.
 
     // Невидимая интерактивная зона поверх колоды — старт драга + дабл-тап.
     const hit = new Container();
@@ -233,13 +248,39 @@ export class RoomEngine {
     this.awake = false;
   }
 
-  // Порядок колоды из состояния сервера (["10♠","A♥",…]). Идентичности нужны для лицевых
-  // текстур. Клампим сверху — защита от абсурдного состояния.
+  // Порядок колоды из состояния сервера (["10♠","A♥",…]). Спрайты привязаны к ИДЕНТИЧНОСТИ
+  // карты (не к индексу), поэтому реордер (растасовка) можно проиграть по-настоящему:
+  // каждая карта летит из старого слота в новый. Клампим сверху (защита от абсурда).
   setDeck(cards: string[]): void {
-    this.deckCards = cards.slice(0, 60);
-    this.deckCount = this.deckCards.length;
+    const newOrder = cards.slice(0, 60);
+    const oldOrder = this.cards.map((c) => c.card);
+    this.deckCards = newOrder;
+    this.deckCount = newOrder.length;
     this.ensureJitter(this.deckCount);
-    this.reconcileCards();
+    if (!this.cardLayer || !this.backTex) return; // ещё не смонтированы
+
+    this.reconcileByIdentity(newOrder); // this.cards переставлен в новый порядок, тела на месте
+
+    // Тот же набор карт, другой порядок → это растасовка: играем настоящий реордер
+    // (если анимации разрешены). Иначе (раздача/первый заход/выкл) — просто уложить.
+    const sameSet =
+      oldOrder.length === newOrder.length &&
+      newOrder.length > 0 &&
+      [...oldOrder].sort().join("|") === [...newOrder].sort().join("|");
+    const changed = oldOrder.join("|") !== newOrder.join("|");
+    if (sameSet && changed && shouldPlay(anim.priority.shuffle, this.profile)) {
+      this.startShuffleAnim();
+    } else if (!this.shuffleAnim) {
+      this.cards.forEach((c, i) => {
+        c.body.snapTo(this.restTarget(i));
+        c.sprite.zIndex = i;
+      });
+    }
+
+    this.applyCardTextures();
+    this.updateVisibility();
+    this.cards.forEach((c) => this.syncVisual(c));
+    this.syncDeckShadow();
     this.wake();
   }
 
@@ -505,35 +546,35 @@ export class RoomEngine {
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
   }
 
-  // Запуск анимации растасовки. Реальную тасовку делает сервер — тут только фил.
-  shuffle(): void {
-    if (this.destroyed || this.cards.length === 0) return;
-
-    // Анимации выключены ИЛИ растасовка не проходит по приоритету → просто уложить стопку.
-    if (!shouldPlay(anim.priority.shuffle, this.profile)) {
-      this.cards.forEach((c, i) => c.body.snapTo(this.restTarget(i)));
-      this.wake();
-      return;
-    }
-    const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1;
-    // Полная — риффл-бридж (веер + чересполосица), умеренная — короткий оборот по часовой.
-    const anchor = this.activeAnchor();
-    const choreo: Choreography =
-      this.profile.shuffleVariant === "spin"
-        ? new SpinChoreography({ count: this.cards.length, anchor, seed })
-        : new ShuffleChoreography({
-            count: this.cards.length,
-            anchor,
-            seed,
-            feel: { stagger: this.profile.stagger, jitter: this.profile.jitter, scaleBump: this.profile.scaleBump ? 1 : 0 },
-          });
-    // z-порядок по чересполосице: чем позже стартует карта, тем выше слой — половины
-    // визуально прошивают друг друга при складывании (riffle-bridge), а не лежат пачками.
-    choreo.startOrder().forEach((cardIdx, k) => {
-      if (this.cards[cardIdx]) this.cards[cardIdx].sprite.zIndex = k;
+  // Собрать анимацию настоящей растасовки: из текущего положения карты (старый слот) →
+  // «разлёт» широкой дугой над якорем (карты врозь, далеко от центра) → новый слот
+  // (this.cards уже в новом порядке). z-порядок переставим в апексе разлёта (см. onTick).
+  private startShuffleAnim(): void {
+    const n = this.cards.length;
+    if (n === 0) return;
+    const a = this.activeAnchor();
+    const zoneW = this.deckZone === "safe" ? this.layout.safeZone.w : this.layout.centerZone.w;
+    const spreadW = zoneW * 0.82;
+    const lift = this.layout.cardH * 1.15;
+    const entries = this.cards.map((v, j) => {
+      const to = this.restTarget(j);
+      const t = n > 1 ? j / (n - 1) : 0.5; // 0..1 по новому порядку
+      const s = t * 2 - 1; // -1..1
+      const spread: ShufflePose = {
+        x: a.x + s * spreadW * 0.5 + (this.restJitter[j] ?? 0) * this.layout.cardW,
+        y: a.y - lift - Math.abs(s) * lift * 0.15, // приподняты, лёгкая арка
+        rot: s * 0.5, // веерный наклон при разлёте
+      };
+      return {
+        v,
+        from: { x: v.body.px, y: v.body.py, rot: v.body.rotation },
+        spread,
+        to: { x: to.x ?? a.x, y: to.y ?? a.y, rot: to.rot ?? 0 },
+        newZ: j,
+      };
     });
-    this.shuffleAnim = { choreo, t: 0 };
-    this.wake();
+    // Скорость (1х/2х) масштабирует длительность.
+    this.shuffleAnim = { t: 0, dur: 0.85 / Math.max(1, this.profile.speed), zSwapped: false, entries };
   }
 
   // Применить пользовательский профиль анимации (уровень + скорость → движок).
@@ -629,17 +670,32 @@ export class RoomEngine {
       remaining -= dt;
 
       if (this.shuffleAnim) {
-        this.shuffleAnim.t += dt;
-        // Ease-out воспроизведения: время растасовки замедляется под конец (мягкое оседание).
-        const dur = this.shuffleAnim.choreo.durationSec;
-        const warped = dur > 0 ? easeOutQuad(this.shuffleAnim.t / dur) * dur : dur;
-        const targets = this.shuffleAnim.choreo.sample(warped);
-        for (let i = 0; i < this.cards.length && i < targets.length; i++) {
-          this.cards[i].body.setTarget(targets[i]);
+        const sa = this.shuffleAnim;
+        sa.t += dt;
+        const p = Math.min(1, sa.t / sa.dur);
+        const LIFT_END = 0.45; // до этого — разлёт вверх, после — оседание в новый порядок
+        for (const e of sa.entries) {
+          let pose: ShufflePose;
+          if (p < LIFT_END) {
+            const u = easeOutQuad(p / LIFT_END);
+            pose = { x: lerp(e.from.x, e.spread.x, u), y: lerp(e.from.y, e.spread.y, u), rot: lerp(e.from.rot, e.spread.rot, u) };
+          } else {
+            const u = easeOutQuad((p - LIFT_END) / (1 - LIFT_END));
+            pose = { x: lerp(e.spread.x, e.to.x, u), y: lerp(e.spread.y, e.to.y, u), rot: lerp(e.spread.rot, e.to.rot, u) };
+          }
+          e.v.body.setTarget({ x: pose.x, y: pose.y, rot: pose.rot });
         }
-        if (this.shuffleAnim.t >= dur) {
+        // z-порядок меняем В АПЕКСЕ разлёта (карты далеко друг от друга) — без «поп»-эффекта.
+        if (p >= LIFT_END && !sa.zSwapped) {
+          for (const e of sa.entries) e.v.sprite.zIndex = e.newZ;
+          sa.zSwapped = true;
+        }
+        if (sa.t >= sa.dur) {
+          for (const e of sa.entries) {
+            e.v.body.setTarget(e.to);
+            e.v.sprite.zIndex = e.newZ;
+          }
           this.shuffleAnim = null;
-          this.cards.forEach((c, i) => (c.sprite.zIndex = i)); // вернуть z-порядок ровной стопки
         }
       }
 
@@ -728,29 +784,39 @@ export class RoomEngine {
     s.alpha = 0.5 + elev * 0.4;
   }
 
-  // Привести число спрайтов к deckCount, новые — уложить в стопку у якоря.
-  private reconcileCards(): void {
-    if (!this.cardLayer || !this.backTex) return;
+  // Переставить this.cards в порядок newOrder, ПЕРЕИСПОЛЬЗУЯ спрайты по идентичности карты
+  // (тела остаются на текущих местах — их двигает анимация). Новые карты создаём и кладём
+  // на место сразу; исчезнувшие (раздача) — уничтожаем.
+  private reconcileByIdentity(newOrder: string[]): void {
+    const byCard = new Map<string, CardVisual>();
+    for (const c of this.cards) if (c.card) byCard.set(c.card, c);
 
-    while (this.cards.length < this.deckCount) {
-      const sprite = new Sprite(this.backTex);
-      sprite.anchor.set(0.5);
-      sprite.zIndex = this.cards.length; // покой: выше по стопке = выше в z (совпадает с restTarget по Y)
-      const body = new CardBody();
-      body.tiltScale = this.profile.tilt ? 1 : 0;
-      body.snapTo(this.restTarget(this.cards.length));
-      this.cardLayer.addChild(sprite);
-      this.cards.push({ body, sprite, card: "", phase: this.cards.length * anim.idle.phaseStep });
+    const next: CardVisual[] = [];
+    for (let j = 0; j < newOrder.length; j++) {
+      const card = newOrder[j];
+      let v = byCard.get(card);
+      if (v) {
+        byCard.delete(card); // переиспользуем — СТАРЫЙ zIndex сохраняем (растасовка сменит в апексе)
+      } else {
+        v = this.createCardVisual(card);
+        v.body.snapTo(this.restTarget(j)); // новая карта появляется сразу на месте
+        v.sprite.zIndex = j;
+      }
+      v.card = card;
+      v.phase = j * anim.idle.phaseStep;
+      next.push(v);
     }
-    while (this.cards.length > this.deckCount) {
-      const c = this.cards.pop()!;
-      c.sprite.destroy();
-    }
-    this.cards.forEach((c, i) => (c.card = this.deckCards[i] ?? "")); // идентичности по порядку
-    this.applyCardTextures();
-    this.updateVisibility(); // в чужой зоне / при выкл тенях спрайты/тень не «проявятся»
-    this.cards.forEach((c) => this.syncVisual(c));
-    this.syncDeckShadow();
+    for (const leftover of byCard.values()) leftover.sprite.destroy(); // раздали/убрали из колоды
+    this.cards = next;
+  }
+
+  private createCardVisual(card: string): CardVisual {
+    const sprite = new Sprite(this.backTex!);
+    sprite.anchor.set(0.5);
+    const body = new CardBody();
+    body.tiltScale = this.profile.tilt ? 1 : 0;
+    this.cardLayer!.addChild(sprite);
+    return { body, sprite, card, phase: 0 };
   }
 
   // Лицо или рубашка на каждой карте — по флагу deckFaceUp (кнопка «Перевернуть»).

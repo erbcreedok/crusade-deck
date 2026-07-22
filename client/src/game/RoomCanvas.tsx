@@ -1,11 +1,7 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { RoomEngine } from "./RoomEngine";
 import { resolveProfile, type AnimationSettings } from "./anim/animationSettings";
 import type { DeckZone } from "./deckZone";
-
-export interface RoomCanvasHandle {
-  shuffle: () => void;
-}
 
 interface Props {
   deck: string[]; // порядок колоды ["10♠",…] — для лицевых текстур
@@ -21,16 +17,22 @@ interface Props {
 
 // Тонкий React-хост над движком: монтирует ОДИН <canvas> ровно один раз и отдаёт
 // управление императивному RoomEngine. React больше не трогает содержимое канваса —
-// только прокидывает пропсы (deckCount/animation) в движок и вызывает shuffle() через ref.
-export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanvas(
-  { deck, deckZone, deckDraggable, fourColor, faceUp, onDeckDoubleClick, onDeckDrop, onDragChange, animation },
-  ref,
-) {
+// только прокидывает пропсы в движок. Растасовка теперь автоматическая: движок сам
+// анимирует реордер, когда приходит новый порядок колоды (setDeck).
+export function RoomCanvas({
+  deck,
+  deckZone,
+  deckDraggable,
+  fourColor,
+  faceUp,
+  onDeckDoubleClick,
+  onDeckDrop,
+  onDragChange,
+  animation,
+}: Props) {
   const deckKey = deck.join(",");
   const wrapRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RoomEngine | null>(null);
-
-  useImperativeHandle(ref, () => ({ shuffle: () => engineRef.current?.shuffle() }), []);
 
   // Создать движок один раз. Движок сам создаёт свежий <canvas> внутри wrap.
   // Cleanup гарантирует безопасный teardown (см. RoomEngine.destroy).
@@ -88,4 +90,4 @@ export const RoomCanvas = forwardRef<RoomCanvasHandle, Props>(function RoomCanva
   }, [animation.level, animation.speed, animation.shadows]);
 
   return <div className="room-canvas" ref={wrapRef} />;
-});
+}

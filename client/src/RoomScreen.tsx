@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { ProposalBanner } from "./ProposalBanner";
-import { RoomCanvas, type RoomCanvasHandle } from "./game/RoomCanvas";
+import { RoomCanvas } from "./game/RoomCanvas";
 import { deckZoneFor, type DeckZone } from "./game/deckZone";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 
@@ -40,7 +40,6 @@ export function RoomScreen({
   const [deckZone, setDeckZone] = useState<DeckZone>("center");
   const [draggingDeck, setDraggingDeck] = useState(false);
   const [faceUp, setFaceUp] = useState(false);
-  const canvasRef = useRef<RoomCanvasHandle>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -153,7 +152,6 @@ export function RoomScreen({
       )}
 
       <RoomCanvas
-        ref={canvasRef}
         deck={deck}
         deckZone={deckZone}
         deckDraggable={canMoveDeck}
@@ -174,10 +172,7 @@ export function RoomScreen({
             {amIDealer && (
               <button
                 className="pixel-btn pixel-btn-secondary"
-                onClick={() => {
-                  room.send("shuffle_deck"); // сервер тасует по-настоящему
-                  canvasRef.current?.shuffle(); // движок показывает анимацию растасовки
-                }}
+                onClick={() => room.send("shuffle_deck")}
               >
                 Растасовать
               </button>
