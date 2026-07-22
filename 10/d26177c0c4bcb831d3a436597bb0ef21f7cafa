@@ -1,0 +1,27 @@
+client/src/game/dragMode.ts
+  s_45aab95818ff9f::t_4ce69a0ab684dd 1-26
+client/src/game/RoomEngine.ts
+  s_45aab95818ff9f::t_ebeb70b4c7c56d 18,426-431,443-445,891-895,1191-1192,1194-1198,1471,2427-2428
+  s_45aab95818ff9f::t_10e812b9605a54 2301
+  s_45aab95818ff9f::t_696e72dd984fb7 1994-1996,2271-2273,2474
+client/src/game/anim/config.ts
+  s_45aab95818ff9f::t_696e72dd984fb7 55-56
+client/src/game/dragMode.test.ts
+  s_45aab95818ff9f::t_473b9a4bb561e4 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "10d26177c0c4bcb831d3a436597bb0ef21f7cafa",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
