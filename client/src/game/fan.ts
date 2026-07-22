@@ -48,6 +48,28 @@ export function pokeEnvelope(t: number, inSec: number, hold: number, outSec: num
   return Math.max(0, Math.min(inn, out));
 }
 
+// Обратная к fanCard задача: в какой слот веера (0..count-1) целится точка с координатой x.
+// Нужна для драга карты — куда она встанет, если отпустить здесь. Инвертируем геометрию
+// дуги: x = anchor.x + r*sin(angle) → angle → доля t → номер слота.
+export function fanInsertIndex(
+  x: number,
+  anchor: Vec2,
+  zoneWidth: number,
+  count: number,
+  maxAngleDeg: number,
+  widthFactor: number,
+): number {
+  if (count <= 1) return 0;
+  const maxA = (maxAngleDeg * Math.PI) / 180;
+  const halfW = (zoneWidth * widthFactor) / 2;
+  const r = maxA > 0 ? halfW / Math.sin(maxA) : halfW;
+  if (r <= 0 || maxA <= 0) return 0;
+  const s = Math.max(-1, Math.min(1, (x - anchor.x) / r));
+  const t = (Math.asin(s) / maxA + 1) / 2; // 0..1 вдоль веера
+  const i = Math.round(Math.max(0, Math.min(1, t)) * (count - 1));
+  return i;
+}
+
 // Точка (x,y) внутри «полосы веера»? Веер — дуга окружности, поэтому его настоящая
 // область попадания — кольцевой сектор, а НЕ прямоугольник сейф-зоны: на широком экране
 // дуга проседает вниз далеко за пределы зоны, и края веера оказываются вне прямоугольника

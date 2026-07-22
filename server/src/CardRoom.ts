@@ -7,6 +7,7 @@ import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
 import { findAccountById } from "./accounts.js";
 import { setPublicRoom, updatePublicRoomCount, removePublicRoom } from "./publicRooms.js";
 import { setLastRoom, clearLastRoomByRoomId } from "./lastRooms.js";
+import { moveCard } from "./deckOrder.js";
 
 interface JoinOptions {
   token?: string;
@@ -69,6 +70,18 @@ export class CardRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       if (!player?.isDealer || this.state.phase !== "lobby") return;
       this.shuffleDeck();
+    });
+
+    // Дилер перетащил одну карту в раскрытом веере на новое место — порядок колоды
+    // меняется и СОХРАНЯЕТСЯ (эхо разойдётся всем). Только дилер и только в лобби.
+    this.onMessage("reorder_deck", (client, message: { card?: string; to?: number }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player?.isDealer || this.state.phase !== "lobby") return;
+      const card = message?.card;
+      const to = message?.to;
+      if (typeof card !== "string" || typeof to !== "number" || !Number.isFinite(to)) return;
+      const next = moveCard(this.state.deck.toArray(), card, to);
+      next.forEach((c, i) => this.state.deck.setAt(i, c));
     });
 
     // Дилер притягивает колоду в свою сейф-зону (zone "safe") или возвращает в

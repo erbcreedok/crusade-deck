@@ -351,4 +351,57 @@ describe("CardRoom", () => {
 
     expect(getLastRoom("acc-empty")).toBeUndefined();
   });
+
+  // Драг отдельной карты в раскрытом веере: дилер меняет её место в колоде, порядок
+  // сохраняется на сервере (эхом расходится всем).
+  it("reorder_deck moves one card to a new position, keeping the same cards", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const before = [...room.state.deck];
+    const card = before[0];
+
+    const waiter = room.waitForMessage("reorder_deck");
+    dealer.send("reorder_deck", { card, to: 5 });
+    await waiter;
+
+    const after = [...room.state.deck];
+    expect([...after].sort()).toEqual([...before].sort()); // тот же набор
+    expect(after.indexOf(card)).toBe(5);
+    expect(after.filter((c) => c === card).length).toBe(1); // не задвоилась
+  });
+
+  it("ignores reorder_deck from a non-dealer and for an unknown card", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    await colyseus.connectTo(room, { name: "Alice" });
+    const second = await colyseus.connectTo(room, { name: "Bob" });
+    const before = [...room.state.deck];
+
+    let waiter = room.waitForMessage("reorder_deck");
+    second.send("reorder_deck", { card: before[0], to: 7 });
+    await waiter;
+    expect([...room.state.deck]).toEqual(before);
+
+    const dealerClient = await colyseus.connectTo(room, { name: "Carol" });
+    waiter = room.waitForMessage("reorder_deck");
+    dealerClient.send("reorder_deck", { card: "нет такой", to: 3 });
+    await waiter;
+    expect([...room.state.deck]).toEqual(before);
+  });
+
+  it("ignores reorder_deck after the game started (only in lobby)", async () => {
+    const room = await colyseus.createRoom("card_room", { deckType: "36" });
+    const dealer = await colyseus.connectTo(room, { name: "Alice" });
+    const card = room.state.deck[0];
+
+    let waiter = room.waitForMessage("start_game");
+    dealer.send("start_game");
+    await waiter;
+
+    waiter = room.waitForMessage("reorder_deck");
+    dealer.send("reorder_deck", { card, to: 4 });
+    await waiter;
+
+    expect(room.state.phase).toBe("playing");
+    expect(room.state.deck.length).toBe(0); // колода роздана — двигать нечего
+  });
 });

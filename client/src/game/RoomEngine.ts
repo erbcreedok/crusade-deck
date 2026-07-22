@@ -13,8 +13,9 @@ import { CardBody, type CardTargets } from "./CardBody";
 import { computeLayout, type RoomLayout } from "./layout";
 import type { DeckZone } from "./deckZone";
 import { dropZoneRegions, pickDropZone, type DropZone } from "./dropZones";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
+import { moveCard } from "./deckOrder";
 import { parseCard, isCourt, suitColor } from "./card";
 import { anim } from "./anim/config";
 import {
@@ -46,6 +47,8 @@ function lerp(a: number, b: number, t: number): number {
 // Логический размер текстуры рубашки (соотношение 0.7). Спрайты масштабируются от него.
 const TEX_W = 160;
 const TEX_H = 228;
+
+const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
 
 const DRAG_SCALE = 1.18; // карты «приподнимаются» при захвате (визуальный акцент)
 const DRAG_THRESHOLD = 6; // px: меньше — это тап (дабл-клик), больше — реальный драг
@@ -100,8 +103,22 @@ export class RoomEngine {
   private hoverZone: DropZone | null = null;
   private onDeckDrop: ((zone: "center" | "safe") => void) | null = null;
   private onDragChange: ((active: boolean) => void) | null = null;
+  // Драг ОДНОЙ карты из раскрытого веера. Жест — длинное нажатие (holdMs): коротким
+  // тапом «ковыряют» веер (poke), поэтому хватать карту сразу нельзя. Пока веер раскрыт,
+  // драг всей колоды выключен — тащим карту; собери веер, чтобы двигать колоду.
+  private cardPress: { id: number; startX: number; startY: number; x: number; y: number; held: number } | null = null;
+  private cardDrag: { id: number; v: CardVisual; insertAt: number; x: number; y: number } | null = null;
+  private cardShadow: Sprite | null = null;
+  private skipNextTap = false; // гасит pointertap, прилетающий сразу после дропа карты
+  private onCardReorder: ((card: string, to: number) => void) | null = null;
+  // Разрешено ли класть карту в зоны (центр/рука). Во время раздачи — нет: карту можно
+  // только переставить внутри веера. Сеттер — задел под игровые правила.
+  private cardDropZonesAllowed = false;
+
   // «Ударная» анимация отбоя при запрещённом дропе: затухающая тряска, t/dur — прогресс.
   private reject: { t: number; dur: number; dirX: number; dirY: number } | null = null;
+  // Если отбой относится к одной карте (а не ко всей колоде) — трясём только её.
+  private rejectCard: CardVisual | null = null;
   private shake = { dx: 0, dy: 0, rot: 0 }; // текущее смещение тряски отбоя (общее для колоды)
 
   private restJitter: number[] = [];
@@ -236,6 +253,14 @@ export class RoomEngine {
     this.shadowLayer.addChild(deckShadow);
     this.deckShadow = deckShadow;
 
+    // Отдельная тень под ОДНОЙ картой, которую тащат из веера (общая тень колоды в этот
+    // момент лежит под самим веером и «поднятую» карту не показывает).
+    const cardShadow = new Sprite(this.shadowTex);
+    cardShadow.anchor.set(0.5);
+    cardShadow.visible = false;
+    this.shadowLayer.addChild(cardShadow);
+    this.cardShadow = cardShadow;
+
     // Карты приедут через setDeck() (порядок из состояния сервера) — на mount их нет.
 
     // Невидимая интерактивная зона поверх колоды — старт драга + дабл-тап.
@@ -300,7 +325,10 @@ export class RoomEngine {
     if (sameSet && changed && shouldPlay(anim.priority.shuffle, this.profile)) {
       this.scrambleAnim = null; // сумбур закончился — оседаем в реальный порядок
       this.startShuffleAnim(oldOrder);
-    } else if (!this.shuffleAnim && !this.scrambleAnim) {
+    } else if (sameSet && !changed) {
+      // Порядок ровно тот же — это эхо нашего же оптимистичного реордера (драг карты).
+      // Ничего не двигаем: карта как раз доезжает пружиной в новый слот.
+    } else if (!this.shuffleAnim && !this.scrambleAnim && !this.cardDrag) {
       this.cards.forEach((c, i) => {
         c.body.snapTo(this.restTarget(i));
         c.sprite.zIndex = i;
@@ -351,6 +379,17 @@ export class RoomEngine {
     if (this.deckHit) this.deckHit.cursor = v ? "grab" : "pointer";
   }
 
+  // Колбэк на перестановку карты в колоде (драг карты в раскрытом веере) — React шлёт
+  // reorder_deck на сервер, тот подтверждает эхом.
+  setOnCardReorder(fn: ((card: string, to: number) => void) | null): void {
+    this.onCardReorder = fn;
+  }
+
+  // Можно ли уронить ОДНУ карту в зоны (центр/рука). Во время раздачи — нельзя (отскок).
+  setCardDropZonesAllowed(v: boolean): void {
+    this.cardDropZonesAllowed = v;
+  }
+
   // Колбэк на дабл-клик по колоде (решение «куда двигать» принимает React-слой).
   setOnDeckDoubleClick(fn: (() => void) | null): void {
     this.onDeckDoubleClick = fn;
@@ -374,12 +413,41 @@ export class RoomEngine {
   // ——— драг колоды ———
 
   private onDeckDown(e: FederatedPointerEvent): void {
-    if (!this.deckDraggable || this.deckZone === "away" || this.press) return;
+    this.skipNextTap = false; // новый жест — прошлое подавление тапа больше не актуально
+    if (!this.deckDraggable || this.deckZone === "away") return;
+    // Веер раскрыт → жест относится к КАРТЕ, а не к колоде: колода целиком не таскается,
+    // пока веер не собран. Драг карты начнётся только после удержания (см. onTick).
+    if (this.fanOpen()) {
+      if (this.cardPress || this.cardDrag) return;
+      this.cardPress = { id: e.pointerId, startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y, held: 0 };
+      this.wake();
+      return;
+    }
+    if (this.press) return;
     this.press = { id: e.pointerId, startX: e.global.x, startY: e.global.y, x: e.global.x, y: e.global.y };
     if (this.deckHit) this.deckHit.cursor = "grabbing";
   }
 
   private onPointerMove(e: FederatedPointerEvent): void {
+    if (this.cardDrag && e.pointerId === this.cardDrag.id) {
+      this.cardDrag.x = e.global.x;
+      this.cardDrag.y = e.global.y;
+      this.cardDrag.insertAt = this.insertIndexAt(e.global.x);
+      this.hoverZone = pickDropZone(e.global.x, e.global.y, this.layout);
+      this.applyCardDragTargets();
+      this.drawZones();
+      this.wake();
+      return;
+    }
+    if (this.cardPress && e.pointerId === this.cardPress.id) {
+      this.cardPress.x = e.global.x;
+      this.cardPress.y = e.global.y;
+      const dx = this.cardPress.x - this.cardPress.startX;
+      const dy = this.cardPress.y - this.cardPress.startY;
+      // Уехал пальцем раньше, чем удержал → это не захват карты, а тык/смахивание.
+      if (dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD) this.cardPress = null;
+      return;
+    }
     if (!this.press || e.pointerId !== this.press.id) return;
     this.press.x = e.global.x;
     this.press.y = e.global.y;
@@ -397,6 +465,14 @@ export class RoomEngine {
   }
 
   private onPointerUp(e: FederatedPointerEvent): void {
+    if (this.cardDrag && e.pointerId === this.cardDrag.id) {
+      this.dropCard(e.global.x, e.global.y);
+      return;
+    }
+    if (this.cardPress && e.pointerId === this.cardPress.id) {
+      this.cardPress = null; // не удержал — это тап (poke/дабл-клик обработает pointertap)
+      return;
+    }
     if (!this.press || e.pointerId !== this.press.id) return;
     const wasDragging = this.dragging;
     const px = this.press.x;
@@ -438,6 +514,125 @@ export class RoomEngine {
     this.wake();
   }
 
+  // ——— драг одной карты из веера ———
+
+  private fanOpen(): boolean {
+    return this.deckZone === "safe" && this.deckFanned && this.cards.length > 0;
+  }
+
+  // В какой слот веера встанет карта, если отпустить её на координате x.
+  private insertIndexAt(x: number): number {
+    return fanInsertIndex(
+      x,
+      this.layout.safeAnchor,
+      this.layout.safeZone.w,
+      Math.max(1, this.deckCount),
+      anim.fan.maxAngleDeg,
+      anim.fan.widthFactor,
+    );
+  }
+
+  // Точка в области веера (полоса дуги ∪ прямоугольник сейф-зоны) — то же, что хит-зона:
+  // отпустил здесь → карта переставляется в колоде, а не «уходит» в другую зону.
+  private inFanArea(x: number, y: number): boolean {
+    const z = this.layout.safeZone;
+    if (Math.abs(x - z.cx) <= z.w / 2 && Math.abs(y - z.cy) <= z.h / 2) return true;
+    const l = this.layout;
+    return fanBandContains(x, y, l.safeAnchor, z.w, anim.fan.maxAngleDeg, anim.fan.widthFactor, l.cardW, l.cardH, l.cardH * 0.5);
+  }
+
+  // Удержание состоялось — карта под пальцем «прилипает» к нему и выходит из веера.
+  private beginCardDrag(): void {
+    const p = this.cardPress;
+    if (!p || this.cards.length === 0) return;
+    const v = this.cards[this.nearestFanIndex(p.startX)];
+    this.cardPress = null;
+    this.poke = null; // раскрытие/ховер веера на время драга не нужны
+    this.hoverTarget = 0;
+    this.cardDrag = { id: p.id, v, insertAt: this.insertIndexAt(p.x), x: p.x, y: p.y };
+    v.sprite.zIndex = 100_000; // над всеми картами (но под хит-зоной колоды)
+    if (this.deckHit) this.deckHit.cursor = "grabbing";
+    this.hoverZone = pickDropZone(p.x, p.y, this.layout);
+    this.applyCardDragTargets();
+    this.drawZones();
+    this.onDragChange?.(true); // React прячет кнопки действий на время драга
+    this.wake();
+  }
+
+  // Карта едет за пальцем (приподнята, ровно, крупнее), остальные раздвигаются, оставляя
+  // ДЫРКУ на том слоте, куда она встанет — видно, между какими картами она ляжет.
+  private applyCardDragTargets(): void {
+    const d = this.cardDrag;
+    if (!d) return;
+    d.v.body.setTarget({ x: d.x, y: d.y, rot: 0, scale: DRAG_SCALE });
+    let k = 0;
+    for (const c of this.cards) {
+      if (c === d.v) continue;
+      const slot = k < d.insertAt ? k : k + 1; // пропускаем слот под перетаскиваемую карту
+      const t = this.fanTarget(slot);
+      c.body.setTarget({ x: t.x, y: t.y, rot: t.rot, scale: 1 });
+      k++;
+    }
+  }
+
+  private dropCard(x: number, y: number): void {
+    const d = this.cardDrag;
+    if (!d) return;
+    this.cardDrag = null;
+    this.skipNextTap = true;
+    this.hoverZone = null;
+    if (this.deckHit) this.deckHit.cursor = this.deckDraggable ? "grab" : "pointer";
+
+    if (this.inFanArea(x, y)) {
+      // Отпустили над веером — карта меняет место в колоде, порядок уходит на сервер.
+      this.reorderLocally(d.v.card, this.insertIndexAt(x));
+      this.onCardReorder?.(d.v.card, this.insertIndexAt(x));
+      this.onDragChange?.(false);
+    } else if (this.cardDropZonesAllowed) {
+      // Зоны для отдельной карты откроются вместе с правилами игры (пока сюда не попадаем).
+      this.returnCardHome(d.v);
+      this.onDragChange?.(false);
+    } else {
+      // Во время раздачи карту нельзя положить ни на стол, ни в руку — «ударный» отскок.
+      this.startCardReject(d.v, x, y);
+    }
+    this.drawZones();
+    this.positionDeckHit();
+    this.wake();
+  }
+
+  // Локальный (оптимистичный) реордер: сервер подтвердит эхом, и тот же порядок уже не
+  // вызовет анимацию растасовки (setDeck увидит совпадение).
+  private reorderLocally(card: string, to: number): void {
+    const next = moveCard(this.deckCards, card, to);
+    const byCard = new Map(this.cards.map((c) => [c.card, c]));
+    const reordered = next.map((c) => byCard.get(c)).filter((c): c is CardVisual => !!c);
+    if (reordered.length !== this.cards.length) return; // рассинхрон — не трогаем
+    this.deckCards = next;
+    this.cards = reordered;
+    this.cards.forEach((c, i) => {
+      c.sprite.zIndex = i;
+      c.body.setTarget(this.restTarget(i));
+    });
+  }
+
+  private returnCardHome(v: CardVisual): void {
+    const i = Math.max(0, this.cards.indexOf(v));
+    v.sprite.zIndex = i;
+    this.cards.forEach((c, j) => c.body.setTarget(this.restTarget(j)));
+  }
+
+  // Отбой одной карты: та же «ударная» механика, что и у колоды, но трясётся только она.
+  private startCardReject(v: CardVisual, px: number, py: number): void {
+    const home = this.fanTarget(Math.max(0, this.cards.indexOf(v)));
+    let dx = home.x! - px;
+    let dy = home.y! - py;
+    const len = Math.hypot(dx, dy) || 1;
+    this.reject = { t: 0, dur: 0.5, dirX: dx / len, dirY: dy / len };
+    this.rejectCard = v;
+    v.body.setTarget({ x: px, y: py, scale: DRAG_SCALE, rot: 0 });
+  }
+
   // «Ударный» отскок при запрещённом дропе: колода держится у точки удара и делает
   // затухающие колебания В СТОРОНУ ДОМА (как отбитая от зоны), затем возвращается.
   private startReject(px: number, py: number): void {
@@ -475,8 +670,8 @@ export class RoomEngine {
     (Object.keys(regions) as DropZone[]).forEach((z) => {
       const { rect, droppable } = regions[z];
       const label = this.zoneLabels[z];
-      // Зоны и подписи видны только пока тащим колоду.
-      if (!this.dragging || rect.w <= 0 || rect.h <= 0) {
+      // Зоны и подписи видны только пока тащим колоду или карту из веера.
+      if ((!this.dragging && !this.cardDrag) || rect.w <= 0 || rect.h <= 0) {
         if (label) label.visible = false;
         return;
       }
@@ -533,6 +728,10 @@ export class RoomEngine {
   }
 
   private handleDeckTap(e: FederatedPointerEvent): void {
+    if (this.skipNextTap) {
+      this.skipNextTap = false; // отпускание после драга карты — не тык и не дабл-клик
+      return;
+    }
     if (!this.deckDraggable) return; // двигать/раскрывать колоду может только дилер (в лобби)
     const now = performance.now();
     const isDouble = now - this.lastDeckTapMs < 350;
@@ -714,6 +913,9 @@ export class RoomEngine {
     this.shuffleAnim = null;
     this.scrambleAnim = null;
     this.press = null;
+    this.cardPress = null;
+    this.cardDrag = null;
+    this.rejectCard = null;
     this.dragging = false;
     if (this.app) {
       this.app.ticker.remove(this.tick); // сперва глушим цикл, потом рушим сцену
@@ -727,6 +929,7 @@ export class RoomEngine {
     this.rejectText = null;
     this.shadowLayer = null;
     this.deckShadow = null;
+    this.cardShadow = null;
     this.cardLayer = null;
     this.backTex = null;
     this.shadowTex = null;
@@ -824,11 +1027,20 @@ export class RoomEngine {
     }
     this.fanWiggling = wiggle;
 
+    // Удержание для захвата карты из веера: копим время, пока палец стоит на месте.
+    if (this.cardPress) {
+      this.cardPress.held += frameDt;
+      if (this.cardPress.held >= anim.cardDrag.holdSec) this.beginCardDrag();
+    }
+    if (this.cardDrag) this.applyCardDragTargets();
+
     if (this.reject) {
       this.reject.t += frameDt;
       if (this.reject.t >= this.reject.dur) {
         this.reject = null;
         // Отскок доигран — укладываем колоду у якоря и только ТЕПЕРЬ возвращаем кнопки.
+        if (this.rejectCard) this.returnCardHome(this.rejectCard);
+        this.rejectCard = null;
         this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
         this.onDragChange?.(false);
       }
@@ -836,6 +1048,7 @@ export class RoomEngine {
     this.shake = this.rejectShake();
     for (const c of this.cards) this.syncVisual(c);
     this.syncDeckShadow();
+    this.syncCardShadow();
     this.syncRejectText();
 
     // Всё осело, нет растасовки/драга/отбоя И нет живой idle → усыпляем цикл. При
@@ -844,6 +1057,8 @@ export class RoomEngine {
       !this.shuffleAnim &&
       !this.scrambleAnim &&
       !this.press &&
+      !this.cardPress &&
+      !this.cardDrag &&
       !this.reject &&
       !this.idleRunning() &&
       !this.fanWiggling &&
@@ -887,9 +1102,11 @@ export class RoomEngine {
       rot += this.fanCrowdNow * this.fanEnergy * w.jitterRotAmp * Math.sin(this.fanJitterPhase + c.phase);
     }
 
-    c.sprite.x = c.body.px + this.shake.dx;
-    c.sprite.y = c.body.py + this.shake.dy;
-    c.sprite.rotation = rot + this.shake.rot;
+    // Тряска отбоя: общая для колоды, но если отбивается ОДНА карта — трясётся только она.
+    const sh = !this.rejectCard || this.rejectCard === c ? this.shake : ZERO_SHAKE;
+    c.sprite.x = c.body.px + sh.dx;
+    c.sprite.y = c.body.py + sh.dy;
+    c.sprite.rotation = rot + sh.rot;
     c.sprite.scale.set(scale);
   }
 
@@ -910,6 +1127,25 @@ export class RoomEngine {
     s.y = base.body.py + this.shake.dy + off * (0.06 + elev * 0.75);
     s.rotation = base.body.rotation + this.shake.rot;
     s.scale.set(this.baseScale * base.body.scaleVal * 1.05);
+    s.alpha = 0.5 + elev * 0.4;
+  }
+
+  // Тень под одиночной картой: живёт только пока карту тащат или пока она отбивается.
+  private syncCardShadow(): void {
+    const s = this.cardShadow;
+    if (!s) return;
+    const v = this.cardDrag?.v ?? this.rejectCard;
+    if (!v || !this.profile.shadows || this.deckZone === "away") {
+      s.visible = false;
+      return;
+    }
+    s.visible = true;
+    const elev = Math.max(0, v.body.scaleVal - 1);
+    const off = this.layout.cardH;
+    s.x = v.sprite.x + off * (0.04 + elev * 0.5);
+    s.y = v.sprite.y + off * (0.06 + elev * 0.75);
+    s.rotation = v.sprite.rotation;
+    s.scale.set(this.baseScale * v.body.scaleVal * 1.05);
     s.alpha = 0.5 + elev * 0.4;
   }
 
@@ -1039,6 +1275,8 @@ export class RoomEngine {
       !this.shuffleAnim &&
       !this.scrambleAnim &&
       !this.press &&
+      !this.cardDrag && // карту тащат — веер стоит ровно с «дыркой» под неё
+      !this.cardPress &&
       (this.fanCrowd() > 0 || this.poke !== null || this.hoverTarget === 1 || this.hoverEnv > 0.001)
     );
   }

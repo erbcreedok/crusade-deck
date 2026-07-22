@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина сейф-зоны
@@ -153,5 +153,30 @@ describe("fanBandContains", () => {
     const y = anchor.y + CARD_H;
     expect(hit(anchor.x, y)).toBe(false);
     expect(fanBandContains(anchor.x, y, anchor, WIDE, MAX, WF, CARD_W, CARD_H, CARD_H)).toBe(true);
+  });
+});
+
+describe("fanInsertIndex", () => {
+  const N = 36;
+  const idx = (x: number) => fanInsertIndex(x, anchor, W, N, MAX, WF);
+
+  it("обратен fanCard: по x карты возвращает её же индекс", () => {
+    for (let i = 0; i < N; i++) {
+      expect(idx(fanCard(i, N, anchor, W, MAX, WF).x)).toBe(i);
+    }
+  });
+
+  it("по центру веера — середина", () => {
+    expect(idx(anchor.x)).toBe(Math.round((N - 1) / 2));
+  });
+
+  it("далеко за краями — крайние слоты, без выхода за диапазон", () => {
+    expect(idx(anchor.x - W * 5)).toBe(0);
+    expect(idx(anchor.x + W * 5)).toBe(N - 1);
+  });
+
+  it("колода из одной карты / пустая — слот 0", () => {
+    expect(fanInsertIndex(anchor.x + 100, anchor, W, 1, MAX, WF)).toBe(0);
+    expect(fanInsertIndex(anchor.x, anchor, W, 0, MAX, WF)).toBe(0);
   });
 });

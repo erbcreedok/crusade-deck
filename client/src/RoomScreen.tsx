@@ -116,6 +116,15 @@ export function RoomScreen({
     [canMoveDeck, room],
   );
 
+  // Карту перетащили внутри раскрытого веера — новый порядок колоды на сервер.
+  const onCardReorder = useCallback(
+    (card: string, to: number) => {
+      if (!canMoveDeck) return;
+      room.send("reorder_deck", { card, to });
+    },
+    [canMoveDeck, room],
+  );
+
   const onDragChange = useCallback((active: boolean) => setDraggingDeck(active), []);
 
   // «Готов/Раздать» — только когда колода в центре и не идёт драг. Вне центра — плейсхолдер.
@@ -161,6 +170,7 @@ export function RoomScreen({
         shuffleSignal={shuffleSignal}
         onDeckDoubleClick={onDeckDoubleClick}
         onDeckDrop={onDeckDrop}
+        onCardReorder={onCardReorder}
         onDragChange={onDragChange}
         animation={animation}
       />

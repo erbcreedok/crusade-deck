@@ -12,6 +12,7 @@ interface Props {
   shuffleSignal: number; // растёт при нажатии «Растасовать» — запускает «сумбур» до ответа
   onDeckDoubleClick: () => void;
   onDeckDrop: (zone: "center" | "safe") => void;
+  onCardReorder: (card: string, to: number) => void; // карту перетащили внутри веера
   onDragChange: (active: boolean) => void;
   animation: AnimationSettings;
 }
@@ -29,6 +30,7 @@ export function RoomCanvas({
   shuffleSignal,
   onDeckDoubleClick,
   onDeckDrop,
+  onCardReorder,
   onDragChange,
   animation,
 }: Props) {
@@ -87,6 +89,10 @@ export function RoomCanvas({
   useEffect(() => {
     engineRef.current?.setOnDeckDrop(onDeckDrop);
   }, [onDeckDrop]);
+
+  useEffect(() => {
+    engineRef.current?.setOnCardReorder(onCardReorder);
+  }, [onCardReorder]);
   useEffect(() => {
     engineRef.current?.setOnDragChange(onDragChange);
   }, [onDragChange]);
