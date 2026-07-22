@@ -1,0 +1,21 @@
+client/fly.toml
+  s_3b000dfed76439::t_a4541773cb6e2c 1-27
+server/fly.toml
+  s_3b000dfed76439::t_4a542c4c6dd7b7 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3bd79481334ca7f43a94bc8386e2961dba50c48a",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
