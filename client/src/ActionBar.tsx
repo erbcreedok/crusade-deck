@@ -48,20 +48,23 @@ export function ActionBar({
 
   return (
     <>
-      {menuOpen && (
-        <div
-          className="action-sheet-backdrop"
-          data-testid="action-sheet-backdrop"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-
       <div className="action-bar">
         <ActionButton slot={main} kind="main" testId="action-main" />
         <ActionButton slot={secondary} kind="secondary" testId="action-secondary" />
         {/* Обёртка нужна, чтобы веер рос ровно от кнопки: кнопки в панели отцентрованы,
             и привязка к краю экрана промахивалась мимо гамбургера. */}
         <div className="action-menu-anchor">
+          {/* Подложка живёт ВНУТРИ панели, рядом с веером. Снаружи она лежала в корне,
+              а панель со своим z-index создаёт стековый контекст — и подложка (6)
+              оказывалась выше веера (7 внутри контекста), перехватывая все нажатия.
+              Соседи в одном контейнере такого класса ошибок не допускают. */}
+          {menuOpen && (
+            <div
+              className="action-sheet-backdrop"
+              data-testid="action-sheet-backdrop"
+              onClick={() => setMenuOpen(false)}
+            />
+          )}
           {menuOpen && (
             // «Веер» как у папки в доке macOS: пункты выпрыгивают вверх от самой кнопки,
             // по ширине содержимого. Ближний к кнопке появляется первым.

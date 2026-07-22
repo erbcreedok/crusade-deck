@@ -478,7 +478,8 @@ textarea {
 
 .action-bar {
   position: absolute;
-  z-index: 5;
+  /* Выше шапки и баннеров: пока меню открыто, его пункты должны быть кликабельны. */
+  z-index: 8;
   left: 0;
   right: 0;
   bottom: 0;
@@ -536,8 +537,10 @@ textarea {
 .action-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 6;
+  /* Ниже веера, но выше всего остального внутри панели действий. */
+  z-index: 1;
   background: rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
 }
 
 .action-menu-anchor {
@@ -548,7 +551,7 @@ textarea {
 
 .action-fan {
   position: absolute;
-  z-index: 7;
+  z-index: 2; /* поверх подложки — они соседи в одном стековом контексте */
   /* Растёт вверх ровно от гамбургера и по его правому краю. */
   right: 0;
   bottom: calc(100% + 10px);
