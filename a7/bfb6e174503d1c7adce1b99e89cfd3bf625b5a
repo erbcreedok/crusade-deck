@@ -1,0 +1,50 @@
+client/src/game/choreo/spin.test.ts
+  s_ec6e8b45d5a2ab::t_9ca0a2659625b3 1-61
+client/src/game/anim/easing.test.ts
+  s_ec6e8b45d5a2ab::t_7a775b0743f952 1-22
+client/src/game/choreo/shuffle.ts
+  s_ec6e8b45d5a2ab::t_a660d8192f3ff8 3
+  s_ec6e8b45d5a2ab::t_79c7e224a05f60 26
+client/src/game/anim/animationSettings.test.ts
+  s_ec6e8b45d5a2ab::t_c8542737bce79c 2,6,8,12,16,18,21-22,33,35,38-39
+client/src/game/choreo/spin.ts
+  s_ec6e8b45d5a2ab::t_8888fcaab53af6 1-75
+client/src/App.tsx
+  s_ec6e8b45d5a2ab::t_001d025ac59863 25-27,30-31
+client/src/useAnimationSettings.test.ts
+  s_ec6e8b45d5a2ab::t_7ffd9ce5588be9 23,26,31,33,36,40,48,50,52
+client/src/game/choreo/types.ts
+  s_ec6e8b45d5a2ab::t_a6962703fd9f95 1-11
+client/src/useAnimationSettings.ts
+  s_ec6e8b45d5a2ab::t_bfa4787b7c6721 34,43
+  s_ec6e8b45d5a2ab::t_e36b9f9894fa28 21,23-25
+client/src/AppMenu.tsx
+  s_ec6e8b45d5a2ab::t_aeb7f17aca4e83 115
+client/src/game/anim/config.ts
+  s_ec6e8b45d5a2ab::t_710e4b8305f597 43-45
+client/src/game/anim/animationSettings.ts
+  s_ec6e8b45d5a2ab::t_76f90f7f1c95f0 4-6,13-14,19-26,35,40-43,45-46,49,51
+client/src/game/anim/easing.ts
+  s_ec6e8b45d5a2ab::t_4a56d23caf5918 1-6
+client/src/game/RoomEngine.ts
+  s_ec6e8b45d5a2ab::t_b8b552a958f596 46
+  s_ec6e8b45d5a2ab::t_7ae52e40ca148d 199-201,208-211,215,221-222
+  s_ec6e8b45d5a2ab::t_85af89b2543a77 11,13-14
+  s_ec6e8b45d5a2ab::t_ed6b13f80dae45 129-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a7bfb6e174503d1c7adce1b99e89cfd3bf625b5a",
+  "prompts": {},
+  "sessions": {
+    "s_ec6e8b45d5a2ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1cea3f64-56d6-401e-b236-6542679f0d74",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
