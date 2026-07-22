@@ -102,11 +102,6 @@ const TEX_H = 228;
 
 const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 };
 
-// ВРЕМЕННО: рамки интерактивных областей поверх стола — видно, куда реально попадает
-// палец (хит-зона колоды/веера, кнопка сворачивания, границы карт). Выключается
-// адресом ?debug=0; когда наиграемся с раскладкой — убрать вместе с debugG.
-const DEBUG_BORDERS = typeof location !== "undefined" && !location.search.includes("debug=0");
-
 const REJECT_TEXT = "низяяя"; // надпись «сюда нельзя» при запрещённом дропе колоды
 
 // Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа.
@@ -205,7 +200,6 @@ export class RoomEngine {
   private onFanChange: ((fanned: boolean) => void) | null = null;
   private onFanCollapse: (() => void) | null = null; // «сложить руку»: стрелка или свайп вниз
   private collapseBtn: Container | null = null; // кнопка-стрелка под веером
-  private debugG: Graphics | null = null; // временные рамки (см. DEBUG_BORDERS)
   private handCounter: Text | null = null; // счётчик карт под сложенной рукой
   private deckHit: Container | null = null;
 
@@ -481,12 +475,6 @@ export class RoomEngine {
     this.world.addChild(counter);
     this.handCounter = counter;
 
-    if (DEBUG_BORDERS) {
-      this.debugG = new Graphics();
-      this.debugG.zIndex = 9800; // поверх всего, кроме «низяяя»
-      this.debugG.eventMode = "none"; // рамки не должны ловить палец
-      this.world.addChild(this.debugG);
-    }
     this.syncCollapseButton();
 
     // Move/up ловим на всей сцене — палец может уйти далеко за пределы колоды.
@@ -1842,7 +1830,6 @@ export class RoomEngine {
     this.seatG = null;
     this.focusG = null;
     this.collapseBtn = null;
-    this.debugG = null;
     this.handCounter = null;
     this.rejectText = null;
     this.shadowLayer = null;
@@ -2036,7 +2023,6 @@ export class RoomEngine {
     this.updateVisibility(); // режим «кирпич/отдельные карты» может смениться прямо в тике
     this.syncCollapseButton();
     this.syncHandCounter();
-    this.drawDebugBorders();
     for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
     this.syncDeckShadow();
@@ -2378,43 +2364,6 @@ export class RoomEngine {
       }
     }
     return pts;
-  }
-
-  // ВРЕМЕННЫЕ рамки: хит-зона колоды/веера, кнопка сворачивания и габариты карт.
-  private drawDebugBorders(): void {
-    const g = this.debugG;
-    if (!g) return;
-    g.clear();
-    if (this.deckZone === "away") return;
-
-    // Габариты карт — тонко, чтобы было видно перекрытие в шеренге и вее­ре.
-    const w = this.layout.cardW;
-    const h = this.layout.cardH;
-    for (const c of this.cards) {
-      if (!c.sprite.visible) continue;
-      g.rect(c.sprite.x - w / 2, c.sprite.y - h / 2, w, h).stroke({ width: 1, color: 0x35c0ff, alpha: 0.35 });
-    }
-
-    // Хит-зона колоды: прямоугольник в стопке, полоса дуги — в вее­ре (рисуем как
-    // ломаную по слотам, чтобы форма была видна честно).
-    const hit = this.deckHit?.hitArea;
-    if (hit instanceof Rectangle) {
-      g.rect(hit.x, hit.y, hit.width, hit.height).stroke({ width: 2, color: 0xff44aa, alpha: 0.6 });
-    } else if (this.fanned()) {
-      const n = Math.max(2, this.deckCount);
-      const pts: number[] = [];
-      for (let k = 0; k <= 24; k++) {
-        const t = this.fanTarget(((n - 1) * k) / 24);
-        pts.push(t.x ?? 0, t.y ?? 0);
-      }
-      g.poly(pts, false).stroke({ width: 2, color: 0xff44aa, alpha: 0.6 });
-    }
-
-    // Кнопка сворачивания — её круглая зона под палец.
-    const btn = this.collapseBtn;
-    if (btn?.visible && btn.hitArea instanceof Circle) {
-      g.circle(btn.x, btn.y, btn.hitArea.radius).stroke({ width: 2, color: 0x7cff6b, alpha: 0.7 });
-    }
   }
 
   private rowMode(): boolean {
