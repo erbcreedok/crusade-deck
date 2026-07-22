@@ -1,0 +1,29 @@
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_73746ae9e46d90 41,2190-2192,2199-2210
+  s_3b000dfed76439::t_0c8d3bf1af8705 2211-2212
+client/src/game/handView.ts
+  s_3b000dfed76439::t_bb70d7219044ab 1-37
+client/src/game/handView.test.ts
+  s_3b000dfed76439::t_2ceb9662a940cb 1-52
+client/src/game/handRow.ts
+  s_3b000dfed76439::t_81cc00ff3ef563 1-29
+client/src/game/handRow.test.ts
+  s_3b000dfed76439::t_1844e171dfc6d4 46
+  s_3b000dfed76439::t_637a3cfc2fb308 1-45,47-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0a8db16be428aaa11c190a206c791d1966467ecd",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
