@@ -2340,7 +2340,7 @@ export class RoomEngine {
       bottomY: z.cy + z.h / 2,
       margin: Math.max(4, cardH * 0.08),
       minR: Math.max(14, cardH * 0.24),
-      maxR: cardH * 0.62,
+      maxR: cardH * anim.fan.collapse.hitRatio,
       obstacles: this.fanBottomEdge(),
     });
 
@@ -2492,7 +2492,10 @@ export class RoomEngine {
     // Вне фокуса рука лежит спокойно: дуга площе и веер уже (см. anim.fan.idle).
     const angleDeg = this.handFocused ? anim.fan.maxAngleDeg : anim.fan.maxAngleDeg * anim.fan.idle.angleScale;
     const maxA = (angleDeg * Math.PI) / 180;
-    const sagMax = Math.max(1, z.h - cardH * 1.15);
+    // Низ полосы отдан кнопке «сложить руку»: дуга не должна туда провисать, иначе
+    // карман схлопывается и кнопка налезает на карты.
+    const reserved = cardH * 2 * anim.fan.collapse.hitRatio;
+    const sagMax = Math.max(1, z.h - cardH * 1.15 - reserved);
     const byHeight = maxA > 0 ? (2 * sagMax * Math.sin(maxA)) / (1 - Math.cos(maxA)) : Infinity;
     const fit = Math.min(z.w, byHeight / anim.fan.widthFactor);
     const width = this.handFocused ? fit : fit * anim.fan.idle.widthScale;

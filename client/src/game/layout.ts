@@ -1,3 +1,5 @@
+import { anim } from "./anim/config";
+
 // Геометрия комнаты из размеров канваса. Чистая математика (тестируется юнитами) —
 // движок только рисует по этим числам. Стол больше не рисуется овалом: визуально это
 // весь экран. Зоны (центр и рука) — скруглённые прямоугольники во всю ширину.
@@ -19,6 +21,13 @@ export interface RoomLayout {
   handAnchor: { x: number; y: number }; // покой колоды в руке = центр handZone
   cardW: number;
   cardH: number;
+}
+
+// Рекомендуемая высота полосы руки: карта плюс кнопка «сложить руку» под ней, плюс
+// небольшой запас. Кнопка вписывается в карман под веером (см. collapseButton.ts), и если
+// полоса ниже этой суммы, ей просто негде поместиться — карман схлопывается.
+export function recommendedHandHeight(cardH: number): number {
+  return cardH * (1 + 2 * anim.fan.collapse.hitRatio) + cardH * 0.18;
 }
 
 const CARD_RATIO = 0.7; // ширина / высота игральной карты (~2.5" x 3.5")
@@ -56,8 +65,9 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   // Панель действий забирает низ экрана; клампим её вклад, чтобы даже абсурдная панель
   // не схлопнула полосу в ноль.
   const freeBottom = Math.min(Math.max(0, insets.bottom ?? 0), h * 0.5);
-  const bandSpace = Math.max(cardH * 1.5, h - freeBottom);
-  const bandH = clamp(bandSpace * 0.34, cardH * 1.5, Math.max(cardH * 1.5, bandSpace * 0.4));
+  const minBandH = recommendedHandHeight(cardH);
+  const bandSpace = Math.max(minBandH, h - freeBottom);
+  const bandH = clamp(bandSpace * 0.34, minBandH, Math.max(minBandH, bandSpace * 0.4));
   const bandCy = h - freeBottom - bandH / 2 - h * 0.02;
   const bandLeft = (w - zoneW) / 2;
   // Рука занимает полосу целиком: других личных зон внизу больше нет.

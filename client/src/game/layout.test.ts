@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeLayout, type RoundedRect } from "./layout";
+import { computeLayout, type RoundedRect, recommendedHandHeight } from "./layout";
 
 function inside(r: RoundedRect, w: number, h: number) {
   return r.cx - r.w / 2 >= -1 && r.cx + r.w / 2 <= w + 1 && r.cy - r.h / 2 >= -1 && r.cy + r.h / 2 <= h + 1;
@@ -123,3 +123,20 @@ describe("computeLayout с панелью действий внизу", () => {
 });
 
 // узкой полоской у края и уходит на задний план. Без фокуса — привычные 80/20.
+
+describe("высота полосы руки", () => {
+  it("вмещает карту и кнопку «сложить руку» под ней, с запасом", () => {
+    for (const [w, h] of [[400, 800], [1400, 900], [360, 640]] as const) {
+      const l = computeLayout(w, h);
+      const need = recommendedHandHeight(l.cardH);
+      expect(l.handZone.h).toBeGreaterThanOrEqual(need - 1e-9);
+      // Проверяем именно смысл: карта + диаметр кнопки помещаются, и что-то остаётся.
+      expect(need).toBeGreaterThan(l.cardH * 1.9);
+    }
+  });
+
+  it("панель действий снизу не может ужать полосу ниже рекомендованной", () => {
+    const l = computeLayout(400, 800, { top: 0, left: 0, right: 0, bottom: 380 });
+    expect(l.handZone.h).toBeGreaterThanOrEqual(recommendedHandHeight(l.cardH) - 1e-9);
+  });
+});
