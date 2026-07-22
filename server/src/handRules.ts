@@ -34,3 +34,12 @@ export function dealCardTo(deck: readonly string[], card: string): DealResult | 
   next.splice(i, 1);
   return { deck: next, card };
 }
+
+// Порядок облёта карт при сборе: по часовой ОТ ДИЛЕРА (его карты летят первыми).
+// Правило игры, а не деталь рассылки, — поэтому живёт здесь и проверяется тестами.
+// Дилера нет в круге (вышел) — облетаем места как есть, порядок хотя бы стабилен.
+export function collectOrder(seatIds: readonly string[], dealerId: string): string[] {
+  const di = seatIds.indexOf(dealerId);
+  if (di < 0) return [...seatIds];
+  return seatIds.map((_, k) => seatIds[(di + k) % seatIds.length]!);
+}

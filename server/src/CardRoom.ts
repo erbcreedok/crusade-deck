@@ -11,7 +11,7 @@ import { moveCard, isPermutationOf } from "./deckOrder.js";
 import { flipWholeDeck, flippedFacing } from "./deckFacing.js";
 import { sanitizeDeckFx, FxRateLimiter } from "./deckFx.js";
 import { flipRejectReason } from "./rejections.js";
-import { collectHands, dealCardTo, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import { collectHands, dealCardTo, collectOrder, DEALER_VOTE_WEIGHT } from "./handRules.js";
 
 interface JoinOptions {
   token?: string;
@@ -270,14 +270,7 @@ export class CardRoom extends Room<GameState> {
       this.state.deckRev += 1;
       this.clearShuffleLock();
       // Анимация «карты с мест в центр», как при сборе (новая колода уже в схеме).
-      const di = seatIds.indexOf(client.sessionId);
-      const order: string[] = [];
-      if (di >= 0) {
-        for (let k = 0; k < seatIds.length; k++) order.push(seatIds[(di + k) % seatIds.length]!);
-      } else {
-        order.push(...seatIds);
-      }
-      this.broadcast("deck_reset", { order, counts });
+      this.broadcast("deck_reset", { order: collectOrder(seatIds, client.sessionId), counts });
     });
 
     // Веер колоды на столе: раскрыть/собрать может только дилер и только пока колода
@@ -360,14 +353,7 @@ export class CardRoom extends Room<GameState> {
       this.state.deckLocation = "center";
       this.state.deckRev += 1;
       // Порядок облёта: по часовой от дилера + сколько карт с каждого места.
-      const di = seatIds.indexOf(client.sessionId);
-      const order: string[] = [];
-      if (di >= 0) {
-        for (let k = 0; k < seatIds.length; k++) order.push(seatIds[(di + k) % seatIds.length]!);
-      } else {
-        order.push(...seatIds);
-      }
-      this.broadcast("hands_collected", { order, counts });
+      this.broadcast("hands_collected", { order: collectOrder(seatIds, client.sessionId), counts });
     });
 
     // Рука открыта/закрыта. Личное дело каждого игрока — дилерство тут ни при чём.

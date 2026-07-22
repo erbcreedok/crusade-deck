@@ -33,15 +33,5 @@ export function autoDealPlan(order: readonly string[], total: number): string[] 
   return plan;
 }
 
-// Сбор: по часовой от дилера (дилер первый — его карты летят первыми).
-export function collectOrder(seatIds: readonly string[], dealerId: string): string[] {
-  if (seatIds.length === 0) return [];
-  const ids = [...seatIds];
-  const di = ids.indexOf(dealerId);
-  if (di < 0) return ids;
-  const order: string[] = [];
-  for (let k = 0; k < ids.length; k++) {
-    order.push(ids[(di + k) % ids.length]!);
-  }
-  return order;
-}
+// Порядок сбора карт живёт на СЕРВЕРЕ (handRules.collectOrder): он же его и рассылает
+// в hands_collected/deck_reset, клиент только проигрывает присланный порядок.

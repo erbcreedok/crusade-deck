@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dealOrder, autoDealPlan, collectOrder, AUTO_DEAL_INTERVAL_MS } from "./dealing";
+import { dealOrder, autoDealPlan, AUTO_DEAL_INTERVAL_MS } from "./dealing";
 
 const SEATS = ["a", "b", "dealer", "c"];
 
@@ -32,11 +32,6 @@ describe("autoDealPlan", () => {
   });
 });
 
-describe("collectOrder", () => {
-  it("по часовой от дилера: дилер первый", () => {
-    expect(collectOrder(SEATS, "dealer")).toEqual(["dealer", "c", "a", "b"]);
-  });
-});
 
 describe("AUTO_DEAL_INTERVAL_MS", () => {
   it("2 карты в секунду", () => {

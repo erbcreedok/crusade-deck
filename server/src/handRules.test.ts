@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectHands, dealCardTo, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import { collectHands, dealCardTo, collectOrder, DEALER_VOTE_WEIGHT } from "./handRules.js";
 
 describe("collectHands", () => {
   const hands = { alice: ["A♠", "2♠"], bob: ["K♦"] };
@@ -65,5 +65,25 @@ describe("dealCardTo", () => {
     const src = [...deck];
     dealCardTo(src, "A♠");
     expect(src).toEqual(deck);
+  });
+});
+
+describe("collectOrder", () => {
+  const seats = ["a", "b", "c", "d"];
+
+  it("начинает с дилера и идёт по кругу", () => {
+    expect(collectOrder(seats, "c")).toEqual(["c", "d", "a", "b"]);
+    expect(collectOrder(seats, "a")).toEqual(seats);
+  });
+
+  it("облетает каждое место ровно один раз", () => {
+    const out = collectOrder(seats, "b");
+    expect(out.length).toBe(seats.length);
+    expect([...out].sort()).toEqual([...seats].sort());
+  });
+
+  it("дилера в круге нет — порядок остаётся стабильным", () => {
+    expect(collectOrder(seats, "нет-такого")).toEqual(seats);
+    expect(collectOrder([], "a")).toEqual([]);
   });
 });
