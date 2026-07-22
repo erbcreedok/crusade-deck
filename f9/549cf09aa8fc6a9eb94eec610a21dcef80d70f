@@ -1,0 +1,33 @@
+server/src/CardRoom.test.ts
+  s_3b000dfed76439::t_a4ff5896c00a1b 407-442
+client/src/game/RoomCanvas.tsx
+  s_3b000dfed76439::t_c2d9955b7c6aad 18
+server/src/deckOrder.ts
+  s_3b000dfed76439::t_b6cf6f25ec9de4 16-31
+server/src/deckOrder.test.ts
+  s_3b000dfed76439::t_29ec939c7374cd 2,25-59,61
+  s_3b000dfed76439::t_f2a374dcb60581 60,62
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_c2d9955b7c6aad 161,464-466,1578-1580
+client/src/RoomScreen.tsx
+  s_3b000dfed76439::t_c2d9955b7c6aad 131-140
+server/src/CardRoom.ts
+  s_3b000dfed76439::t_a4ff5896c00a1b 10,87-95
+  s_3b000dfed76439::t_91c72fd36b6468 96-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f9549cf09aa8fc6a9eb94eec610a21dcef80d70f",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
