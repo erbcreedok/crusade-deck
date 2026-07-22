@@ -1,0 +1,32 @@
+client/src/theme.css
+  s_45aab95818ff9f::t_55c0b7f2a302bc 80-90
+  s_45aab95818ff9f::t_67448ec74e259c 91
+client/src/PixelBackground.tsx
+  s_45aab95818ff9f::t_2581e49829ea10 1-13,15,18-25
+client/public/bg-clubs-slate.svg
+  s_45aab95818ff9f::t_14b7f5d1f64096 1-43
+client/src/PixelBackground.test.tsx
+  s_45aab95818ff9f::t_25fbd839c6d91f 1-27
+client/src/App.tsx
+  s_45aab95818ff9f::t_72ef92808904ef 124
+client/index.html
+  s_45aab95818ff9f::t_c238d6dc2e736b 14-15
+client/public/favicon.svg
+  s_45aab95818ff9f::t_304ee188696a24 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ce1360bb8e22742a713909a0f585d5cd5dfdd5dc",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
