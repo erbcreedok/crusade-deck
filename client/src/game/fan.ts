@@ -48,6 +48,17 @@ export function pokeEnvelope(t: number, inSec: number, hold: number, outSec: num
   return Math.max(0, Math.min(inn, out));
 }
 
+// Ширина видимой полоски карты i в веере: карты перекрываются, сверху лежит следующая,
+// поэтому «схватить» карту можно ровно за расстояние до неё. Считается по ФАКТИЧЕСКИМ
+// координатам спрайтов — с учётом волны и раскрытия под пальцем. По этой величине решаем,
+// можно ли уже тащить карту: в зажатом веере сначала раздвинь его тыком/ховером.
+export function visibleSliver(xs: readonly number[], i: number): number {
+  if (i < 0 || i >= xs.length) return 0;
+  if (xs.length === 1) return Infinity;
+  if (i + 1 < xs.length) return Math.abs(xs[i + 1] - xs[i]);
+  return Math.abs(xs[i] - xs[i - 1]);
+}
+
 // Обратная к fanCard задача: в какой слот веера (0..count-1) целится точка с координатой x.
 // Нужна для драга карты — куда она встанет, если отпустить здесь. Инвертируем геометрию
 // дуги: x = anchor.x + r*sin(angle) → angle → доля t → номер слота.

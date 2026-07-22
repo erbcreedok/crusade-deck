@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex } from "./fan";
+import { fanCard, fanCrowd, energyEnvelope, pokeEnvelope, fanBandContains, fanInsertIndex, visibleSliver } from "./fan";
 
 const anchor = { x: 200, y: 300 };
 const W = 344; // ширина сейф-зоны
@@ -178,5 +178,33 @@ describe("fanInsertIndex", () => {
   it("колода из одной карты / пустая — слот 0", () => {
     expect(fanInsertIndex(anchor.x + 100, anchor, W, 1, MAX, WF)).toBe(0);
     expect(fanInsertIndex(anchor.x, anchor, W, 0, MAX, WF)).toBe(0);
+  });
+});
+
+describe("visibleSliver", () => {
+  // Карты в веере перекрывают друг друга: снизу лежит i, сверху i+1. Схватить карту
+  // можно только за видимую полоску — расстояние до соседа, который её накрывает.
+  it("полоска = расстояние до следующей карты (она сверху)", () => {
+    expect(visibleSliver([0, 6, 12, 40], 1)).toBe(6);
+    expect(visibleSliver([0, 6, 12, 40], 2)).toBe(28);
+  });
+
+  it("у последней карты полоска считается по предыдущей — её никто не накрывает", () => {
+    expect(visibleSliver([0, 6, 12, 40], 3)).toBe(28);
+  });
+
+  it("одна карта — полоска бесконечна (перекрывать нечем)", () => {
+    expect(visibleSliver([100], 0)).toBe(Infinity);
+  });
+
+  it("индекс за границами — 0, чтобы не разрешить захват по ошибке", () => {
+    expect(visibleSliver([0, 6], 5)).toBe(0);
+    expect(visibleSliver([], 0)).toBe(0);
+  });
+
+  it("раздвинутый тыком участок даёт полоску шире зажатого", () => {
+    const tight = [0, 6, 12, 18, 24];
+    const poked = [0, 6, 30, 54, 60]; // вокруг индекса 2 раскрыто
+    expect(visibleSliver(poked, 2)).toBeGreaterThan(visibleSliver(tight, 2));
   });
 });
