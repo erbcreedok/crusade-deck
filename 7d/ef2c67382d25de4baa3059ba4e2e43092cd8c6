@@ -1,0 +1,23 @@
+client/src/retryJoin.test.ts
+  s_3b000dfed76439::t_13e237e3b1f2ad 1-68
+client/src/retryJoin.ts
+  s_3b000dfed76439::t_6c6be9729e11a7 1-56
+client/src/colyseus.ts
+  s_3b000dfed76439::t_c09e06393a8da9 2,13,23,30,37-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7def2c67382d25de4baa3059ba4e2e43092cd8c6",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
