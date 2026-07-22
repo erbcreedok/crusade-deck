@@ -24,8 +24,9 @@ describe("ShuffleChoreography", () => {
     const c = make(10);
     const s = c.sample(0);
     for (const t of s) expect(t.x).toBeCloseTo(anchor.x, 5);
-    // стопка: соседние карты смещены по Y на stackDy
-    expect(Math.abs((s[1].y ?? 0) - (s[0].y ?? 0))).toBeCloseTo(anim.deck.stackDy, 5);
+    // стопка: соседние карты смещены по Y на stackDy (знак задаёт направление стопки —
+    // здесь важна только величина шага)
+    expect(Math.abs((s[1].y ?? 0) - (s[0].y ?? 0))).toBeCloseTo(Math.abs(anim.deck.stackDy), 5);
   });
 
   it("в конце — снова ровная стопка (все по X у якоря, масштаб ~1)", () => {

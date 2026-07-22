@@ -25,7 +25,7 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
-import { stackOffset, lightShadowOffset } from "./deckStack";
+import { stackOffset, stackExtent, lightShadowOffset } from "./deckStack";
 import { parseCard, isCourt, suitColor } from "./card";
 import {
   cardBackSkin,
@@ -138,6 +138,9 @@ export class RoomEngine {
   } | null = null;
   private cardDrag: { id: number; v: CardVisual; insertAt: number; x: number; y: number } | null = null;
   private cardShadow: Sprite | null = null;
+  // «Кирпич» колоды: торцы карт под верхней, одной Graphics вместо полусотни спрайтов.
+  private deckBody: Graphics | null = null;
+  private deckBodyCount = -1; // на сколько карт нарисован блок (перерисовываем при смене)
   private skipNextTap = false; // гасит pointertap, прилетающий сразу после дропа карты
   private onCardReorder: ((card: string, to: number) => void) | null = null;
   // Разрешено ли класть карту в зоны (центр/рука). Во время раздачи — нет: карту можно
@@ -292,6 +295,13 @@ export class RoomEngine {
     this.shadowLayer.addChild(cardShadow);
     this.cardShadow = cardShadow;
 
+    // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
+    // всё, что под ней, рисуется одной Graphics (см. drawDeckBody).
+    const body = new Graphics();
+    body.zIndex = -1;
+    this.cardLayer.addChild(body);
+    this.deckBody = body;
+
     // Карты приедут через setDeck() (порядок из состояния сервера) — на mount их нет.
 
     // Невидимая интерактивная зона поверх колоды — старт драга + дабл-тап.
@@ -381,6 +391,7 @@ export class RoomEngine {
     const old = this.backTex;
     this.backTex = this.makeCardBackTexture(this.app);
     this.applyCardTextures();
+    this.drawDeckBody(); // торцы блока красятся под скин
     old?.destroy(true);
     this.wake();
   }
@@ -707,7 +718,7 @@ export class RoomEngine {
     this.reject = { t: 0, dur: 0.5, dirX: dx, dirY: dy };
     // Держим колоду у точки удара на время отскока (не улетает домой сразу).
     for (let i = 0; i < this.cards.length; i++) {
-      const so = stackOffset(i);
+      const so = stackOffset(i, this.cards.length);
       this.cards[i].body.setTarget({ x: px + so.dx, y: py + so.dy, scale: DRAG_SCALE, rot: this.restJitter[i] ?? 0 });
     }
   }
@@ -716,7 +727,7 @@ export class RoomEngine {
     if (!this.press) return;
     const { x, y } = this.press;
     for (let i = 0; i < this.cards.length; i++) {
-      const so = stackOffset(i);
+      const so = stackOffset(i, this.cards.length);
       this.cards[i].body.setTarget({
         x: x + so.dx,
         y: y + so.dy,
@@ -842,9 +853,12 @@ export class RoomEngine {
       };
       return;
     }
+    // Стопка: хит-зона накрывает весь блок — колода толщиной в 52 карты заметно шире
+    // одной карты, и её край тоже должен ловиться.
     const a = this.activeAnchor();
-    const w = this.layout.cardW * 1.3;
-    const h = this.layout.cardH * 1.3;
+    const ext = stackExtent(this.cards.length);
+    const w = this.layout.cardW * 1.3 + ext.w;
+    const h = this.layout.cardH * 1.3 + ext.h;
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
   }
 
@@ -941,12 +955,66 @@ export class RoomEngine {
 
   // Видимость спрайта и его тени: колода в чужой зоне скрыта целиком; тень ещё и
   // отдельным тумблером теней в профиле.
+  // Нужны ли ОТДЕЛЬНЫЕ карты. В покое колода — это «кирпич» (одна Graphics с торцами) плюс
+  // ОДНА настоящая верхняя карта: рисовать 52 спрайта, из которых видны полоски в полпикселя,
+  // незачем. Отдельные карты включаются там, где они реально двигаются по одной: веер,
+  // растасовка/сумбур, драг карты. Верхняя карта настоящая всегда — из неё потом вырастет
+  // «снять карту с колоды» (её можно будет тащить отдельно от блока).
+  private detailedCards(): boolean {
+    return this.deckFanned || !!this.shuffleAnim || !!this.scrambleAnim || !!this.cardDrag;
+  }
+
   private updateVisibility(): void {
     const away = this.deckZone === "away";
-    for (const c of this.cards) c.sprite.visible = !away;
+    const detailed = this.detailedCards();
+    const top = this.cards.length - 1;
+    for (let i = 0; i < this.cards.length; i++) {
+      this.cards[i].sprite.visible = !away && (detailed || i === top);
+    }
+    if (this.deckBody) this.deckBody.visible = !away && !detailed && this.cards.length > 1;
     if (this.deckShadow) {
       this.deckShadow.visible = !away && this.profile.shadows && this.cards.length > 0;
     }
+  }
+
+  // Геометрия «кирпича»: торцы карт, лежащих ПОД верхней. Перерисовывается только когда
+  // меняется число карт или раскладка — каждый кадр блок просто едет за верхней картой.
+  private drawDeckBody(): void {
+    const g = this.deckBody;
+    if (!g) return;
+    g.clear();
+    const n = this.cards.length;
+    if (n < 2) return;
+    const w = this.layout.cardW;
+    const h = this.layout.cardH;
+    const r = Math.max(3, w * 0.1);
+    const top = stackOffset(n - 1, n); // блок ставим в систему координат верхней карты
+    for (let i = 0; i < n - 1; i++) {
+      const so = stackOffset(i, n);
+      const x = so.dx - top.dx - w / 2;
+      const y = so.dy - top.dy - h / 2;
+      g.roundRect(x, y, w, h, r)
+        .fill({ color: cardBackSkin(this.cardBack).bg })
+        .stroke({ width: 1.5, color: CARD_EDGE.side });
+      // нижний срез светлее бокового — та же кромка, что и у настоящей карты
+      g.moveTo(x + r, y + h - 0.75)
+        .lineTo(x + w - r, y + h - 0.75)
+        .stroke({ width: 1.5, color: CARD_EDGE.bottom });
+    }
+    this.deckBodyCount = n;
+  }
+
+  // Блок едет за верхней картой (позиция/угол/масштаб) — как будто это одна вещь.
+  private syncDeckBody(): void {
+    const g = this.deckBody;
+    if (!g || !g.visible) return;
+    const top = this.cards[this.cards.length - 1];
+    if (!top) return;
+    if (this.deckBodyCount !== this.cards.length) this.drawDeckBody();
+    g.x = top.sprite.x;
+    g.y = top.sprite.y;
+    g.rotation = top.sprite.rotation;
+    g.scale.set(top.body.scaleVal);
   }
 
   resize(w: number, h: number): void {
@@ -964,6 +1032,8 @@ export class RoomEngine {
     // при ресайзе не анимируем — телепортируем стопку к новому якорю
     this.cards.forEach((c, i) => c.body.snapTo(this.restTarget(i)));
     this.cards.forEach((c) => this.syncVisual(c));
+    this.drawDeckBody(); // размер карты изменился — блок перерисовываем целиком
+    this.syncDeckBody();
     this.syncDeckShadow();
     this.positionDeckHit();
     this.styleZoneLabels();
@@ -994,6 +1064,7 @@ export class RoomEngine {
     this.shadowLayer = null;
     this.deckShadow = null;
     this.cardShadow = null;
+    this.deckBody = null;
     this.cardLayer = null;
     this.backTex = null;
     this.shadowTex = null;
@@ -1109,7 +1180,9 @@ export class RoomEngine {
       }
     }
     this.shake = this.rejectShake();
-    for (const c of this.cards) this.syncVisual(c);
+    this.updateVisibility(); // режим «кирпич/отдельные карты» может смениться прямо в тике
+    for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
+    this.syncDeckBody();
     this.syncDeckShadow();
     this.syncCardShadow();
     this.syncRejectText();
@@ -1320,7 +1393,7 @@ export class RoomEngine {
   private restTarget(i: number): CardTargets {
     if (this.deckZone === "safe" && this.deckFanned) return this.fanTarget(i);
     const a = this.activeAnchor();
-    const so = stackOffset(i);
+    const so = stackOffset(i, this.cards.length);
     return { x: a.x + so.dx, y: a.y + so.dy, rot: this.restJitter[i] ?? 0, scale: 1 };
   }
 
