@@ -45,7 +45,7 @@ import {
   fanSpreadPinned,
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
-import { moveCard, scatterCards, shuffleOrder } from "./deckOrder";
+import { scatterCards, shuffleOrder } from "./deckOrder";
 import { dedupeDeckOrder } from "./dedupeDeckOrder";
 import {
   spinAngle,
@@ -110,6 +110,7 @@ import { paintZones, styleZoneLabels } from "./engine/zonePaint";
 import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReveal } from "./engine/collapseArrow";
 import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
 import { canSleep } from "./engine/idleGate";
+import { CardPile } from "./engine/CardPile";
 
 export { DECK_ID, HAND_ID } from "./engine/constants";
 
@@ -160,19 +161,29 @@ export class RoomEngine {
   private handFocused = false;
   private focusG: Graphics | null = null; // рамка фокуса вокруг выделенного
 
-  private cards: CardVisual[] = []; // колода на столе
-  private hand: CardVisual[] = []; // моя рука (Player.hand)
+  // Колода на столе и своя рука — одна и та же вещь с разной раскладкой (см. CardPile).
+  private deckPile = new CardPile({
+    create: (card) => this.createCardVisual(card),
+    restTarget: (i) => this.restTarget(i),
+    place: (v, i) => (v.sprite.zIndex = i),
+  });
+  private handPile = new CardPile({
+    create: (card) => this.createCardVisual(card),
+    restTarget: (i) => this.handRestTarget(i),
+    // Карта ещё летит в руку — не вспыхивать на месте до приземления призрака.
+    place: (v) => {
+      if (!this.flightCards.has(v.card)) return;
+      v.sprite.visible = false;
+      v.sprite.alpha = 0;
+    },
+  });
   private layout: RoomLayout = computeLayout(1, 1);
   private w = 1;
   private h = 1;
   private baseScale = 1;
 
-  private deckCards: string[] = []; // порядок колоды (из состояния сервера)
-  private handCards: string[] = []; // порядок моей руки
   private fourColor = false; // четырёхцветная колода (♦ оранж, ♣ голубой) для слабовидящих
   private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
-  private deckCount = 0;
-  private handCount = 0;
   private deckZone: DeckZone = "center";
   private dealMode = false; // режим раздачи: колода в центре, рука снизу, DnD верхней карты
   private deckFanned = false; // веер колоды на столе (серверное состояние; видно всем)
@@ -581,6 +592,26 @@ export class RoomEngine {
     this.wake(); // нарисовать стартовый кадр; следующий тик усыпит, раз всё в покое
   }
 
+  // Колода и рука: спрайты и порядок живут в стопках, движок только читает их.
+  private get cards(): CardVisual[] {
+    return this.deckPile.cards;
+  }
+  private get hand(): CardVisual[] {
+    return this.handPile.cards;
+  }
+  private get deckCards(): string[] {
+    return this.deckPile.order;
+  }
+  private get handCards(): string[] {
+    return this.handPile.order;
+  }
+  private get deckCount(): number {
+    return this.deckPile.count;
+  }
+  private get handCount(): number {
+    return this.handPile.count;
+  }
+
   // Счётчик карт под стопкой (их два — под рукой и под колодой, различие только в позиции).
   private makeCounterText(): Text {
     const t = new Text({
@@ -618,12 +649,13 @@ export class RoomEngine {
     // которые движок не смог бы развести (спрайты привязаны к идентичности карты).
     const newOrder = dedupeDeckOrder(cards).slice(0, 52);
     const oldOrder = this.cards.map((c) => c.card);
-    this.deckCards = newOrder;
-    this.deckCount = newOrder.length;
-    this.ensureJitter(this.deckCount);
-    if (!this.cardLayer || !this.backTex) return; // ещё не смонтированы
+    this.ensureJitter(newOrder.length);
+    if (!this.cardLayer || !this.backTex) {
+      this.deckPile.remember(newOrder); // сцены ещё нет — доиграем состав на mount
+      return;
+    }
 
-    this.reconcileByIdentity(newOrder); // this.cards переставлен в новый порядок, тела на месте
+    this.deckPile.reconcile(newOrder); // спрайты переставлены в новый порядок, тела на месте
 
     // Тот же набор карт, другой порядок → это растасовка: играем настоящий реордер
     // (если анимации разрешены). Иначе (раздача/первый заход/выкл) — просто уложить.
@@ -667,14 +699,15 @@ export class RoomEngine {
   // Моя рука (Player.hand). Отдельная стопка в полосе handZone — не колода, перетащенная вниз.
   setHand(cards: string[]): void {
     const newOrder = cards.slice(0, 60);
-    this.handCards = newOrder;
-    this.handCount = newOrder.length;
-    if (!this.cardLayer || !this.backTex) return;
+    if (!this.cardLayer || !this.backTex) {
+      this.handPile.remember(newOrder);
+      return;
+    }
 
-    this.reconcileHandByIdentity(newOrder);
+    this.handPile.reconcile(newOrder);
     this.hand.forEach((c, i) => {
       c.body.snapTo(this.handRestTarget(i));
-      c.sprite.zIndex = 2000 + (this.handRowMode() ? this.hand.length - i : i);
+      c.sprite.zIndex = Z.handCards + (this.handRowMode() ? this.hand.length - i : i);
       c.sprite.texture = this.faceTexture(c.card); // свою руку владелец видит всегда
       c.sprite.visible = true;
     });
@@ -1951,29 +1984,27 @@ export class RoomEngine {
   // Локальный (оптимистичный) реордер: сервер подтвердит эхом, и тот же порядок уже не
   // вызовет анимацию растасовки (setDeck увидит совпадение).
   private reorderLocally(card: string, to: number): void {
-    const next = moveCard(this.deckCards, card, to);
-    const byCard = new Map(this.cards.map((c) => [c.card, c]));
-    const reordered = next.map((c) => byCard.get(c)).filter((c): c is CardVisual => !!c);
-    if (reordered.length !== this.cards.length) return; // рассинхрон — не трогаем
-    this.deckCards = next;
-    this.cards = reordered;
-    this.cards.forEach((c, i) => {
-      c.sprite.zIndex = i;
-      c.body.setTarget(this.restTarget(i));
-    });
+    if (!this.deckPile.moveCard(card, to)) return; // рассинхрон — не трогаем
+    this.layoutDeck();
   }
 
   private reorderHandLocally(card: string, to: number): void {
-    const ids = this.hand.map((c) => c.card);
-    const next = moveCard(ids, card, to);
-    const byCard = new Map(this.hand.map((c) => [c.card, c]));
-    const reordered = next.map((c) => byCard.get(c)).filter((c): c is CardVisual => !!c);
-    if (reordered.length !== this.hand.length) return;
-    this.handCards = next;
-    this.hand = reordered;
-    this.hand.forEach((c, i) => {
-      c.sprite.zIndex = 2000 + i;
-      c.body.setTarget(this.handRestTarget(i));
+    if (!this.handPile.moveCard(card, to)) return;
+    this.layoutHand();
+  }
+
+  // Разложить стопку по местам покоя пружиной, попутно выставив z-порядок.
+  private layoutDeck(): void {
+    this.deckPile.layout((c, i, t) => {
+      c.sprite.zIndex = i;
+      c.body.setTarget(t);
+    });
+  }
+
+  private layoutHand(): void {
+    this.handPile.layout((c, i, t) => {
+      c.sprite.zIndex = Z.handCards + i;
+      c.body.setTarget(t);
     });
   }
 
@@ -1981,21 +2012,14 @@ export class RoomEngine {
   // переиспользуются по идентичности карты, поэтому каждая карта просто едет в свой слот;
   // эхо сервера с тем же порядком уже ничего не сдвинет (см. setDeck).
   private applyOrderLocally(order: string[]): void {
-    const byCard = new Map(this.cards.map((c) => [c.card, c]));
-    const next = order.map((c) => byCard.get(c)).filter((c): c is CardVisual => !!c);
-    if (next.length !== this.cards.length) return; // рассинхрон — не трогаем
-    this.deckCards = order;
-    this.cards = next;
-    this.cards.forEach((c, i) => {
-      c.sprite.zIndex = i;
-      c.body.setTarget(this.restTarget(i));
-    });
+    if (!this.deckPile.applyOrder(order)) return; // рассинхрон — не трогаем
+    this.layoutDeck();
   }
 
   private returnCardHome(v: CardVisual): void {
     const hi = this.hand.indexOf(v);
     if (hi >= 0) {
-      v.sprite.zIndex = 2000 + hi;
+      v.sprite.zIndex = Z.handCards + hi;
       this.hand.forEach((c, j) => c.body.setTarget(this.handRestTarget(j)));
       this.updateVisibility();
       return;
@@ -2529,8 +2553,8 @@ export class RoomEngine {
     this.onDeckFanChange = null;
     this.onDragChange = null;
     this.reject = null;
-    this.cards = [];
-    this.hand = [];
+    this.deckPile.clear();
+    this.handPile.clear();
   }
 
   // ——— внутреннее ———
@@ -2865,41 +2889,6 @@ export class RoomEngine {
     s.alpha = 0.5 + elev * 0.4;
   }
 
-  // Переставить this.cards в порядок newOrder, ПЕРЕИСПОЛЬЗУЯ спрайты по идентичности карты
-  // (тела остаются на текущих местах — их двигает анимация). Новые карты создаём и кладём
-  // на место сразу; исчезнувшие (раздача) — уничтожаем.
-  private reconcileByIdentity(newOrder: string[]): void {
-    // Пул по id: при дубликатах в старом this.cards Map оставлял бы лишние спрайты.
-    const pool = new Map<string, CardVisual[]>();
-    for (const c of this.cards) {
-      const key = c.card || "";
-      const bucket = pool.get(key);
-      if (bucket) bucket.push(c);
-      else pool.set(key, [c]);
-    }
-
-    const next: CardVisual[] = [];
-    for (let j = 0; j < newOrder.length; j++) {
-      const card = newOrder[j]!;
-      const bucket = pool.get(card);
-      let v = bucket?.pop();
-      if (v) {
-        // переиспользуем — СТАРЫЙ zIndex сохраняем (растасовка сменит в апексе)
-      } else {
-        v = this.createCardVisual(card);
-        v.body.snapTo(this.restTarget(j)); // новая карта появляется сразу на месте
-        v.sprite.zIndex = j;
-      }
-      v.card = card;
-      v.phase = j * anim.idle.phaseStep;
-      next.push(v);
-    }
-    for (const bucket of pool.values()) {
-      for (const leftover of bucket) leftover.sprite.destroy(); // раздали/убрали/дубликаты
-    }
-    this.cards = next;
-  }
-
   private createCardVisual(card: string): CardVisual {
     const sprite = new Sprite(this.backTex!);
     sprite.anchor.set(0.5);
@@ -3175,31 +3164,6 @@ export class RoomEngine {
     const g = this.deckFanGeom();
     const c = fanCard(i, Math.max(1, this.deckCount), g.anchor, g.width, g.angleDeg, anim.fan.widthFactor);
     return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
-  }
-
-  private reconcileHandByIdentity(newOrder: string[]): void {
-    const byCard = new Map<string, CardVisual>();
-    for (const c of this.hand) if (c.card) byCard.set(c.card, c);
-    const next: CardVisual[] = [];
-    for (let j = 0; j < newOrder.length; j++) {
-      const card = newOrder[j]!;
-      let v = byCard.get(card);
-      if (v) byCard.delete(card);
-      else {
-        v = this.createCardVisual(card);
-        v.body.snapTo(this.handRestTarget(j));
-        // Ещё летит в руку — не вспыхивать на месте до приземления призрака.
-        if (this.flightCards.has(card)) {
-          v.sprite.visible = false;
-          v.sprite.alpha = 0;
-        }
-      }
-      v.card = card;
-      v.phase = j * anim.idle.phaseStep;
-      next.push(v);
-    }
-    for (const leftover of byCard.values()) leftover.sprite.destroy();
-    this.hand = next;
   }
 
   private faceTexture(card: string): Texture {
