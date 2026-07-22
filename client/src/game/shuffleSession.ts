@@ -47,6 +47,14 @@ export class ShuffleSession {
     return { start, send: null };
   }
 
+  // Отменить сессию: накопленный, но ещё не отправленный порядок выбрасывается. Нужен,
+  // когда сервер отказал — досылать следом устаревшие изменения бессмысленно и вредно.
+  cancel(): void {
+    this.open = false;
+    this.pending = null;
+    this.last = null;
+  }
+
   // Дёргается таймером: отпускает накопленный прогресс и закрывает сессию по затишью.
   tick(now: number): TickResult {
     if (!this.open) return { send: null, final: false };

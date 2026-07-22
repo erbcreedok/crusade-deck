@@ -189,6 +189,9 @@ export function RoomScreen({
   useEffect(() => {
     let seq = 0;
     room.onMessage("action_rejected", (msg: { cards?: string[]; reason?: string }) => {
+      // Сервер отказал — досылать накопленные изменения бессмысленно: они построены
+      // поверх состояния, которого нет. Сессию обрываем, дальше правит правда с сервера.
+      sessionRef.current?.cancel();
       setRejectedFlip({
         cards: Array.isArray(msg?.cards) ? msg.cards : [],
         text: rejectionText(String(msg?.reason ?? "")),

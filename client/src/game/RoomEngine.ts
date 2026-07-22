@@ -118,6 +118,7 @@ export class RoomEngine {
   private backTex: Texture | null = null; // рубашка (общая; стиль сменяем)
   private shadowTex: Texture | null = null;
   private faceCache = new Map<string, Texture>(); // лицевые текстуры по ключу card|fourColor
+  private warmTimer: ReturnType<typeof setTimeout> | null = null; // фоновой прогрев текстур
 
   private cards: CardVisual[] = [];
   private layout: RoomLayout = computeLayout(1, 1);
@@ -145,13 +146,17 @@ export class RoomEngine {
     t: number;
     dur: number;
     angle: number;
-    entries: { v: CardVisual; delay: number; swapped: boolean }[];
+    entries: { v: CardVisual; delay: number; swapped: boolean; from: boolean }[];
+    reverseAtEdge: boolean; // на «ребре» применить реверс порядка локально (переворот стопки)
+    reversed: boolean;
   } | null = null;
   // Текст-объяснение поверх стола (отказ сервера). Живёт отдельно от «ударного» отскока.
   private notice: { t: number; dur: number } | null = null;
   // Резиновая тянучка запрещённого жеста (свайп вверх по стопке).
   private stretchAnim: { t: number; dur: number; angle: number } | null = null;
-  private flipMap = new Map<CardVisual, number>(); // карта → задержка старта её переворота
+  // Карты в текущем перевороте: по объекту (для рендера) и по идентификатору (для текстур).
+  private flipMap = new Map<CardVisual, { delay: number }>();
+  private flipByCard = new Map<string, { swapped: boolean; from: boolean }>();
   private stretch = { dx: 0, dy: 0 }; // текущее смещение резиновой тянучки
   private onFlipDeck: (() => void) | null = null;
   private onFlipCards: ((cards: string[]) => void) | null = null;
@@ -434,6 +439,9 @@ export class RoomEngine {
     if (sameSet && changed && this.flipAnim) {
       // Идёт переворот колоды: сервер прислал реверснутый порядок. Это НЕ растасовка —
       // раскладываем карты по местам без полёта, весь показ делает сам переворот.
+      // И помечаем реверс как уже применённый, иначе на «ребре» мы перевернём порядок
+      // второй раз и получим исходную колоду.
+      if (this.flipAnim.reverseAtEdge) this.flipAnim.reversed = true;
       this.cards.forEach((c, i) => {
         c.sprite.zIndex = i;
         c.body.setTarget(this.restTarget(i));
@@ -455,6 +463,7 @@ export class RoomEngine {
     this.updateVisibility();
     this.cards.forEach((c) => this.syncVisual(c));
     this.syncDeckShadow();
+    this.warmFaceTextures(); // чтобы первый переворот не генерил все лица разом
     this.wake();
   }
 
@@ -772,10 +781,22 @@ export class RoomEngine {
   // (состояние на сервер + эффект остальным); false → это уже чужой эффект, играем молча.
   private startFlip(cards: CardVisual[], angle: number, dur: number, emit: boolean, wholeDeck = false): void {
     if (cards.length === 0) return;
-    const stagger = wholeDeck ? anim.flip.stagger : 0;
-    const entries = cards.map((v, i) => ({ v, delay: i * stagger, swapped: false }));
-    this.flipAnim = { t: 0, dur, angle, entries };
-    this.flipMap = new Map(entries.map((e) => [e.v, e.delay]));
+    // Волна по картам уместна только в РАСКРЫТОМ вее­ре, где карты видно поодиночке.
+    // Стопка — одна вещь: она переворачивается целиком, иначе верхняя (единственная
+    // видимая) карта начинала бы поворот последней, и жест выглядел бы «залипающим».
+    const stagger = wholeDeck && this.deckFanned ? anim.flip.stagger : 0;
+    // from — сторона, которая видна СЕЙЧАС. До «ребра» карта показывает именно её, даже
+    // если правда от сервера уже пришла: иначе результат сел бы на экран без анимации,
+    // и игрок не понял бы, что произошло.
+    const entries = cards.map((v, i) => ({
+      v,
+      delay: i * stagger,
+      swapped: false,
+      from: this.shownSide(v.card),
+    }));
+    this.flipAnim = { t: 0, dur, angle, entries, reverseAtEdge: wholeDeck, reversed: false };
+    this.flipMap = new Map(entries.map((e) => [e.v, { delay: e.delay }]));
+    this.flipByCard = new Map(entries.map((e) => [e.v.card, e]));
     if (emit) {
       const total = Math.round((dur + entries[entries.length - 1].delay) * 1000);
       if (wholeDeck) {
@@ -844,10 +865,17 @@ export class RoomEngine {
     if (this.destroyed) return;
     const affected = cards.length > 0 ? this.cards.filter((c) => cards.includes(c.card)) : [...this.cards];
     const optimistic = affected.filter((c) => this.flipExpect.has(c.card));
+    const wholeDeck = cards.length === 0;
+    if (wholeDeck && this.flipAnim?.reversed) {
+      // Переворот стопки мы применили локально (порядок реверснут) — раз сервер отказал,
+      // возвращаем и порядок, иначе клиент остался бы с колодой, которой на сервере нет.
+      this.applyOrderLocally([...this.deckCards].reverse());
+    }
+    this.flipAnim = null; // прерываем незавершённый переворот — он больше не про правду
+    this.flipMap.clear();
+    this.flipByCard.clear();
     if (optimistic.length > 0) {
-      this.flipAnim = null; // прерываем незавершённый переворот — он больше не про правду
-      this.flipMap.clear();
-      this.startFlip(optimistic, -Math.PI / 2, anim.flip.cardDur, false, optimistic.length === this.cards.length);
+      this.startFlip(optimistic, -Math.PI / 2, anim.flip.cardDur, false, false);
     }
     this.showNotice(text);
   }
@@ -1366,8 +1394,7 @@ export class RoomEngine {
     if (this.deckBodyCount !== this.cards.length) this.drawDeckBody();
     if (this.flipAnim && this.flipMap.has(top)) {
       // «Кирпич» переворачивается вместе с верхней картой — как одна вещь.
-      const delay = this.flipMap.get(top)!;
-      const p = Math.max(0, Math.min(1, (this.flipAnim.t - delay) / this.flipAnim.dur));
+      const p = Math.max(0, Math.min(1, (this.flipAnim.t - this.flipMap.get(top)!.delay) / this.flipAnim.dur));
       const m = flipTransform(
         top.body.px + this.stretch.dx,
         top.body.py + this.stretch.dy,
@@ -1438,6 +1465,8 @@ export class RoomEngine {
     this.cardLayer = null;
     this.backTex = null;
     this.shadowTex = null;
+    if (this.warmTimer !== null) clearTimeout(this.warmTimer);
+    this.warmTimer = null;
     this.faceCache.forEach((t) => t.destroy(true));
     this.faceCache.clear();
     this.deckHit = null;
@@ -1565,12 +1594,20 @@ export class RoomEngine {
         // для отката: там тем же движением карта возвращается к тому, что говорит сервер.
         if (!e.swapped && flipShowsOther(p)) {
           e.swapped = true;
+          // Переворот стопки реверсит порядок — считаем это САМИ, ровно на «ребре», не
+          // дожидаясь сервера: иначе поверх оказывалась не та карта, что должна.
+          if (fa.reverseAtEdge && !fa.reversed) {
+            fa.reversed = true;
+            this.applyOrderLocally([...this.deckCards].reverse());
+          }
           this.expectFlipped([e.v]);
         }
       }
       if (done) {
         this.flipAnim = null;
         this.flipMap.clear();
+        this.flipByCard.clear();
+        this.applyCardTextures(); // теперь показываем ровно то, что говорит состояние
       }
     }
 
@@ -1691,9 +1728,9 @@ export class RoomEngine {
 
     // Карта в перевороте рисуется матрицей: вдоль оси жеста размер цел, поперёк —
     // схлопывается (см. flipTransform). Обычная карта — привычными x/y/rot/scale.
-    const delay = this.flipMap.get(c);
-    if (this.flipAnim && delay !== undefined) {
-      const p = Math.max(0, Math.min(1, (this.flipAnim.t - delay) / this.flipAnim.dur));
+    const fm = this.flipMap.get(c);
+    if (this.flipAnim && fm) {
+      const p = Math.max(0, Math.min(1, (this.flipAnim.t - fm.delay) / this.flipAnim.dur));
       const m = flipTransform(x, y, rot + sh.rot, scale, this.flipAnim.angle, flipFactor(p));
       c.sprite.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.tx, m.ty));
       return;
@@ -1789,9 +1826,18 @@ export class RoomEngine {
   }
 
   private textureFor(card: string): Texture {
-    const exp = this.flipExpect.get(card);
-    const up = exp ? exp.up : !!this.facing[card];
+    // Карта в перевороте до «ребра» держит ту сторону, с которой начинала: правда может
+    // прийти раньше анимации, но менять картинку без переворота нельзя.
+    const inFlip = this.flipByCard.get(card);
+    const up = inFlip && !inFlip.swapped ? inFlip.from : this.shownSide(card);
     return up && card ? this.faceTexFor(card) : this.backTex!;
+  }
+
+  // Какой стороной карта считается повёрнутой: оптимистично показанной (ждём ответа
+  // сервера) либо, если ответ уже учтён, той, что в состоянии.
+  private shownSide(card: string): boolean {
+    const exp = this.flipExpect.get(card);
+    return exp ? exp.up : !!this.facing[card];
   }
 
   // Показать карту другой стороной СРАЗУ, не дожидаясь сервера. Снимется, когда придут
@@ -1804,6 +1850,23 @@ export class RoomEngine {
       this.flipExpect.set(c.card, { up: !(cur ? cur.up : !!this.facing[c.card]), until });
     }
     this.applyCardTextures();
+  }
+
+  // Лицевые текстуры генерятся лениво, и первый же переворот требовал их все сразу —
+  // 36-52 генерации в одном кадре давали заметный «тупняк» именно на ПЕРВОМ перевороте.
+  // Поэтому греем их заранее, маленькими порциями между кадрами.
+  private warmFaceTextures(): void {
+    if (this.warmTimer !== null || this.destroyed || !this.app) return;
+    const queue = this.deckCards.filter((c) => !this.faceCache.has(`${c}|${this.fourColor ? 1 : 0}`));
+    if (queue.length === 0) return;
+    let i = 0;
+    const step = () => {
+      this.warmTimer = null;
+      if (this.destroyed || !this.app) return;
+      for (let k = 0; k < 3 && i < queue.length; k++, i++) this.faceTexFor(queue[i]);
+      if (i < queue.length) this.warmTimer = setTimeout(step, 16);
+    };
+    this.warmTimer = setTimeout(step, 0);
   }
 
   private faceTexFor(card: string): Texture {

@@ -59,4 +59,19 @@ describe("ShuffleSession", () => {
     expect(SHUFFLE_PROGRESS_MS).toBeGreaterThanOrEqual(400);
     expect(SHUFFLE_IDLE_MS).toBeGreaterThan(SHUFFLE_PROGRESS_MS);
   });
+
+  it("cancel выбрасывает неотправленный прогресс и закрывает сессию", () => {
+    const s = new ShuffleSession();
+    s.push(A, 0);
+    s.push(B, 100); // накопилось, ещё не ушло
+    s.cancel();
+    expect(s.tick(SHUFFLE_IDLE_MS + 200)).toEqual({ send: null, final: false });
+  });
+
+  it("после cancel следующая тасовка начинает новую сессию с нуля", () => {
+    const s = new ShuffleSession();
+    s.push(A, 0);
+    s.cancel();
+    expect(s.push(B, 50)).toEqual({ start: true, send: B });
+  });
 });
