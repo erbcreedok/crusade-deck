@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset } from "./deckStack";
+import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset, deckZoneScale } from "./deckStack";
 
 const N = 36;
 
@@ -113,5 +113,23 @@ describe("stackStripeIndices", () => {
 
   it("шаг крупнее всей толщины — остаётся одна задняя полоска", () => {
     expect(stackStripeIndices(6, 999)).toEqual([0]);
+  });
+});
+
+describe("deckZoneScale", () => {
+  it("в центре стола колода крупнее, в сейф-зоне — обычного размера", () => {
+    expect(deckZoneScale("center")).toBeGreaterThan(1);
+    expect(deckZoneScale("safe")).toBe(1);
+  });
+
+  it("скрытая колода (чужая сейф-зона) масштаб не меняет", () => {
+    expect(deckZoneScale("away")).toBe(1);
+  });
+
+  it("масштаб зоны участвует и в смещениях стопки — колода растёт целиком", () => {
+    const zs = deckZoneScale("center");
+    const so = stackOffset(10, 36);
+    expect(so.dx * zs).toBeCloseTo(stackOffset(10, 36).dx * zs, 10);
+    expect(zs).toBeCloseTo(1.25, 10);
   });
 });

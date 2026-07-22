@@ -5,6 +5,7 @@
 // Чистая математика: движок только рисует по этим числам.
 
 import { anim } from "./anim/config";
+import type { DeckZone } from "./deckZone";
 
 export interface Offset {
   dx: number;
@@ -18,6 +19,12 @@ export function stackOffset(i: number, count: number): Offset {
   const c = (Math.max(1, count) - 1) / 2;
   // +0 нормализует «минус ноль» (важно только для читаемости чисел в тестах/логах).
   return { dx: (i - c) * anim.deck.stackDx + 0, dy: (i - c) * anim.deck.stackDy + 0 };
+}
+
+// Масштаб колоды по зоне: в центре стола она общая и крупная, в личной сейф-зоне —
+// обычного размера (там же она раскрывается веером, и увеличение только мешало бы).
+export function deckZoneScale(zone: DeckZone): number {
+  return zone === "center" ? anim.deck.centerScale : 1;
 }
 
 // Какие карты стопки рисовать «полосками» торцов в блоке колоды. Смещение на карту —

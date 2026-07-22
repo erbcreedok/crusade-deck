@@ -25,7 +25,13 @@ import {
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
 import { moveCard } from "./deckOrder";
-import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset } from "./deckStack";
+import {
+  stackOffset,
+  stackExtent,
+  stackStripeIndices,
+  lightShadowOffset,
+  deckZoneScale,
+} from "./deckStack";
 import { parseCard, isCourt, suitColor } from "./card";
 import {
   cardBackSkin,
@@ -716,22 +722,24 @@ export class RoomEngine {
     dx /= len;
     dy /= len;
     this.reject = { t: 0, dur: 0.5, dirX: dx, dirY: dy };
+    const zs = deckZoneScale(this.deckZone);
     // Держим колоду у точки удара на время отскока (не улетает домой сразу).
     for (let i = 0; i < this.cards.length; i++) {
       const so = stackOffset(i, this.cards.length);
-      this.cards[i].body.setTarget({ x: px + so.dx, y: py + so.dy, scale: DRAG_SCALE, rot: this.restJitter[i] ?? 0 });
+      this.cards[i].body.setTarget({ x: px + so.dx * zs, y: py + so.dy * zs, scale: DRAG_SCALE * zs, rot: this.restJitter[i] ?? 0 });
     }
   }
 
   private applyDragTargets(): void {
     if (!this.press) return;
     const { x, y } = this.press;
+    const zs = deckZoneScale(this.deckZone);
     for (let i = 0; i < this.cards.length; i++) {
       const so = stackOffset(i, this.cards.length);
       this.cards[i].body.setTarget({
-        x: x + so.dx,
-        y: y + so.dy,
-        scale: DRAG_SCALE,
+        x: x + so.dx * zs,
+        y: y + so.dy * zs,
+        scale: DRAG_SCALE * zs,
         rot: this.restJitter[i] ?? 0,
       });
     }
@@ -856,9 +864,10 @@ export class RoomEngine {
     // Стопка: хит-зона накрывает весь блок — колода толщиной в 52 карты заметно шире
     // одной карты, и её край тоже должен ловиться.
     const a = this.activeAnchor();
+    const zs = deckZoneScale(this.deckZone);
     const ext = stackExtent(this.cards.length);
-    const w = this.layout.cardW * 1.3 + ext.w;
-    const h = this.layout.cardH * 1.3 + ext.h;
+    const w = (this.layout.cardW * 1.3 + ext.w) * zs;
+    const h = (this.layout.cardH * 1.3 + ext.h) * zs;
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
   }
 
@@ -1267,7 +1276,9 @@ export class RoomEngine {
       return;
     }
     s.visible = true;
-    const elev = Math.max(0, base.body.scaleVal - 1); // 0 в покое, ~0.18 при захвате
+    // Приподнятость — ОТНОСИТЕЛЬНО масштаба зоны: в центре колода крупнее сама по себе,
+    // и без деления её тень всегда выглядела бы как у поднятой колоды.
+    const elev = Math.max(0, base.body.scaleVal / deckZoneScale(this.deckZone) - 1);
     const off = lightShadowOffset(this.layout.cardH, elev);
     s.x = base.body.px + this.shake.dx + off.dx;
     s.y = base.body.py + this.shake.dy + off.dy;
@@ -1286,7 +1297,7 @@ export class RoomEngine {
       return;
     }
     s.visible = true;
-    const elev = Math.max(0, v.body.scaleVal - 1);
+    const elev = Math.max(0, v.body.scaleVal / deckZoneScale(this.deckZone) - 1);
     const off = lightShadowOffset(this.layout.cardH, elev);
     s.x = v.sprite.x + off.dx;
     s.y = v.sprite.y + off.dy;
@@ -1403,8 +1414,9 @@ export class RoomEngine {
   private restTarget(i: number): CardTargets {
     if (this.deckZone === "safe" && this.deckFanned) return this.fanTarget(i);
     const a = this.activeAnchor();
+    const zs = deckZoneScale(this.deckZone);
     const so = stackOffset(i, this.cards.length);
-    return { x: a.x + so.dx, y: a.y + so.dy, rot: this.restJitter[i] ?? 0, scale: 1 };
+    return { x: a.x + so.dx * zs, y: a.y + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
   }
 
   // Веер-дуга в сейф-зоне (чистая математика — см. fan.ts). i может быть дробным
