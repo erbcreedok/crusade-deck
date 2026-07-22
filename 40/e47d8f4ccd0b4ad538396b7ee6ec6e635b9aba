@@ -1,0 +1,50 @@
+client/src/colyseus.ts
+  s_d242f4bac5a1da::t_7db730715c74bb 3-4
+server/src/index.ts
+  s_d242f4bac5a1da::t_7db730715c74bb 19,89-90
+client/src/game/flip.ts
+  s_3b000dfed76439::t_2847d0b04e2a63 35-40,43-53
+  s_3b000dfed76439::t_eebbf8f11875c7 54-55
+deploy/README.md
+  s_d242f4bac5a1da::t_7fabf6486502c7 61-84
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_7eb9047f80a5d3 145-147
+client/src/game/flip.test.ts
+  s_3b000dfed76439::t_eebbf8f11875c7 2
+  s_3b000dfed76439::t_2847d0b04e2a63 39-43,46-51,54-62
+  s_3b000dfed76439::t_324bf3b707d407 96
+client/src/account.ts
+  s_d242f4bac5a1da::t_7db730715c74bb 10
+client/src/game/deckStack.ts
+  s_3b000dfed76439::t_0ba8f9fe8319b4 18-20,22,24
+client/src/game/deckStack.test.ts
+  s_3b000dfed76439::t_0ba8f9fe8319b4 37-52
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_75eea875da5896 34-36
+  s_3b000dfed76439::t_7eb9047f80a5d3 173-174,994-997,1633,1827-1833,1837-1842,1963-1964,2061-2062,2064
+  s_3b000dfed76439::t_d6b83d9a9b8d50 396,1305,1315,1565-1571,1573,1586,1590-1591,1594,1602-1603,2161-2167,2172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "40e47d8f4ccd0b4ad538396b7ee6ec6e635b9aba",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d242f4bac5a1da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89366ff4-08a9-45bb-8339-ef8e9a9d2d5f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
