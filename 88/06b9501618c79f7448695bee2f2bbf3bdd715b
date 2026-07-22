@@ -1,0 +1,23 @@
+client/src/roomRoute.ts
+  s_4864baaac43e63::t_c6f274de06b97a 1-37
+client/src/App.tsx
+  s_4864baaac43e63::t_84782be54fd999 10-18,31-33,41-69,72-115,210,215-223,229
+client/src/roomRoute.test.ts
+  s_4864baaac43e63::t_a65f261c8ce410 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8806b9501618c79f7448695bee2f2bbf3bdd715b",
+  "prompts": {},
+  "sessions": {
+    "s_4864baaac43e63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d34cdce0-03e2-44f6-a882-54c7282551a0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
