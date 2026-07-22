@@ -9,6 +9,7 @@ import {
 
 const LEVEL_KEY = "crusade-deck:anim-level";
 const SPEED_KEY = "crusade-deck:anim-speed";
+const SHADOWS_KEY = "crusade-deck:anim-shadows";
 const LEGACY_KEY = "crusade-deck:animations-enabled"; // старый boolean-тумблер
 
 function systemPrefersReducedMotion() {
@@ -30,15 +31,22 @@ function initialSpeed(): AnimationSpeed {
   return (ANIMATION_SPEEDS as number[]).includes(saved) ? (saved as AnimationSpeed) : 1;
 }
 
-// Настройки анимации: уровень + скорость, с сохранением в localStorage и миграцией
-// со старого boolean-тумблера.
+function initialShadows(): boolean {
+  // Хранится как "0"/"1"; отсутствует → включены по умолчанию.
+  return localStorage.getItem(SHADOWS_KEY) !== "0";
+}
+
+// Настройки анимации: уровень + скорость + тени, с сохранением в localStorage и
+// миграцией со старого boolean-тумблера.
 export function useAnimationSettings() {
   const [level, setLevel] = useState<AnimationLevel>(initialLevel);
   const [speed, setSpeed] = useState<AnimationSpeed>(initialSpeed);
+  const [shadows, setShadows] = useState<boolean>(initialShadows);
 
   useEffect(() => localStorage.setItem(LEVEL_KEY, level), [level]);
   useEffect(() => localStorage.setItem(SPEED_KEY, String(speed)), [speed]);
+  useEffect(() => localStorage.setItem(SHADOWS_KEY, shadows ? "1" : "0"), [shadows]);
 
-  const settings: AnimationSettings = { level, speed };
-  return { settings, setLevel, setSpeed };
+  const settings: AnimationSettings = { level, speed, shadows };
+  return { settings, setLevel, setSpeed, setShadows };
 }

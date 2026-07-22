@@ -17,6 +17,7 @@ function renderMenu() {
       animation={DEFAULT_ANIMATION_SETTINGS}
       onSetLevel={vi.fn()}
       onSetSpeed={vi.fn()}
+      onSetShadows={vi.fn()}
       room={null}
       onLeaveRoom={vi.fn()}
     />

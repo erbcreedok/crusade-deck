@@ -30,6 +30,18 @@ describe("resolveProfile", () => {
   });
 });
 
+describe("resolveProfile — тени", () => {
+  it("тени по умолчанию включены (флаг не задан)", () => {
+    expect(resolveProfile({ level: "full", speed: 1 }).shadows).toBe(true);
+  });
+
+  it("тени — отдельный флаг, гасятся независимо от уровня", () => {
+    expect(resolveProfile({ level: "full", speed: 1, shadows: false }).shadows).toBe(false);
+    expect(resolveProfile({ level: "moderate", speed: 1, shadows: false }).shadows).toBe(false);
+    expect(resolveProfile({ level: "moderate", speed: 1, shadows: true }).shadows).toBe(true);
+  });
+});
+
 describe("shouldPlay — приоритеты", () => {
   const full = resolveProfile({ level: "full", speed: 1 });
   const moderate = resolveProfile({ level: "moderate", speed: 1 });

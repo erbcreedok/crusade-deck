@@ -4,6 +4,7 @@ import { useAnimationSettings } from "./useAnimationSettings";
 
 const LEVEL_KEY = "crusade-deck:anim-level";
 const SPEED_KEY = "crusade-deck:anim-speed";
+const SHADOWS_KEY = "crusade-deck:anim-shadows";
 const LEGACY_KEY = "crusade-deck:animations-enabled";
 
 function mockMatchMedia(reducedMotion: boolean) {
@@ -14,10 +15,28 @@ describe("useAnimationSettings", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.restoreAllMocks());
 
-  it("по умолчанию — полная анимация, скорость 1x, если нет системного предпочтения", () => {
+  it("по умолчанию — полная анимация, скорость 1x, тени вкл, если нет системного предпочтения", () => {
     mockMatchMedia(false);
     const { result } = renderHook(() => useAnimationSettings());
-    expect(result.current.settings).toEqual({ level: "full", speed: 1 });
+    expect(result.current.settings).toEqual({ level: "full", speed: 1, shadows: true });
+  });
+
+  it("тени включены по умолчанию, setShadows(false) выключает и сохраняет", () => {
+    mockMatchMedia(false);
+    const { result } = renderHook(() => useAnimationSettings());
+    expect(result.current.settings.shadows).toBe(true);
+
+    act(() => result.current.setShadows(false));
+
+    expect(result.current.settings.shadows).toBe(false);
+    expect(localStorage.getItem(SHADOWS_KEY)).toBe("0");
+  });
+
+  it("сохранённое '0' → тени выключены на старте", () => {
+    mockMatchMedia(false);
+    localStorage.setItem(SHADOWS_KEY, "0");
+    const { result } = renderHook(() => useAnimationSettings());
+    expect(result.current.settings.shadows).toBe(false);
   });
 
   it("системное «меньше движения» → умеренная (совсем выключить нельзя)", () => {
@@ -47,7 +66,7 @@ describe("useAnimationSettings", () => {
     act(() => result.current.setLevel("moderate"));
     act(() => result.current.setSpeed(3));
 
-    expect(result.current.settings).toEqual({ level: "moderate", speed: 3 });
+    expect(result.current.settings).toEqual({ level: "moderate", speed: 3, shadows: true });
     expect(localStorage.getItem(LEVEL_KEY)).toBe("moderate");
     expect(localStorage.getItem(SPEED_KEY)).toBe("3");
   });
@@ -57,6 +76,6 @@ describe("useAnimationSettings", () => {
     localStorage.setItem(LEVEL_KEY, "turbo");
     localStorage.setItem(SPEED_KEY, "7");
     const { result } = renderHook(() => useAnimationSettings());
-    expect(result.current.settings).toEqual({ level: "full", speed: 1 });
+    expect(result.current.settings).toEqual({ level: "full", speed: 1, shadows: true });
   });
 });

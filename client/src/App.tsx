@@ -22,7 +22,7 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [restoreCode, setRestoreCode] = useState("");
   const [showRestore, setShowRestore] = useState(false);
-  const { settings: animation, setLevel, setSpeed } = useAnimationSettings();
+  const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
   // Фон и Framer Motion движутся только при полной анимации; в умеренной — статичны.
   const fullMotion = animation.level === "full";
 
@@ -116,6 +116,7 @@ export default function App() {
             animation={animation}
             onSetLevel={setLevel}
             onSetSpeed={setSpeed}
+            onSetShadows={setShadows}
             room={room}
             onLeaveRoom={() => setRoom(null)}
           />

@@ -22,6 +22,7 @@ export function AppMenu({
   animation,
   onSetLevel,
   onSetSpeed,
+  onSetShadows,
   room,
   onLeaveRoom,
 }: {
@@ -31,6 +32,7 @@ export function AppMenu({
   animation: AnimationSettings;
   onSetLevel: (level: AnimationLevel) => void;
   onSetSpeed: (speed: AnimationSpeed) => void;
+  onSetShadows: (shadows: boolean) => void;
   room: Room | null;
   onLeaveRoom: () => void;
 }) {
@@ -143,6 +145,13 @@ export function AppMenu({
             </div>
           </>
         )}
+
+        <button
+          className="menu-toggle-row"
+          onClick={() => onSetShadows(animation.shadows === false)}
+        >
+          {animation.shadows === false ? "🃏 Тени карт: выкл" : "🃏 Тени карт: вкл"}
+        </button>
 
         {room && (
           <>

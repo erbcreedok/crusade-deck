@@ -27,7 +27,7 @@ import type { Choreography } from "./choreo/types";
 interface CardVisual {
   body: CardBody;
   sprite: Sprite;
-  shadow: Sprite;
+  phase: number; // фазовый сдвиг idle-покачивания (чтобы стопка не «дышала» унисоном)
 }
 
 // Логический размер текстуры рубашки (соотношение 0.7). Спрайты масштабируются от него.
@@ -45,7 +45,10 @@ export class RoomEngine {
   private world: Container | null = null;
   private tableG: Graphics | null = null;
   private zoneLayer: Graphics | null = null; // подсветка дроп-зон при драге
-  private shadowLayer: Container | null = null; // тени под всеми картами
+  private shadowLayer: Container | null = null; // слой под картами
+  // ОДНА тень на всю колоду (стопка движется как целое). Раньше была тень на карту —
+  // на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
+  private deckShadow: Sprite | null = null;
   private cardLayer: Container | null = null; // сами карты (сортируется для риффла)
   private cardTex: Texture | null = null;
   private shadowTex: Texture | null = null;
@@ -72,6 +75,8 @@ export class RoomEngine {
 
   private restJitter: number[] = [];
   private profile: AnimationProfile = resolveProfile(DEFAULT_ANIMATION_SETTINGS);
+  private idleEnabled = true; // лёгкая idle-анимация карт (гасится на умеренной)
+  private idleT = 0; // накопленное время для фазы idle-колебаний
   private destroyed = false;
   private mounted = false;
   private awake = false;
@@ -130,6 +135,13 @@ export class RoomEngine {
     this.shadowTex = this.makeShadowTexture(app);
     this.baseScale = this.layout.cardH / TEX_H;
     this.buildTable();
+
+    // Единственная тень колоды — живёт в shadowLayer под картами.
+    const deckShadow = new Sprite(this.shadowTex);
+    deckShadow.anchor.set(0.5);
+    this.shadowLayer.addChild(deckShadow);
+    this.deckShadow = deckShadow;
+
     this.reconcileCards();
 
     // Невидимая интерактивная зона поверх колоды — старт драга + дабл-тап.
@@ -184,10 +196,7 @@ export class RoomEngine {
     if (zone === this.deckZone) return;
     this.deckZone = zone;
     const away = zone === "away";
-    for (const c of this.cards) {
-      c.sprite.visible = !away;
-      c.shadow.visible = !away;
-    }
+    this.updateVisibility();
     if (this.deckHit) this.deckHit.eventMode = away ? "none" : "static";
     // Не «away» — карты плавно летят к новому якорю (setTarget, а не snap).
     if (!away) this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
@@ -355,11 +364,24 @@ export class RoomEngine {
     this.wake();
   }
 
-  // Разложить профиль по «железу» движка: FPS-кап тикера + сила крена на всех картах.
+  // Разложить профиль по «железу» движка: FPS-кап, крен, idle-гейт, видимость теней.
   private applyProfile(): void {
     if (this.app) this.app.ticker.maxFPS = this.profile.fpsCap; // 0 = без ограничения
     const tiltScale = this.profile.tilt ? 1 : 0;
     for (const c of this.cards) c.body.tiltScale = tiltScale;
+    // idle играет только если проходит по приоритету (полная — да, умеренная — нет).
+    this.idleEnabled = shouldPlay(anim.priority.idle, this.profile);
+    this.updateVisibility();
+  }
+
+  // Видимость спрайта и его тени: колода в чужой зоне скрыта целиком; тень ещё и
+  // отдельным тумблером теней в профиле.
+  private updateVisibility(): void {
+    const away = this.deckZone === "away";
+    for (const c of this.cards) c.sprite.visible = !away;
+    if (this.deckShadow) {
+      this.deckShadow.visible = !away && this.profile.shadows && this.cards.length > 0;
+    }
   }
 
   resize(w: number, h: number): void {
@@ -377,6 +399,7 @@ export class RoomEngine {
     // при ресайзе не анимируем — телепортируем стопку к новому якорю
     this.cards.forEach((c, i) => c.body.snapTo(this.restTarget(i)));
     this.cards.forEach((c) => this.syncVisual(c));
+    this.syncDeckShadow();
     this.positionDeckHit();
     this.drawZones();
     this.wake();
@@ -397,6 +420,7 @@ export class RoomEngine {
     this.tableG = null;
     this.zoneLayer = null;
     this.shadowLayer = null;
+    this.deckShadow = null;
     this.cardLayer = null;
     this.cardTex = null;
     this.shadowTex = null;
@@ -436,41 +460,64 @@ export class RoomEngine {
       for (const c of this.cards) c.body.step(dt);
     } while (remaining > 0);
 
+    if (this.idleRunning()) this.idleT += Math.min(ticker.deltaMS / 1000, 0.05);
     for (const c of this.cards) this.syncVisual(c);
+    this.syncDeckShadow();
 
-    // Всё осело и нет активной растасовки/драга → усыпляем цикл до следующего события.
-    if (!this.shuffleAnim && !this.press && this.cards.every((c) => c.body.isResting())) {
+    // Всё осело, нет растасовки/драга И нет живой idle → усыпляем цикл. При включённой
+    // idle-анимации цикл не спит (карты постоянно чуть «дышат»); умеренная её гасит.
+    if (!this.shuffleAnim && !this.press && !this.idleRunning() && this.cards.every((c) => c.body.isResting())) {
       this.sleep();
     }
   }
 
+  // Живёт ли idle-анимация прямо сейчас (для keep-awake и накопления фазы).
+  private idleRunning(): boolean {
+    return this.idleEnabled && this.cards.length > 0 && this.deckZone !== "away";
+  }
+
   private syncVisual(c: CardVisual): void {
+    let rot = c.body.rotation;
+    let scale = this.baseScale * c.body.scaleVal;
+
+    // Лёгкая idle-«дыхалка»: только в покое (не во время растасовки/драга), когда
+    // idle разрешён профилем. Наложение поверх пружинного состояния, тело не трогаем.
+    if (this.idleEnabled && !this.shuffleAnim && !this.press && this.deckZone !== "away" && c.body.isResting()) {
+      rot += anim.idle.rotAmp * Math.sin(this.idleT * anim.idle.rotFreq + c.phase);
+      scale *= 1 + anim.idle.scaleAmp * Math.sin(this.idleT * anim.idle.scaleFreq + c.phase);
+    }
+
     c.sprite.x = c.body.px;
     c.sprite.y = c.body.py;
-    c.sprite.rotation = c.body.rotation;
-    c.sprite.scale.set(this.baseScale * c.body.scaleVal);
+    c.sprite.rotation = rot;
+    c.sprite.scale.set(scale);
+  }
 
-    // Тень: смещена вниз-вправо, тем сильнее, чем выше «приподнята» карта (scale > 1).
-    // Даёт балатро-объём — карта отрывается от стола при захвате, а в покое лёгкий контакт.
-    const elev = Math.max(0, c.body.scaleVal - 1); // 0 в покое, ~0.18 при драге
+  // Одна тень на всю колоду — под нижней картой стопки. Смещение/размер растут с
+  // «подъёмом» (scale при захвате), альфа единая → нет накопления от перекрытий.
+  private syncDeckShadow(): void {
+    const s = this.deckShadow;
+    if (!s) return;
+    const base = this.cards[0];
+    if (!base || this.shuffleAnim || this.deckZone === "away" || !this.profile.shadows) {
+      s.visible = false; // при растасовке карты разлетаются — общей тени нет
+      return;
+    }
+    s.visible = true;
+    const elev = Math.max(0, base.body.scaleVal - 1); // 0 в покое, ~0.18 при захвате
     const off = this.layout.cardH;
-    c.shadow.x = c.body.px + off * (0.04 + elev * 0.55);
-    c.shadow.y = c.body.py + off * (0.06 + elev * 0.8);
-    c.shadow.rotation = c.body.rotation;
-    c.shadow.scale.set(this.baseScale * c.body.scaleVal * 1.04);
-    c.shadow.alpha = 0.26 + elev * 0.5;
+    s.x = base.body.px + off * (0.04 + elev * 0.5);
+    s.y = base.body.py + off * (0.06 + elev * 0.75);
+    s.rotation = base.body.rotation;
+    s.scale.set(this.baseScale * base.body.scaleVal * 1.05);
+    s.alpha = 0.5 + elev * 0.4;
   }
 
   // Привести число спрайтов к deckCount, новые — уложить в стопку у якоря.
   private reconcileCards(): void {
-    if (!this.cardLayer || !this.shadowLayer || !this.cardTex || !this.shadowTex) return;
+    if (!this.cardLayer || !this.cardTex) return;
 
     while (this.cards.length < this.deckCount) {
-      const shadow = new Sprite(this.shadowTex);
-      shadow.anchor.set(0.5);
-      shadow.alpha = 0.26;
-      this.shadowLayer.addChild(shadow);
-
       const sprite = new Sprite(this.cardTex);
       sprite.anchor.set(0.5);
       sprite.zIndex = this.cards.length; // покой: выше по стопке = выше в z (совпадает с restTarget по Y)
@@ -478,20 +525,15 @@ export class RoomEngine {
       body.tiltScale = this.profile.tilt ? 1 : 0;
       body.snapTo(this.restTarget(this.cards.length));
       this.cardLayer.addChild(sprite);
-      this.cards.push({ body, sprite, shadow });
+      this.cards.push({ body, sprite, phase: this.cards.length * anim.idle.phaseStep });
     }
     while (this.cards.length > this.deckCount) {
       const c = this.cards.pop()!;
       c.sprite.destroy();
-      c.shadow.destroy();
     }
-    // В чужой сейф-зоне колода скрыта — новые спрайты не должны «проявиться».
-    const away = this.deckZone === "away";
-    this.cards.forEach((c) => {
-      c.sprite.visible = !away;
-      c.shadow.visible = !away;
-    });
+    this.updateVisibility(); // в чужой зоне / при выкл тенях спрайты/тень не «проявятся»
     this.cards.forEach((c) => this.syncVisual(c));
+    this.syncDeckShadow();
   }
 
   private restTarget(i: number): CardTargets {
@@ -536,16 +578,17 @@ export class RoomEngine {
     return tex;
   }
 
-  // Мягкая тень: несколько вложенных скруглённых прямоугольников с растущей прозрачностью
-  // имитируют размытие (дёшево, без blur-фильтра). Спрайт красится в чёрный через alpha.
+  // Мягкая тень: вложенные скруглённые прямоугольники с растущей прозрачностью имитируют
+  // размытый край (дёшево, без blur-фильтра). Рисуется в текстуру ОДИН раз и живёт как
+  // единственный спрайт под колодой, поэтому перекрытий/накопления альфы нет.
   private makeShadowTexture(app: Application): Texture {
     const g = new Graphics();
-    const layers = 5;
+    const layers = 8; // больше слоёв — мягче градиент края
     for (let i = layers; i >= 1; i--) {
-      const grow = i * 6;
+      const grow = i * 5;
       g.roundRect(2 - grow, 2 - grow, TEX_W - 4 + grow * 2, TEX_H - 4 + grow * 2, 16 + grow).fill({
         color: 0x000000,
-        alpha: 0.16,
+        alpha: 0.1,
       });
     }
     const tex = app.renderer.generateTexture({ target: g, resolution: 2 });
