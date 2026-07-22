@@ -132,6 +132,27 @@ already-built image.
 > end-to-end with a real `docker build`. Sanity-check locally before relying on them
 > for a real deploy.
 
+### Option D — Fly.io (currently deployed this way)
+
+`server/fly.toml` and `client/fly.toml` are ready to go, one Fly app per Dockerfile.
+
+```bash
+cd server && fly deploy    # game server, persistent volume for accounts.json
+cd client && fly deploy    # static client; VITE_* are baked in via build.args
+```
+
+Note that Fly has **no free tier for new accounts** — it's pay-as-you-go. With
+`min_machines_running = 0` (the current setting) machines sleep while nobody's
+playing and wake in ~1–2s, which works out to roughly $0.20–1/month; keeping both
+always on is about $4/month.
+
+Because the machines sleep, the **first** join after an idle period fails: the HTTP
+matchmaking request wakes the machine and succeeds, but the WebSocket right behind
+it hits a still-booting machine and gets a `socket hang up`. This is handled in
+`client/src/retryJoin.ts` — every room entry point retries a few times, so a cold
+start just takes ~10s instead of erroring out. If you'd rather pay for zero
+cold-start weirdness, set `min_machines_running = 1` in `server/fly.toml`.
+
 ### Verifying after deploy
 
 ```bash
