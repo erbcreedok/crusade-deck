@@ -1,0 +1,31 @@
+client/src/game/anim/config.ts
+  s_3b000dfed76439::t_d9261744dd9477 29-31,34-35
+client/src/game/deckStack.ts
+  s_3b000dfed76439::t_d9261744dd9477 1-4,14-27
+client/src/game/choreo/shuffle.test.ts
+  s_3b000dfed76439::t_54f12c4e3ac5d4 27-29
+client/src/game/deckStack.test.ts
+  s_3b000dfed76439::t_2bc255c286db63 2-4,7-11,14-19,23-28,32-52,76,78-80
+client/src/game/RoomEngine.ts
+  s_3b000dfed76439::t_012ba54b5a02e0 1035-1036
+  s_3b000dfed76439::t_4c29dcb22dde01 28,856-857,859-861
+  s_3b000dfed76439::t_9a24ab3dd395dc 298-304,394,1067,1183-1185
+  s_3b000dfed76439::t_c619613e7c8df8 141-143,721,730,958-966,969-974,980-1018,1396
+  s_3b000dfed76439::t_e9a92d9e673e2c 1019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5e6b2318a9881b5934e515e1a71ce7bdaf380932",
+  "prompts": {},
+  "sessions": {
+    "s_3b000dfed76439": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10001a5b-bd46-47ad-b1b0-2305bdf626e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
