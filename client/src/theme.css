@@ -77,6 +77,18 @@ textarea {
   animation: drift-diamonds 140s linear infinite;
 }
 
+/* Фон комнаты: серо-зелёный, контрастнее менюшного — чтобы стол читался как
+   другое место, а не как то же самое меню. */
+.pixel-bg-clubs.pixel-bg--game {
+  background-image: url("/bg-clubs-slate.svg");
+}
+
+/* Золотые искры на сером сукне слишком крикливы — приглушаем. */
+.pixel-bg-diamonds.pixel-bg--game {
+  opacity: 0.55;
+  filter: grayscale(0.5) brightness(0.85);
+}
+
 @keyframes drift-clubs {
   from {
     background-position: 0 0;

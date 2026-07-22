@@ -121,7 +121,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion={fullMotion ? "never" : "always"}>
-      <PixelBackground enabled={fullMotion} />
+      <PixelBackground enabled={fullMotion} variant={room ? "game" : "menu"} />
       {renderContent()}
     </MotionConfig>
   );
