@@ -41,6 +41,7 @@ import {
 } from "./flip";
 import { cardsUnderTouch } from "./touch";
 import { rowOffsets, rowWidth } from "./handRow";
+import { fitCollapseButton } from "./collapseButton";
 import { zoneTitle, zoneAction, type DraggedKind } from "./zoneLabels";
 import type { DeckFxMessage } from "./deckFxClient";
 import {
@@ -2330,18 +2331,53 @@ export class RoomEngine {
     if (!show) return;
     const z = this.layout.handZone;
     const cardH = this.layout.cardH;
-    const r = Math.max(18, cardH * 0.42);
-    const g0 = this.fanGeom();
-    // Середина веера сидит в якоре дуги; её нижняя кромка и есть «потолок» кармана.
-    const under = g0.anchor.y + cardH * 0.5 + r * 1.15; // ниже кромки веера, а не впритык
-    const bottomLimit = z.cy + z.h / 2 - r * 0.35;
-    btn.x = z.cx;
-    btn.y = Math.min(under, bottomLimit);
-    btn.hitArea = new Circle(0, 0, r * 1.7); // невидимый запас под косое нажатие
+
+    // Кнопку не ставим по формуле «на столько-то ниже якоря»: форма кармана под веером
+    // зависит от экрана. Считаем настоящую нижнюю кромку карт и ВПИСЫВАЕМ круг в остаток
+    // зоны так, чтобы зона касания ровно касалась карт (см. collapseButton.ts).
+    const fit = fitCollapseButton({
+      cx: z.cx,
+      bottomY: z.cy + z.h / 2,
+      margin: Math.max(4, cardH * 0.08),
+      minR: Math.max(14, cardH * 0.24),
+      maxR: cardH * 0.62,
+      obstacles: this.fanBottomEdge(),
+    });
+
+    btn.x = fit.x;
+    btn.y = fit.y;
+    btn.hitArea = new Circle(0, 0, fit.r); // зона касания — она и касается карт
+    // Видимый кружок концентричен и меньше: зазор до карт = разница радиусов.
+    const r = fit.r * anim.fan.collapse.visualRatio;
     const g = btn.children[0] as Graphics;
     g.clear();
     g.circle(0, 0, r).fill({ color: 0x14281c, alpha: 0.72 }).stroke({ width: 3, color: 0xd9b154, alpha: 0.65 });
     g.poly([-r * 0.44, -r * 0.16, r * 0.44, -r * 0.16, 0, r * 0.42]).fill({ color: 0xd9b154, alpha: 0.95 });
+  }
+
+  // Нижняя кромка веера: для каждой карты берём её нижние углы и середину низа с учётом
+  // наклона. По этим точкам и вписывается кнопка — иначе круг налезал бы на соседние
+  // карты, которые в дуге висят ниже средней.
+  private fanBottomEdge(): { x: number; y: number }[] {
+    const n = this.deckCount;
+    if (n <= 0) return [];
+    const w = this.layout.cardW / 2;
+    const h = this.layout.cardH / 2;
+    const pts: { x: number; y: number }[] = [];
+    const steps = Math.min(n - 1, 16);
+    for (let k = 0; k <= steps; k++) {
+      const i = steps === 0 ? 0 : ((n - 1) * k) / steps;
+      const t = this.fanTarget(i);
+      const cx = t.x ?? 0;
+      const cy = t.y ?? 0;
+      const rot = t.rot ?? 0;
+      const cos = Math.cos(rot);
+      const sin = Math.sin(rot);
+      for (const dx of [-w, 0, w]) {
+        pts.push({ x: cx + dx * cos - h * sin, y: cy + dx * sin + h * cos });
+      }
+    }
+    return pts;
   }
 
   // ВРЕМЕННЫЕ рамки: хит-зона колоды/веера, кнопка сворачивания и габариты карт.
