@@ -1,0 +1,86 @@
+client/src/game/RoomCanvas.tsx
+  s_45aab95818ff9f::t_9a59ab521b4a08 11-13
+  s_45aab95818ff9f::t_ac537ba3e7a098 5,42-44,128-134,138-143
+  s_45aab95818ff9f::t_3cb5225e37c838 14,45,135-137
+  s_45aab95818ff9f::t_eaf0a45068d541 70-80,90-104
+client/src/game/deckZone.test.ts
+  s_45aab95818ff9f::t_4be4c4c88ed81b 4-5,8,12,16-24,27
+client/src/game/deckStack.test.ts
+  s_45aab95818ff9f::t_6f314b3a346ddb 125-129
+client/src/game/seats.ts
+  s_45aab95818ff9f::t_ac4d16a3e3961a 14-18
+server/src/CardRoom.ts
+  s_d242f4bac5a1da::t_73ee0e4f252fe5 181,186-192
+client/src/game/deckStack.ts
+  s_d242f4bac5a1da::t_14eb4cd4850509 25-26,28-30
+client/src/game/dropZones.test.ts
+  s_45aab95818ff9f::t_a925f8e1c54894 32-55
+  s_45aab95818ff9f::t_8f06271631f9ec 3-4
+  s_45aab95818ff9f::t_0edef25ea27713 56
+client/src/game/seatLayout.test.ts
+  s_45aab95818ff9f::t_563044ae055848 1-90
+  s_45aab95818ff9f::t_34b1c38c49daa0 91-118
+client/src/game/layout.ts
+  s_45aab95818ff9f::t_8f490f26b72e85 49-60
+  s_45aab95818ff9f::t_432740c3c6ebbb 27-38
+server/src/CardRoom.test.ts
+  s_d242f4bac5a1da::t_73ee0e4f252fe5 186-216
+client/src/RoomScreen.tsx
+  s_45aab95818ff9f::t_4268ff5e0cd19f 22,52-54,86,104
+  s_45aab95818ff9f::t_4854ccb82b0101 7,143-144,159-165,185-189,302-303,323-325
+  s_d242f4bac5a1da::t_4aa194db56982b 145-157,293,326
+  s_45aab95818ff9f::t_b51c9432fd1f31 158,190-193
+client/src/game/RoomEngine.ts
+  s_45aab95818ff9f::t_fe5e5fc39b1703 547-554
+  s_45aab95818ff9f::t_6eef90bc13211c 773-779,940
+  s_45aab95818ff9f::t_3cb5225e37c838 139,520-527,533,1640
+  s_45aab95818ff9f::t_61f2703a621fdf 874-875
+  s_45aab95818ff9f::t_7e493f587ff7ba 340
+  s_45aab95818ff9f::t_e5a51096f01b10 921-937
+  s_45aab95818ff9f::t_057a612d4613e8 1683-1686
+  s_45aab95818ff9f::t_8618fd56e30232 602-604,606,614,616
+  s_45aab95818ff9f::t_6a4d8ac9347f2e 14,16-18
+  s_45aab95818ff9f::t_db108275aa36de 901,911,1641-1643,1657
+  s_45aab95818ff9f::t_2ba6d471308fc9 134-138,140-146
+  s_45aab95818ff9f::t_f3e97e560917ac 420
+  s_45aab95818ff9f::t_a779d39fc1dd3d 498-519,528-532,534-543,545,555-601,605,607-613,615,617-621,938
+  s_45aab95818ff9f::t_1130451b77fdda 326,329-332
+  s_45aab95818ff9f::t_37d650bcdc89d6 421,544,546,939,941
+client/src/game/deckZone.ts
+  s_45aab95818ff9f::t_8a57d6d70eed6b 2-6,8-12,15
+client/src/game/seatLayout.ts
+  s_45aab95818ff9f::t_bc21d42a7f8a7e 40-51,56-58,71,90
+  s_45aab95818ff9f::t_19e734dd779747 1-39,52-55,59-70,72-89,91-134
+client/src/game/dropZones.ts
+  s_45aab95818ff9f::t_b693f0467ae978 22-26
+  s_45aab95818ff9f::t_17929a52d9be3d 2
+  s_45aab95818ff9f::t_676bdbadbe0aa8 27-28
+client/src/game/anim/config.ts
+  s_d242f4bac5a1da::t_14eb4cd4850509 36
+client/src/game/layout.test.ts
+  s_45aab95818ff9f::t_1a3f4b5697650d 60-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3375cb701cf976b5ef75f8eb2af05881a0611324",
+  "prompts": {},
+  "sessions": {
+    "s_45aab95818ff9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43b48e9-22c1-4091-bc6a-2c299dacfba4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d242f4bac5a1da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89366ff4-08a9-45bb-8339-ef8e9a9d2d5f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
