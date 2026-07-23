@@ -96,6 +96,11 @@ export function RoomCanvas(props: EngineProps) {
     [props.noticeSignal],
   );
   useEngineEffect(e, (en) => props.shoutSignal && en.playShout(), [props.shoutSignal]);
+  useEngineEffect(
+    e,
+    (en) => props.tauntSignal && en.playTaunt(props.tauntSignal.kind, props.tauntSignal.from),
+    [props.tauntSignal],
+  );
   useEngineEffect(e, (en) => props.incomingFx && en.playFx(props.incomingFx), [props.incomingFx]);
   useEngineEffect(
     e,

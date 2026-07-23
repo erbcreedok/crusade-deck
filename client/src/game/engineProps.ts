@@ -5,6 +5,7 @@ import type { CardBackId } from "./cardBack";
 import type { DeckFxIncoming, DeckFxMessage } from "./deckFxClient";
 import type { SeatView } from "./seats";
 import type { BoardPile } from "./engine/types";
+import type { TauntKind } from "./taunt";
 
 // Что React передаёт движку стола. Отдельный модуль, потому что список длинный и нужен
 // в двух видах: как пропсы компонента и как «залить всё разом» при монтировании.
@@ -63,6 +64,8 @@ export interface EngineSignals {
   noticeSignal: { text: string; seq: number } | null;
   /** Клич «ГОУ!» на весь стол. */
   shoutSignal: { seq: number } | null;
+  /** Кричалка: чья и какая (см. game/taunt.ts). */
+  tauntSignal: { kind: TauntKind; from: string; seq: number } | null;
   collectSignal: { order: string[]; counts?: Record<string, number>; seq: number } | null;
   cardMovedSignal: { moves: { card: string; from: string; to: string }[]; seq: number } | null;
 }

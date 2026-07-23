@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { barActionsFor } from "./barActions";
 import { EMPTY_SELECTION } from "./selection";
+import { TAUNT_LABEL } from "./taunt";
 
 // Состояний стола два: раздача (дилер крутит колоду) и свобода после «ГОУ!».
 describe("barActionsFor — раздача", () => {
@@ -32,12 +33,12 @@ describe("barActionsFor — раздача", () => {
 describe("barActionsFor — режим свободы", () => {
   const free = { freeMode: true, deckCount: 36 };
 
-  it("карты со стола берут кнопками: «Забрать 1» и «Забрать все»", () => {
+  it("панель отдана кричалкам: карты со стола берут пальцем, а не кнопкой", () => {
     const a = barActionsFor(EMPTY_SELECTION, free);
-    expect(a.main?.id).toBe("take_one");
-    expect(a.main?.label).toContain("1");
-    expect(a.secondary?.id).toBe("take_all");
-    expect(a.secondary?.label).toContain("все");
+    expect(a.main?.id).toBe("taunt_gkh");
+    expect(a.main?.label).toBe(TAUNT_LABEL.gkh);
+    expect(a.secondary?.id).toBe("taunt_suck");
+    expect(a.secondary?.label).toBe(TAUNT_LABEL.suck);
   });
 
   it("кнопки одинаковы для всех: в свободе ролей за столом нет", () => {
@@ -46,16 +47,16 @@ describe("barActionsFor — режим свободы", () => {
     expect(dealer).toEqual(guest);
   });
 
-  it("свобода важнее раздачи: «ГОУ!» и «Перемешать» уступают место кнопкам взятия", () => {
+  it("свобода важнее раздачи: «ГОУ!» и «Перемешать» уступают место кричалкам", () => {
     const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
     expect(a.main?.id).not.toBe("shuffle");
     expect(a.secondary?.id).not.toBe("go");
   });
 
-  it("колода разобрана — брать нечего, кнопок нет", () => {
+  it("пустой стол кричалок не отменяет: кричать можно и когда карт не осталось", () => {
     const a = barActionsFor(EMPTY_SELECTION, { ...free, deckCount: 0 });
-    expect(a.main).toBeNull();
-    expect(a.secondary).toBeNull();
+    expect(a.main?.id).toBe("taunt_gkh");
+    expect(a.secondary?.id).toBe("taunt_suck");
   });
 
   it("перераздача с панели ушла — она живёт в меню у дилера", () => {

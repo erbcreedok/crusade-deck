@@ -78,7 +78,7 @@ export function RoomScreen({
   if (!sessionRef.current) sessionRef.current = new ShuffleSession();
 
   const stopAutoDeal = useCallback(() => setAutoDealing(false), []);
-  const { noticeSignal, incomingFx, collectSignal, cardMovedSignal, shoutSignal } = useRoomSignals(room, {
+  const { noticeSignal, incomingFx, collectSignal, cardMovedSignal, shoutSignal, tauntSignal } = useRoomSignals(room, {
     // Сервер отказал — досылать накопленные изменения бессмысленно: они построены поверх
     // состояния, которого нет. Сессию обрываем, дальше правит правда с сервера.
     onRejected: () => sessionRef.current?.cancel(),
@@ -282,8 +282,11 @@ export function RoomScreen({
       if (id === "ready" || id === "unready") room.send("ready");
       else if (id === "shuffle") setShuffleSignal((v) => v + 1);
       else if (id === "go") room.send("go", {});
-      else if (id === "take_one") room.send("take_card", {});
-      else if (id === "take_all") room.send("take_all", {});
+      // Кричалки — не действие над картами, а голос: сервер их только раздаёт (см.
+      // server/src/taunt.ts), поэтому ни ревизии, ни оптимистичного показа тут нет —
+      // свою кричалку автор увидит тем же путём, что и остальные, из ответа сервера.
+      else if (id === "taunt_gkh") room.send("taunt", { kind: "gkh" });
+      else if (id === "taunt_suck") room.send("taunt", { kind: "suck" });
     },
     [room],
   );
@@ -372,6 +375,7 @@ export function RoomScreen({
         incomingFx={incomingFx}
         noticeSignal={noticeSignal}
         shoutSignal={shoutSignal}
+        tauntSignal={tauntSignal}
         onDealCard={onDealCard}
         onDiscardCard={onDiscardCard}
         onTakeDiscard={onTakeDiscard}

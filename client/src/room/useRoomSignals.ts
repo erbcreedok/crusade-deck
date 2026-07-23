@@ -3,6 +3,7 @@ import type { Room } from "colyseus.js";
 import { FxClock, shouldPlayFx, type DeckFxIncoming } from "../game/deckFxClient";
 import { rejectionText } from "../game/rejections";
 import { REDEAL_TEXT } from "../game/engine/constants";
+import { TAUNT_KINDS, type TauntKind } from "../game/taunt";
 
 // Серверные сообщения-события (не состояние): отказы, чужие эффекты, облёты карт.
 // Каждое едет в движок как «сигнал» — объект с растущим seq, чтобы два одинаковых
@@ -30,12 +31,20 @@ export interface ShoutSignal {
   seq: number;
 }
 
+/** Кричалка: чья и какая. Состояния в ней нет — см. game/taunt.ts. */
+export interface TauntSignal {
+  kind: TauntKind;
+  from: string;
+  seq: number;
+}
+
 export interface RoomSignals {
   noticeSignal: NoticeSignal | null;
   incomingFx: DeckFxIncoming | null;
   collectSignal: CollectSignal | null;
   cardMovedSignal: CardMovedSignal | null;
   shoutSignal: ShoutSignal | null;
+  tauntSignal: TauntSignal | null;
 }
 
 export interface RoomSignalHandlers {
@@ -51,6 +60,7 @@ export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): R
   const [collectSignal, setCollectSignal] = useState<CollectSignal | null>(null);
   const [cardMovedSignal, setCardMovedSignal] = useState<CardMovedSignal | null>(null);
   const [shoutSignal, setShoutSignal] = useState<ShoutSignal | null>(null);
+  const [tauntSignal, setTauntSignal] = useState<TauntSignal | null>(null);
 
   // Обработчики меняются на каждый рендер — держим их в ref, чтобы не переподписываться.
   const hRef = useRef(handlers);
@@ -70,6 +80,18 @@ export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): R
   useEffect(() => {
     let seq = 0;
     room.onMessage("go_shout", () => setShoutSignal({ seq: ++seq }));
+  }, [room]);
+
+  // Кричалка соседа (или своя — сервер шлёт её всем, включая автора: кричащий должен
+  // видеть, что крик прошёл). Вид проверяем и здесь: сервер свой, но движок рисует по
+  // виду напрямую, и незнакомый вид ему передавать незачем.
+  useEffect(() => {
+    let seq = 0;
+    room.onMessage("taunt", (msg: { kind?: string; from?: string }) => {
+      const kind = msg?.kind as TauntKind;
+      if (!TAUNT_KINDS.includes(kind) || typeof msg?.from !== "string") return;
+      setTauntSignal({ kind, from: msg.from, seq: ++seq });
+    });
   }, [room]);
 
   // Приём чужих эффектов. Протухшие (пинг скакнул, вкладка была свёрнута) не играем:
@@ -109,5 +131,5 @@ export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): R
     });
   }, [room]);
 
-  return { noticeSignal, incomingFx, collectSignal, cardMovedSignal, shoutSignal };
+  return { noticeSignal, incomingFx, collectSignal, cardMovedSignal, shoutSignal, tauntSignal };
 }

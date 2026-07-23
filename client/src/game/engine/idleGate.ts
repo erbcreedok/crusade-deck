@@ -20,6 +20,8 @@ export interface EngineActivity {
   notice: boolean;
   /** Клич «ГОУ!» на весь стол. */
   shout: boolean;
+  /** Кричалка игрока («гхх гхх гхх» / «сосааааать»). */
+  taunt: boolean;
   /** «Ударный» отскок запрещённого дропа. */
   reject: boolean;
   /** Сколько карт-призраков сейчас в полёте (раздача/сбор). */
@@ -49,6 +51,7 @@ export function canSleep(a: EngineActivity): boolean {
     !a.stretch &&
     !a.notice &&
     !a.shout &&
+    !a.taunt &&
     !a.reject &&
     a.flights === 0 &&
     !a.cardPress &&

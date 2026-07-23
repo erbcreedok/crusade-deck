@@ -1,4 +1,5 @@
 import { removePublicRoom, setPublicRoom } from "../publicRooms.js";
+import { sanitizeTaunt } from "../taunt.js";
 import type { MessageRoom } from "./host.js";
 
 // Сообщения про КОМНАТУ и её людей: готовность, старт игры, паблик/приват
@@ -34,6 +35,18 @@ export function registerRoomMessages(room: MessageRoom): void {
     // Клич — чистое украшение: состояния в нём нет (правда едет схемой). Поэтому повторное
     // нажатие при уже включённой свободе просто подгоняет стол ещё раз.
     room.broadcast("go_shout", {});
+  });
+
+  // Кричалка (см. taunt.ts). Доступна ЛЮБОМУ за столом и в любой фазе: это не действие
+  // над картами, а голос — ролей у него нет. Антифлуд берём тот же, что у эффектов колоды:
+  // кричалка так же необязательна и так же не должна забивать канал.
+  room.onMessage("taunt", (client, message: unknown) => {
+    if (!state.players.has(client.sessionId)) return;
+    if (!room.allowFx(client.sessionId, Date.now())) return;
+    const kind = sanitizeTaunt(message);
+    if (!kind) return;
+    // Автор — с сокета, а не из payload: кричать от чужого имени нельзя.
+    room.broadcast("taunt", { kind, from: client.sessionId });
   });
 
   room.onMessage("start_game", (client) => {

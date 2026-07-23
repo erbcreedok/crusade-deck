@@ -125,6 +125,7 @@ import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMB
 import { canSleep } from "./engine/idleGate";
 import { fanShadowIndices, liftOf, shadowSilhouette, type ShadowCaster } from "./engine/shadowPass";
 import { SHOUT_DUR, shoutEmojiOffset, shoutFontSize, shoutPose } from "./engine/shout";
+import { TAUNT_COLORS, TAUNT_DUR, TAUNT_TEXT, tauntFontSize, tauntPose, type TauntKind } from "./taunt";
 import { CardPile } from "./engine/CardPile";
 import { shufflePose, shuffleProgress, shouldSwapZ } from "./engine/shufflePose";
 import { movedEnough, pressIntent, pushSample } from "./engine/gestureIntent";
@@ -148,6 +149,7 @@ export class RoomEngine {
   private shoutBox: Container | null = null;
   private shoutWord: Text | null = null;
   private shoutFires: Text[] = []; // огоньки по бокам — системным шрифтом
+  private tauntWord: Text | null = null;
   private shadowLayer: Container | null = null; // слой под картами
   // ОДНА тень на всю колоду (стопка движется как целое). Раньше была тень на карту —
   // на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
@@ -252,6 +254,10 @@ export class RoomEngine {
   private notice: { t: number; dur: number } | null = null;
   // Клич «ГОУ!»: живёт своё время, ни к каким картам не привязан.
   private shout: { t: number; dur: number } | null = null;
+  // Кричалка: помимо времени жизни несёт СВОЮ точку-источник. Она берётся один раз, в
+  // момент крика, и дальше не пересчитывается — иначе надпись поехала бы вслед за местом,
+  // если сосед в этот момент вышел и посадка пересобралась.
+  private taunt: { kind: TauntKind; t: number; dur: number; x: number; y: number } | null = null;
   // Резиновая тянучка запрещённого жеста (свайп вверх по стопке).
   private stretchAnim: { t: number; dur: number; angle: number } | null = null;
   // Карты в текущем перевороте: по объекту (для рендера) и по идентификатору (для текстур).
@@ -539,6 +545,7 @@ export class RoomEngine {
     this.rejectText.zIndex = Z.rejectText; // поверх карт (world.sortableChildren)
     this.world!.addChild(this.rejectText);
     this.buildShout();
+    this.buildTaunt();
     this.styleZoneLabels();
   }
 
@@ -573,6 +580,21 @@ export class RoomEngine {
     this.shoutBox = box;
     this.world!.addChild(box);
     this.styleShout();
+  }
+
+  // Кричалка — одна надпись, без эмодзи: и «гхх гхх гхх», и «сосааааать» пишутся тем же
+  // пиксельным шрифтом, что и весь стол. Текст и цвет ставятся в момент крика (их два
+  // вида), поэтому здесь только пустая заготовка.
+  private buildTaunt(): void {
+    const word = new Text({
+      text: "",
+      style: { fontFamily: PIXEL_FONT, stroke: { color: 0x000000, width: 8 }, letterSpacing: 3 },
+    });
+    word.anchor.set(0.5);
+    word.visible = false;
+    word.zIndex = Z.shout;
+    this.tauntWord = word;
+    this.world!.addChild(word);
   }
 
   // Кегль и расстановка огоньков — от ширины экрана (engine/shout.ts). Пересчитываются на
@@ -1556,6 +1578,35 @@ export class RoomEngine {
     if (this.destroyed) return;
     this.shout = { t: 0, dur: SHOUT_DUR };
     this.wake();
+  }
+
+  /**
+   * Кричалка: игрок нажал кнопку, и это слышит весь стол — включая его самого.
+   *
+   * Разница между видами вся в том, ОТКУДА надпись идёт. «Гхх» — личная: она вылетает из
+   * места того, кто крикнул, а себе — снизу, из своей полосы руки (своего места на столе
+   * нет, оно и есть рука). «Сосать» — общая: у неё источника нет, всем одинаково по центру.
+   */
+  playTaunt(kind: TauntKind, from: string): void {
+    if (this.destroyed) return;
+    const at = kind === "suck" ? null : this.tauntSource(from);
+    this.taunt = {
+      kind,
+      t: 0,
+      dur: TAUNT_DUR[kind],
+      x: at?.x ?? this.w / 2,
+      // Центр экрана чуть выше середины: ровно по центру надпись накрыла бы колоду.
+      y: at?.y ?? this.h * 0.42,
+    };
+    this.wake();
+  }
+
+  // Откуда кричат: своя полоса руки, место соседа или — если крикнувший уже вышел и
+  // места под ним нет — центр стола.
+  private tauntSource(from: string): { x: number; y: number } | null {
+    if (from === this.selfId) return { x: this.layout.handAnchor.x, y: this.layout.handZone.cy };
+    const box = this.seatBox(from);
+    return box ? { x: box.rect.cx, y: box.rect.cy } : null;
   }
 
   /** Короткая надпись поверх стола БЕЗ отката карт: отказ, которому нечего возвращать. */
@@ -2953,6 +3004,11 @@ export class RoomEngine {
       if (this.shout.t >= this.shout.dur) this.shout = null;
     }
 
+    if (this.taunt) {
+      this.taunt.t += frameDt;
+      if (this.taunt.t >= this.taunt.dur) this.taunt = null;
+    }
+
     if (this.notice) {
       this.notice.t += frameDt;
       if (this.notice.t >= this.notice.dur) {
@@ -3002,6 +3058,7 @@ export class RoomEngine {
     this.syncShadows();
     this.syncRejectText();
     this.syncShout();
+    this.syncTaunt();
   }
 
   // Клич летит через экран справа налево, дрожа на ходу (поза — в engine/shout.ts).
@@ -3026,6 +3083,34 @@ export class RoomEngine {
     box.alpha = pose.alpha;
   }
 
+  // Кричалка сидит у своей точки-источника и дрожит (поза — в game/taunt.ts). Кегль
+  // считается от ширины экрана, поэтому в любой поворот телефона надпись влезает целиком.
+  private syncTaunt(): void {
+    const word = this.tauntWord;
+    if (!word) return;
+    if (!this.taunt) {
+      if (word.visible) word.visible = false;
+      return;
+    }
+    const { kind, x, y } = this.taunt;
+    const pose = tauntPose(kind, this.taunt.t / this.taunt.dur);
+    const size = tauntFontSize(this.w, kind);
+    if (word.text !== TAUNT_TEXT[kind]) word.text = TAUNT_TEXT[kind];
+    word.style.fontSize = size;
+    word.style.fill = TAUNT_COLORS[kind].fill;
+    word.style.stroke = { color: TAUNT_COLORS[kind].stroke, width: 8 };
+    word.visible = true;
+    word.rotation = pose.rot;
+    word.scale.set(pose.scale);
+    word.alpha = pose.alpha;
+    // Прижим к экрану считается ПОСЛЕ масштаба: word.width уже с ним, а масштаб за
+    // кричалку растёт — по старому кадру полуширина выходит меньше настоящей, и надпись
+    // из крайнего места успевает вылезти за кромку.
+    const half = word.width / 2;
+    word.x = Math.max(half, Math.min(this.w - half, x + pose.dx * size));
+    word.y = y + pose.dy * size;
+  }
+
   // Всё осело и ничего не движется → усыпляем цикл. Список активностей — в
   // engine/idleGate.ts: новая непрерывная анимация обязана появиться там, иначе цикл
   // либо уснёт под ней, либо больше не заснёт никогда.
@@ -3040,6 +3125,7 @@ export class RoomEngine {
         stretch: !!this.stretchAnim,
         notice: !!this.notice,
         shout: !!this.shout,
+        taunt: !!this.taunt,
         reject: !!this.reject,
         flights: this.cardFlights.length,
         cardPress: !!this.cardPress,

@@ -11,6 +11,7 @@ const QUIET: EngineActivity = {
   stretch: false,
   notice: false,
   shout: false,
+  taunt: false,
   reject: false,
   flights: 0,
   cardPress: false,
