@@ -982,6 +982,16 @@ describe("RoomEngine: веер руки — глиссандо и тени", () 
     expect((engine as any).cardDrag).not.toBeNull(); // сразу драг
   });
 
+  // Правая (последняя) карта лежит сверху — перед ней соседей нет, тянется свободно даже
+  // в тесном вееере, без проверки расстояния.
+  it("последняя карта тесного веера тянется без раздвига", async () => {
+    const { engine, app } = await focusedHand(Array.from({ length: 12 }, (_, i) => `${(i % 9) + 2}♦x${i}`));
+    const xs = handXs(engine);
+    pressHand(app, xs[xs.length - 1]!); // палец у самой правой карты
+    expect((engine as any).cardDrag).not.toBeNull(); // потащили сразу, глиссандо не нужен
+    expect((engine as any).cardDrag.v).toBe((engine as any).hand[engine["hand"].length - 1]);
+  });
+
   // Порог вытягивания — размер пальца, а не доля карты; на телефоне упирается в долю.
   it("порог захвата не превышает размера пальца", async () => {
     const { engine } = await focusedHand(["2♦", "3♦", "4♦"]);

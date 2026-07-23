@@ -4474,7 +4474,7 @@ export class RoomEngine {
     if (env <= 0) return 0;
     const scale = this.fanRevealScaleNow();
     if (scale <= 0) return 0;
-    return fanSpreadShift(i, index, p.cards, p.amp, env) * scale;
+    return fanSpreadShift(i, index, p.cards, p.amp, env, p.rightBias) * scale;
   }
 
   private fanRevealScaleNow(): number {

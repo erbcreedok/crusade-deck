@@ -278,8 +278,8 @@ describe("visibleSliver", () => {
     expect(visibleSliver([0, 6, 12, 40], 2)).toBe(28);
   });
 
-  it("у последней карты полоска считается по предыдущей — её никто не накрывает", () => {
-    expect(visibleSliver([0, 6, 12, 40], 3)).toBe(28);
+  it("последняя (правая) карта сверху — видна целиком, тянется свободно", () => {
+    expect(visibleSliver([0, 6, 12, 40], 3)).toBe(Infinity);
   });
 
   it("одна карта — полоска бесконечна (перекрывать нечем)", () => {
@@ -307,10 +307,18 @@ describe("fanSpreadShift", () => {
     expect(shift(10, 10)).toBe(0);
   });
 
-  it("слева уезжают влево, справа вправо, симметрично", () => {
+  it("слева уезжают влево, справа вправо; при bias=1 симметрично", () => {
     expect(shift(9, 10)).toBeLessThan(0);
     expect(shift(11, 10)).toBeGreaterThan(0);
     expect(shift(9, 10)).toBeCloseTo(-shift(11, 10), 10);
+  });
+
+  it("rightBias>1 толкает правую сторону сильнее левой", () => {
+    const bias = 1.7;
+    const right = fanSpreadShift(11, 10, CARDS, AMP, 1, bias);
+    const left = fanSpreadShift(9, 10, CARDS, AMP, 1, bias);
+    expect(right).toBeCloseTo(-left * bias, 10); // правая ветка ×bias
+    expect(Math.abs(right)).toBeGreaterThan(Math.abs(left));
   });
 
   it("растёт линейно внутри окна и упирается в потолок за ним", () => {
