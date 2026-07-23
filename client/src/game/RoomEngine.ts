@@ -2124,11 +2124,31 @@ export class RoomEngine {
     this.layoutDeck();
   }
 
+  /** Куда карта ляжет, когда вернётся: поза её собственной стопки. */
+  private homeTargetOf(v: CardVisual): CardTargets {
+    const hi = this.hand.indexOf(v);
+    if (hi >= 0) return this.handFanTarget(hi);
+    const di = this.discardCards.indexOf(v);
+    if (di >= 0) return this.discardRestTarget(di);
+    return this.restTarget(Math.max(0, this.cards.indexOf(v)));
+  }
+
+  // Дом карты — та стопка, которой она принадлежит. Стопок три (колода, сброс, рука), и
+  // раньше здесь искали только в двух: карта сброса не находилась нигде, ей не ставили
+  // цель, и она так и оставалась висеть там, где её бросили.
   private returnCardHome(v: CardVisual): void {
     const hi = this.hand.indexOf(v);
     if (hi >= 0) {
       v.sprite.zIndex = Z.handCards + hi;
       this.hand.forEach((c, j) => c.body.setTarget(this.handRestTarget(j)));
+      this.updateVisibility();
+      return;
+    }
+    const di = this.discardCards.indexOf(v);
+    if (di >= 0) {
+      v.sprite.zIndex = di;
+      this.homingCard = v;
+      this.discardCards.forEach((c, j) => c.body.setTarget(this.discardRestTarget(j)));
       this.updateVisibility();
       return;
     }
@@ -2145,11 +2165,7 @@ export class RoomEngine {
 
   // Отбой одной карты: та же «ударная» механика, что и у колоды, но трясётся только она.
   private startCardReject(v: CardVisual, px: number, py: number, text: string = REJECT_TEXT): void {
-    const hi = this.hand.indexOf(v);
-    const home =
-      hi >= 0
-        ? this.handFanTarget(hi)
-        : this.restTarget(Math.max(0, this.cards.indexOf(v)));
+    const home = this.homeTargetOf(v);
     let dx = home.x! - px;
     let dy = home.y! - py;
     const len = Math.hypot(dx, dy) || 1;
@@ -2913,9 +2929,10 @@ export class RoomEngine {
       if (this.reject.t >= this.reject.dur) {
         this.reject = null;
         // Отскок доигран — укладываем колоду у якоря и только ТЕПЕРЬ возвращаем кнопки.
-        if (this.rejectCard) this.returnCardHome(this.rejectCard);
+        const card = this.rejectCard;
         this.rejectCard = null;
-        this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+        if (card) this.returnCardHome(card); // укладывает ИМЕННО его стопку
+        else this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
         this.onDragChange?.(false);
       }
     }

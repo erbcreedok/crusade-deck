@@ -616,6 +616,32 @@ describe("RoomEngine: что можно и нельзя делать со сто
     expect(allTexts(app.stage).some((t) => t.includes("не тасуют"))).toBe(true);
   });
 
+  it("карта из веера сброса, брошенная мимо, возвращается в веер", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDiscard(["2♦", "3♦", "4♦", "5♦"]);
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+
+    const play = (await gameLayout()).centerZone;
+    const deckHit = findByZ(app.stage, 10_000);
+    // Тянем карту из веера и бросаем в пустоту у верхнего края — мимо всех зон.
+    deckHit.__emit("pointerdown", { pointerId: 11, global: { x: play.cx, y: play.cy }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 11, global: { x: play.cx + 20, y: play.cy - 20 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 11, global: { x: 360, y: 150 } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 11, global: { x: 360, y: 150 } });
+    for (let i = 0; i < 120; i++) app.ticker.__advance(16);
+
+    // Ни одна карта сброса не осталась в точке броска — все вернулись к вееру.
+    const live = new Set(pixi.__liveSprites());
+    const strays = findByZ(app.stage, 3)
+      .children.filter((c: any) => live.has(c) && c.visible && c.y < 250);
+    expect(strays).toHaveLength(0);
+  });
+
   it("сбросить карту можно и в собранный сброс, и в раскрытый", async () => {
     for (const fan of [null, "discard"] as const) {
       pixi.__reset();
