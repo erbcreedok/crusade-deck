@@ -1,7 +1,7 @@
 import { Graphics, Text } from "pixi.js";
 import { dropZoneRegions, type DropTarget, type DropZone } from "../dropZones";
 import type { RoomLayout, RoundedRect } from "../layout";
-import type { DraggedKind } from "../zoneLabels";
+import { zoneLabelPlacement, type DraggedKind } from "../zoneLabels";
 import {
   noticeStyle,
   slotLabelFontSize,
@@ -45,7 +45,7 @@ export function paintZones(d: ZonePaintDeps): void {
     const c = zoneChrome({
       zone,
       dragging: d.dragging,
-      active: live && d.dragging && d.hoverZone?.zone === zone,
+      hovered: d.dragging && d.hoverZone?.zone === zone,
       dragged: d.dragged,
       myReady: d.myReady,
       live,
@@ -57,13 +57,22 @@ export function paintZones(d: ZonePaintDeps): void {
     if (c.fill) d.g.roundRect(x, y, rect.w, rect.h, rect.r).fill(c.fill);
     d.g.roundRect(x, y, rect.w, rect.h, rect.r).stroke(c.stroke);
 
+    // Место лейбла — свойство зоны: у колоды снаружи (внутри её закрывают карты), поэтому
+    // центровой лейбл ей не рисуем совсем — за это отвечает paintTableSlots.
     if (label) {
-      label.text = c.label.text;
-      label.x = rect.cx;
-      label.y = rect.cy;
-      label.visible = true;
-      label.tint = c.label.tint;
-      label.alpha = c.label.alpha;
+      if (zoneLabelPlacement(zone) !== "center") {
+        label.visible = false;
+      } else {
+        label.text = c.label.text;
+        label.x = rect.cx;
+        label.y = rect.cy;
+        label.visible = true;
+        label.tint = c.label.tint;
+        label.alpha = c.label.alpha;
+        // Обводка глагола на ховере — чтобы читался поверх содержимого бокса.
+        if (c.labelOutline) label.style.stroke = { color: c.labelOutline.color, width: c.labelOutline.width };
+        else label.style.stroke = { width: 0, color: 0 };
+      }
     }
   });
 }

@@ -7,17 +7,20 @@ import { COLORS } from "./constants";
 // заметные очертания и название зоны, во время драга — заливка и ДЕЙСТВИЕ («что будет,
 // если бросить сюда»). Отдельный модуль, потому что это чистые правила, а не рисование.
 
+/** Серый «туман» запрета: поверх недоступного бокса, когда над ним держат карту. */
+const FORBIDDEN_GRAY = 0x2a2f2c;
+
 export interface ZoneChromeInput {
   zone: DropZone;
   /** Идёт драг (колоды или карты). */
   dragging: boolean;
-  /** Курсор именно над этой зоной. */
-  active: boolean;
+  /** Карта держится ИМЕННО над этим боксом. */
+  hovered: boolean;
   /** Что тащат — от этого зависит подпись действия. */
   dragged: DraggedKind;
   /** Моя готовность: в раздаче красит полосу руки жёлтым/серым. */
   myReady: boolean;
-  /** Зона сейчас принимает карты. Погашенная — только бледный контур, без подписи. */
+  /** Зона сейчас принимает карты. Недоступная под картой краснеет «низя». */
   live: boolean;
   /** Комната в ИГРЕ: центр стола перестаёт быть местом колоды и становится игральной зоной. */
   inGame: boolean;
@@ -28,47 +31,64 @@ export interface ZoneChrome {
   fill: { color: number; alpha: number } | null;
   stroke: { width: number; color: number; alpha: number };
   label: { text: string; tint: number; alpha: number };
+  /** Обводка глагола для читаемости поверх содержимого бокса (на ховере). */
+  labelOutline: { color: number; width: number } | null;
 }
 
+/**
+ * Как выглядит дроп-зона в каждый момент. Пять состояний:
+ *   idle (нет драга)               — еле заметная рамка + название по центру;
+ *   драг, доступна, не наведена     — полупрозрачный фон + КРАТКИЙ глагол;
+ *   драг, доступна, наведена        — почти непрозрачный фон + глагол с обводкой (читается
+ *                                     поверх содержимого бокса);
+ *   драг, НЕдоступна, не наведена   — остаётся в idle (не зовёт к себе);
+ *   драг, НЕдоступна, наведена      — серый плотный оверлей + «низя».
+ * Чистые правила, рисует по ним zonePaint.
+ */
 export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
-  // Погашенная зона не зовёт к себе карту: ни заливки, ни подписи действия — только
-  // бледная рамка, чтобы разметка стола не пропадала совсем.
-  if (!o.live) {
-    return {
-      fill: null,
-      stroke: { width: 1.5, color: COLORS.gold, alpha: 0.08 },
-      label: { text: zoneTitle(o.zone, o.inGame), tint: COLORS.gold, alpha: 0.12 },
-    };
-  }
-  // Полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
   const dealHand = o.zone === "hand";
   const base = dealHand ? dealHandAccent(o.myReady) : COLORS.gold;
 
-  let fill: ZoneChrome["fill"] = null;
-  if (o.active && dealHand) fill = { color: base, alpha: 0.82 }; // ховер раздачи — плотный оверлей
-  else if (o.active) fill = { color: 0xffe08a, alpha: 0.16 };
-  else if (o.dragging) fill = { color: base, alpha: 0.06 };
+  // Idle: и без драга, и недоступная-не-наведённая зона выглядят одинаково спокойно.
+  if (!o.dragging || (!o.live && !o.hovered)) {
+    return {
+      fill: null,
+      stroke: { width: 1.5, color: base, alpha: 0.14 },
+      label: { text: zoneTitle(o.zone, o.inGame), tint: base, alpha: o.dragging ? 0.1 : 0.16 },
+      labelOutline: null,
+    };
+  }
 
-  const stroke = {
-    width: o.active ? 5 : o.dragging ? 2.5 : 1.5,
-    color: o.active ? COLORS.hot : base,
-    alpha: o.active ? 0.95 : o.dragging ? 0.4 : dealHand ? 0.18 : 0.16,
+  // Недоступная под картой: серый туман запрета + «низя», без всякого призыва.
+  if (!o.live) {
+    return {
+      fill: { color: FORBIDDEN_GRAY, alpha: 0.82 },
+      stroke: { width: 3, color: COLORS.hot, alpha: 0.5 },
+      label: { text: "низя", tint: 0xe8ddc4, alpha: 0.95 },
+      labelOutline: { color: 0x000000, width: 3 },
+    };
+  }
+
+  const verb = zoneAction(o.zone, o.dragged, o.inGame);
+  if (o.hovered) {
+    // Наведена: фон почти непрозрачный, глагол крупный с обводкой — перекрывает содержимое
+    // бокса (карту, что держат, он не трогает — она выше всех по z).
+    const activeText = dealHand && !o.inGame ? dealSeatHoverLabel(true) : verb;
+    return {
+      fill: { color: dealHand ? base : COLORS.hot, alpha: 0.92 },
+      stroke: { width: 5, color: COLORS.gold, alpha: 0.95 },
+      label: { text: activeText, tint: COLORS.ink, alpha: 0.98 },
+      labelOutline: { color: 0xffffff, width: 3 },
+    };
+  }
+
+  // Доступна, но карта не над ней: полупрозрачный фон + глагол, зовущий к себе.
+  return {
+    fill: { color: base, alpha: 0.2 },
+    stroke: { width: 2.5, color: base, alpha: 0.45 },
+    label: { text: verb, tint: base, alpha: 0.6 },
+    labelOutline: null,
   };
-
-  const text =
-    o.active && dealHand
-      ? dealSeatHoverLabel(true) // себе раздать можно всегда
-      : o.dragging
-        ? zoneAction(o.zone, o.dragged, o.inGame)
-        : zoneTitle(o.zone, o.inGame);
-
-  const label = {
-    text,
-    tint: o.active && dealHand ? COLORS.ink : o.active ? COLORS.hot : base,
-    alpha: o.active ? (dealHand ? 0.95 : 0.75) : o.dragging ? 0.35 : dealHand ? 0.12 : 0.14,
-  };
-
-  return { fill, stroke, label };
 }
 
 // Слот колоды: разметка, а не дроп-зона — по ней игрок понимает, где лежит колода.

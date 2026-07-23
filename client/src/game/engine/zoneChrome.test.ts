@@ -7,7 +7,7 @@ const IDLE = {
   live: true,
   zone: "center" as const,
   dragging: false,
-  active: false,
+  hovered: false,
   dragged: "card" as const,
   myReady: false,
   inGame: false,
@@ -21,17 +21,25 @@ describe("zoneChrome", () => {
     expect(c.label.alpha).toBeLessThan(0.2); // еле заметно
   });
 
-  it("во время драга подпись меняется на действие — и зависит от того, что тащат", () => {
-    expect(zoneChrome({ ...IDLE, dragging: true, dragged: "card" }).label.text).toBe("вернуть в колоду");
-    expect(zoneChrome({ ...IDLE, dragging: true, dragged: "take" }).label.text).toBe("оставить на столе");
+  it("во время драга подпись меняется на КРАТКИЙ глагол", () => {
+    expect(zoneChrome({ ...IDLE, dragging: true, dragged: "card" }).label.text).toBe("в колоду");
+    expect(zoneChrome({ ...IDLE, inGame: true, dragging: true, dragged: "take" }).label.text).toBe("на стол");
+    expect(zoneChrome({ ...IDLE, zone: "discard", dragging: true }).label.text).toBe("сброс");
   });
 
-  it("зона под курсором подсвечивается ярче и толще", () => {
-    const hover = zoneChrome({ ...IDLE, dragging: true, active: true });
+  it("доступная зона под драгом получает полупрозрачный фон", () => {
+    const c = zoneChrome({ ...IDLE, dragging: true });
+    expect(c.fill).not.toBeNull();
+    expect(c.fill!.alpha).toBeGreaterThan(0.1);
+  });
+
+  it("наведённая зона — почти непрозрачный фон и глагол с обводкой", () => {
+    const hover = zoneChrome({ ...IDLE, dragging: true, hovered: true });
     const drag = zoneChrome({ ...IDLE, dragging: true });
     expect(hover.stroke.width).toBeGreaterThan(drag.stroke.width);
-    expect(hover.stroke.color).toBe(COLORS.hot);
+    expect(hover.fill!.alpha).toBeGreaterThan(0.8); // почти непрозрачный
     expect(hover.fill!.alpha).toBeGreaterThan(drag.fill!.alpha);
+    expect(hover.labelOutline).not.toBeNull(); // обводка для читаемости
   });
 
   it("полоса руки красится по готовности", () => {
@@ -41,18 +49,11 @@ describe("zoneChrome", () => {
     expect(notReady.stroke.color).toBe(DEAL_HAND_NOT_READY);
   });
 
-  it("ховер своей руки — плотный оверлей с «раздать» тёмным по светлому", () => {
-    const c = zoneChrome({ ...IDLE, zone: "hand", myReady: true, dragging: true, active: true });
-    expect(c.fill).toEqual({ color: DEAL_HAND_READY, alpha: 0.82 });
+  it("ховер своей руки в РАЗДАЧЕ — «раздать» тёмным по светлому", () => {
+    const c = zoneChrome({ ...IDLE, zone: "hand", myReady: true, dragging: true, hovered: true });
     expect(c.label.text).toBe("раздать");
     expect(c.label.tint).toBe(COLORS.ink);
   });
-
-  it("себе раздать можно даже с myReady=false — подпись не превращается в «Неа»", () => {
-    const c = zoneChrome({ ...IDLE, zone: "hand", myReady: false, dragging: true, active: true });
-    expect(c.label.text).toBe("раздать");
-  });
-
 });
 
 describe("zoneLabelFontSize", () => {
@@ -70,13 +71,20 @@ describe("zoneLabelFontSize", () => {
   });
 });
 
-describe("zoneChrome — погашенная зона", () => {
-  it("не зовёт к себе карту: ни заливки, ни действия, только бледный контур", () => {
-    const dead = zoneChrome({ ...IDLE, live: false, dragging: true, active: true, dragged: "card" });
+describe("zoneChrome — недоступная зона", () => {
+  it("без ховера остаётся спокойной: ни заливки, ни глагола", () => {
+    const dead = zoneChrome({ ...IDLE, live: false, dragging: true, dragged: "card" });
     expect(dead.fill).toBeNull();
-    expect(dead.label.text).toBe("стол"); // название зоны остаётся, действие — нет
+    expect(dead.label.text).toBe("стол"); // название остаётся, зова к себе нет
     expect(dead.label.alpha).toBeLessThan(0.2);
-    expect(dead.stroke.alpha).toBeLessThan(0.15);
+  });
+
+  it("под наведённой картой — серый плотный оверлей и «низя»", () => {
+    const forbidden = zoneChrome({ ...IDLE, live: false, dragging: true, hovered: true });
+    expect(forbidden.fill).not.toBeNull();
+    expect(forbidden.fill!.alpha).toBeGreaterThan(0.7); // плотный туман запрета
+    expect(forbidden.label.text).toBe("низя");
+    expect(forbidden.labelOutline).not.toBeNull();
   });
 });
 

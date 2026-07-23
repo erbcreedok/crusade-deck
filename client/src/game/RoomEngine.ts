@@ -1760,13 +1760,27 @@ export class RoomEngine {
   }
 
   // Раздача: карта ищет чужое место или мою полосу руки.
+  /** Какую дроп-зону подсветить под точкой драга (для zoneChrome). Места — отдельно. */
+  private hoverZoneFor(dest: DropDest): DropTarget | null {
+    if (!dest) return null;
+    if (dest.pile === "discard") return { zone: "discard" };
+    if (dest.pile === "play") return { zone: "center" };
+    if (dest.pile === "hand") return { zone: "hand" };
+    if (dest.pile === "deck") return { zone: "deck" };
+    return null; // чужое место — своя подсветка (setHoverSeat)
+  }
+
   private aimDealDrag(x: number, y: number): void {
     // Ховерим и неготовых — чтобы показать «Неа»; принять или отбить решает дроп.
     const seatHit = pickSeat(x, y, this.seatBoxes);
     this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
-    const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds(), this.freeMode);
-    // Своя рука подсвечивается как обычная дроп-зона hand.
-    this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
+    // Зоны загораются под картой из веера доски: сброс/зона/рука зовут к себе, колода — низя.
+    this.hoverZone = this.freeMode
+      ? this.hoverZoneFor(this.resolveDrop(x, y, this.cardDrag?.pile))
+      : ((): DropTarget | null => {
+          const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds(), this.freeMode);
+          return to === this.selfId ? { zone: "hand" } : null;
+        })();
 
     if (this.cardDrag && this.boardFan === this.cardDrag.pile) {
       // Раскрытый веер доски (колода/сброс/зона) раступается перед картой (дырка по x).
@@ -2701,8 +2715,10 @@ export class RoomEngine {
       this.alignUnderTouch(x, y); // положил карту — она и соседи легли ровно
       this.onCardReorder?.(d.v.card, to);
       this.onDragChange?.(false);
-    } else if (this.cardDropZonesAllowed) {
-      // Зоны для отдельной карты откроются вместе с правилами игры (пока сюда не попадаем).
+    } else if (this.freeMode || this.cardDropZonesAllowed) {
+      // Отпустили карту МИМО всех боксов — это не «нельзя», а просто «передумал»: молча
+      // возвращаем на место. Отбой с «низя» остаётся только на осмысленно-запрещённых
+      // дропах (в закрытую колоду, в чужую руку), а не на пустом столе.
       this.returnCardHome(d.v);
       this.onDragChange?.(false);
     } else {

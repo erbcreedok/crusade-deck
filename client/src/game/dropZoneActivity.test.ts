@@ -23,15 +23,18 @@ describe("activeDropZones", () => {
     expect([...game({ boardFan: "discard" })]).toEqual([]);
   });
 
-  it("карту вытащили из веера — стол снова открыт весь", () => {
+  // Веер доски занимает центр — игровая зона (center) при открытом вееере отключается.
+  it("веер открыт: карту из веера кладут в руку или сброс, но НЕ в игровую зону", () => {
     for (const fan of ["deck", "discard"] as const) {
-      expect([...game({ boardFan: fan, source: "board" })].sort()).toEqual(["center", "discard", "hand"]);
+      const zones = [...game({ boardFan: fan, source: "board" })].sort();
+      expect(zones).toEqual(["discard", "hand"]);
+      expect(zones).not.toContain("center");
     }
   });
 
-  it("карту тащат из руки — только веер (центр) и сброс", () => {
+  it("веер открыт: карту из руки — только в сброс (центр занят веером)", () => {
     for (const fan of ["deck", "discard"] as const) {
-      expect([...game({ boardFan: fan, source: "hand" })].sort()).toEqual(["center", "discard"]);
+      expect([...game({ boardFan: fan, source: "hand" })]).toEqual(["discard"]);
     }
   });
 
