@@ -25,15 +25,15 @@ rules can later be layered as configuration.
 ## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 182 tests
-cd client && npm test && npx tsc --noEmit   # 617 tests
+cd server && npm test && npx tsc --noEmit   # 165 tests
+cd client && npm test && npx tsc --noEmit   # 616 tests
 cd client && npx vite build                 # production build
 ```
 
 `server/vitest.config.ts` restricts the run to the `src/` directory — without it,
 vitest also picked up compiled `dist/*.test.js` after `npm run build`, and two copies
 of the `CardRoom` test fought over the same test port. Room tests are split by theme
-(`CardRoom.deck.test.ts`, `.hands.`, `.facing.`, `.votes.`, `.lifecycle.`, plus
+(`CardRoom.deck.test.ts`, `.hands.`, `.visibility.`, `.free.`, `.votes.`, `.lifecycle.`, plus
 `TestRoom.test.ts`) and share `roomHarness.ts`. Each file boots on its OWN port
 (`TEST_PORTS`): vitest runs files in parallel, and `boot(server, port)` from
 `@colyseus/testing` silently ignores the port when handed a ready `Server`.
@@ -153,23 +153,29 @@ A hard split that must not blur when adding new deck-related mechanics:
   owner sees it.
 - **Hidden card** (`Player.handHidden`, an imperative per-card toggle) — invisible to
   everyone but the owner, even when the hand is open.
-- **Deal mode** (`GameState.dealMode`, on by default from the moment the room is
-  created) — no card's rank in the deck is visible to anyone, including the dealer,
-  until that card ends up in someone's hand. Leaving the mode reveals the deck and
-  makes every hand private (the reverse transition). Every deck action (flip,
-  `move_deck`) is checked against this mode on the server — the UI hides unavailable
-  buttons, but the server must refuse on its own rather than trust the client.
+- **Dealing is always on.** The deck lives in the centre of the table face down: no
+  card's rank is visible to anyone, including the dealer, until that card ends up in
+  someone's hand. Only the dealer touches the deck (shuffle, table fan, `deal_card`,
+  auto-deal, `reset_deck`, `collect_hands`); the only way out of dealing is «ГОУ!» —
+  free mode below — and «Перераздача» brings it back.
+  There used to be a `dealMode` toggle, and switching it OFF revealed the whole deck and
+  turned the table into a second, pre-cards mechanic: the deck as one object dragged
+  between the centre, your hand and other players' seats, with flips. That toggle and
+  that mechanic are gone — with them went `move_deck`, `flip_deck`, `flip_cards`,
+  `reorder_deck` and, on the client, the whole-deck drag and the deck-in-hand fan
+  geometry. Card-flip animation itself stayed: incoming `deck_fx` and server-side facing
+  changes use it, and future rules will need "a card lying face up on the table".
 - **Free mode** (`GameState.freeMode`, off until the dealer presses «ГОУ!») — the first
   brick of the future rules system (rules will later be configs). It flips the room into
-  `phase: "playing"` WITHOUT dealing the deck out, and `dealMode` stays on: the deck sits
-  in the centre face-down and every player pulls the top card for themselves
+  `phase: "playing"` WITHOUT dealing the deck out: the deck stays in the centre face
+  down, and every player pulls the top card for themselves
   (`take_card`). Nobody may put a card into someone else's hand — the dealer included:
   `deal_card` answers `action_rejected` with `free_mode`. Two simultaneous pulls need no
   extra logic — Colyseus processes messages one at a time, so the first taker gets the
   top card and the second gets the next one. The only way out is `collect_hands`
   («Перераздача»), which returns the room to `lobby` and to dealing. Note the side
-  effect of the phase change: the six `phase === "lobby"` deck handlers (shuffling,
-  flipping, `move_deck`, `reset_deck`) go away on their own — that is the intent.
+  effect of the phase change: the `phase === "lobby"` deck handlers (shuffling,
+  `reset_deck`) go away on their own — that is the intent.
 - **Dealer vote weight** is 1.01 (`DEALER_VOTE_WEIGHT` in `handRules.ts`), not 1.5: the
   dealer only decides tied votes, two regular players always outweigh them. The client
   must show the SAME weight (`client/src/game/voteWeight.ts`) — it used to display 1.5,
