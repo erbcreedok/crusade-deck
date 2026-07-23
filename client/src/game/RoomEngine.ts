@@ -45,7 +45,7 @@ import {
   fanSpreadPinned,
 } from "./fan";
 import { shuffleFlight, bulgeDir } from "./shuffleFlight";
-import { scatterCards, shuffleOrder } from "./deckOrder";
+import { scatterCards, shuffleOrder, withoutCard } from "./deckOrder";
 import { dedupeDeckOrder } from "./dedupeDeckOrder";
 import {
   spinAngle,
@@ -1421,6 +1421,24 @@ export class RoomEngine {
     }
   }
 
+  /**
+   * Карта уходит с колоды: призрак летит с пальца к месту получателя, а сама карта
+   * ПОКИДАЕТ стопку сразу же, не дожидаясь эха сервера.
+   *
+   * Немедленное удаление обязательно: к верхней карте привязаны кирпич колоды, её тень и
+   * счётчик. Пока улетевшая карта числится в стопке верхней, вся колода «переезжает» в
+   * точку дропа и возвращается в центр только с приходом состояния — со стороны это
+   * выглядит так, будто карта и колода поменялись местами.
+   *
+   * Если сервер откажет или отдаст другую карту (в свободе двое могли потянуть разом),
+   * состояние вернёт правду и карта просто появится в колоде обратно.
+   */
+  flyCardOff(card: string, from: FlightPoint, toId: string): void {
+    if (this.destroyed) return;
+    this.playDealFlight(card, from, toId);
+    this.setDeck(withoutCard(this.deckCards, card));
+  }
+
   /** Старт полёта с текущей позы (дроп раздачи с пальца). */
   playDealFlight(card: string, from: FlightPoint, toId: string): void {
     const to = this.cardMoveAnchor(toId);
@@ -1783,13 +1801,8 @@ export class RoomEngine {
       if (seat) {
         const card = d.v.card;
         // Плавный полёт с пальца к месту; эхо card_moved этот же card пропустит.
-        this.playDealFlight(
-          card,
-          { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation },
-          seat,
-        );
+        this.flyCardOff(card, { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation }, seat);
         this.onDealCard?.(card, seat);
-        d.v.sprite.visible = false;
       } else if (this.deckFanned && this.inDeckFanArea(x, y)) {
         // Дроп обратно в веер колоды — перестановка, не возврат на родной слот.
         const to = this.insertDeckIndexAt(x);
@@ -2594,7 +2607,7 @@ export class RoomEngine {
     this.syncShout();
   }
 
-  // Клич по центру экрана: наезд ударом и затухание (поза считается в engine/shout.ts).
+  // Клич летит через экран справа налево, дрожа на ходу (поза — в engine/shout.ts).
   private syncShout(): void {
     const box = this.shoutBox;
     if (!box) return;
@@ -2603,10 +2616,15 @@ export class RoomEngine {
       return;
     }
     const pose = shoutPose(this.shout.t / this.shout.dur);
+    const size = shoutFontSize(this.w, SHOUT_TEXT.length);
+    // За краем экрана надпись должна оказаться ЦЕЛИКОМ, иначе на выезде у края повисает
+    // хвост из огонька: к полуэкрану добавляем полуширину самой надписи.
+    const travel = this.w / 2 + shoutEmojiOffset(size, SHOUT_TEXT.length) * pose.scale;
     box.visible = true;
-    box.x = this.w / 2;
-    // Чуть выше центра: в центре клич накрыл бы колоду, ради которой всё и затевалось.
-    box.y = this.h * 0.4;
+    box.x = this.w / 2 + pose.x * travel;
+    // Чуть выше центра: по центру клич накрыл бы колоду, ради которой всё и затевалось.
+    box.y = this.h * 0.4 + pose.shakeY * size;
+    box.rotation = pose.rot;
     box.scale.set(pose.scale);
     box.alpha = pose.alpha;
   }

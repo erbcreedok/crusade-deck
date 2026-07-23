@@ -1,61 +1,94 @@
 import { describe, it, expect } from "vitest";
-import { SHOUT_DUR, SHOUT_PEAK_SCALE, shoutEmojiOffset, shoutFontSize, shoutPose } from "./shout";
+import { SHOUT_DUR, shoutEmojiOffset, shoutFontSize, shoutPose } from "./shout";
 
-describe("shoutPose — клич «ГОУ!» поверх стола", () => {
-  it("клич живёт около секунды: достаточно, чтобы прочитать, мало, чтобы мешать", () => {
-    expect(SHOUT_DUR).toBeGreaterThanOrEqual(1);
-    expect(SHOUT_DUR).toBeLessThanOrEqual(1.2);
+const at = (p: number) => shoutPose(p);
+const samples = (n: number) => Array.from({ length: n + 1 }, (_, i) => i / n);
+
+describe("shoutPose — клич «ГОУ!» пролетает через стол", () => {
+  it("клич живёт около полутора секунд: успеть прочитать на лету", () => {
+    expect(SHOUT_DUR).toBeGreaterThanOrEqual(1.2);
+    expect(SHOUT_DUR).toBeLessThanOrEqual(1.6);
   });
 
-  it("появляется УДАРОМ: мелкий и прозрачный в самом начале", () => {
-    const start = shoutPose(0);
-    expect(start.scale).toBeLessThan(0.5);
-    expect(start.alpha).toBe(0);
+  it("едет СПРАВА НАЛЕВО: стартует за правым краем, уходит за левый", () => {
+    expect(at(0).x).toBeGreaterThan(1);
+    expect(at(1).x).toBeLessThan(-1);
   });
 
-  it("наезд с перехлёстом — крупнее итогового размера в первую четверть", () => {
-    const peak = Math.max(...[0.1, 0.15, 0.2, 0.25].map((p) => shoutPose(p).scale));
-    expect(peak).toBeGreaterThan(1.15);
-  });
-
-  it("к середине оседает примерно в свой размер и виден полностью", () => {
-    const mid = shoutPose(0.5);
-    expect(mid.scale).toBeCloseTo(1, 1);
-    expect(mid.alpha).toBe(1);
-  });
-
-  it("к концу гаснет полностью — иначе надпись осталась бы висеть на столе", () => {
-    expect(shoutPose(1).alpha).toBe(0);
-    expect(shoutPose(0.9).alpha).toBeLessThan(1);
-    expect(shoutPose(0.9).alpha).toBeGreaterThan(0);
-  });
-
-  it("затухание монотонное: клич гаснет, а не мигает", () => {
-    let prev = shoutPose(0.7).alpha;
-    for (const p of [0.75, 0.8, 0.85, 0.9, 0.95, 1]) {
-      const a = shoutPose(p).alpha;
-      expect(a).toBeLessThanOrEqual(prev);
-      prev = a;
+  it("движение только в одну сторону — клич не мечется туда-обратно", () => {
+    let prev = at(0).x;
+    for (const p of samples(40).slice(1)) {
+      const x = at(p).x;
+      expect(x).toBeLessThanOrEqual(prev);
+      prev = x;
     }
   });
 
+  it("в середине пролёта надпись у центра — там её и читают", () => {
+    expect(Math.abs(at(0.45).x)).toBeLessThan(0.2);
+  });
+
+  it("у центра почти замирает: середина пути медленнее краёв", () => {
+    const speed = (a: number, b: number) => Math.abs(at(b).x - at(a).x);
+    expect(speed(0.4, 0.5)).toBeLessThan(speed(0.05, 0.15));
+    expect(speed(0.4, 0.5)).toBeLessThan(speed(0.85, 0.95));
+  });
+
+  it("дрожит: и по вертикали, и наклоном — знак меняется много раз", () => {
+    const flips = (pick: (p: number) => number) => {
+      let n = 0;
+      let prev = pick(0);
+      for (const p of samples(60).slice(1)) {
+        const v = pick(p);
+        if (v * prev < 0) n++;
+        prev = v;
+      }
+      return n;
+    };
+    expect(flips((p) => at(p).shakeY)).toBeGreaterThan(8);
+    expect(flips((p) => at(p).rot)).toBeGreaterThan(4);
+  });
+
+  it("дрожь остаётся в разумных пределах — надпись трясётся, а не разваливается", () => {
+    for (const p of samples(60)) {
+      expect(Math.abs(at(p).shakeY)).toBeLessThan(0.3);
+      expect(Math.abs(at(p).rot)).toBeLessThan(0.15);
+    }
+  });
+
+  it("въезжает УДАРОМ: мелкая на старте, с перехлёстом к концу заезда", () => {
+    expect(at(0).scale).toBeLessThan(0.7);
+    expect(Math.max(...samples(20).map((p) => at(p).scale))).toBeGreaterThan(1.2);
+  });
+
+  it("к центру оседает примерно в свой размер", () => {
+    expect(at(0.5).scale).toBeGreaterThan(0.9);
+    expect(at(0.5).scale).toBeLessThan(1.15);
+  });
+
+  it("виден почти весь пролёт, гаснет только у самого края", () => {
+    expect(at(0).alpha).toBe(0);
+    expect(at(0.5).alpha).toBe(1);
+    expect(at(0.85).alpha).toBe(1);
+    expect(at(1).alpha).toBe(0);
+  });
+
   it("выход за границы не ломает позу", () => {
-    expect(shoutPose(-1)).toEqual(shoutPose(0));
-    expect(shoutPose(5)).toEqual(shoutPose(1));
+    expect(at(-1)).toEqual(at(0));
+    expect(at(5)).toEqual(at(1));
   });
 });
 
 describe("раскладка клича", () => {
-  const LEN = "ГОООООУУУ!!!".length;
+  const LEN = "ГОООООООООУУУ!!!".length;
 
-  it("на узком телефоне клич влезает в экран даже на пике удара", () => {
+  it("на узком телефоне клич читается целиком, когда идёт через центр", () => {
     const fs = shoutFontSize(320, LEN);
-    const halfWidth = shoutEmojiOffset(fs, LEN) * SHOUT_PEAK_SCALE;
-    expect(halfWidth * 2).toBeLessThanOrEqual(320);
+    expect(shoutEmojiOffset(fs, LEN) * 2).toBeLessThanOrEqual(320);
   });
 
   it("на широком экране кегль упирается в потолок — клич не раздувается бесконечно", () => {
-    expect(shoutFontSize(2000, LEN)).toBe(shoutFontSize(4000, LEN));
+    expect(shoutFontSize(3000, LEN)).toBe(shoutFontSize(6000, LEN));
   });
 
   it("кегль растёт вместе с экраном, пока не упрётся", () => {

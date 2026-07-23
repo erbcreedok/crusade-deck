@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveCard, scatterCards, shuffleOrder, isPermutationOf } from "./deckOrder";
+import { moveCard, scatterCards, shuffleOrder, isPermutationOf, withoutCard } from "./deckOrder";
 
 const deck = ["A♠", "2♠", "3♠", "4♠", "5♠"];
 
@@ -80,6 +80,26 @@ describe("shuffleOrder", () => {
     expect(src).toEqual(deck);
     expect(shuffleOrder([], () => 0.3)).toEqual([]);
     expect(shuffleOrder(["A♠"], () => 0.99)).toEqual(["A♠"]);
+  });
+});
+
+describe("withoutCard", () => {
+  const deck = ["6♣", "K♦", "A♠"];
+
+  it("убирает карту, порядок остальных цел", () => {
+    expect(withoutCard(deck, "K♦")).toEqual(["6♣", "A♠"]);
+    expect(withoutCard(deck, "A♠")).toEqual(["6♣", "K♦"]);
+  });
+
+  it("чужая карта ничего не меняет", () => {
+    expect(withoutCard(deck, "джокер")).toEqual(deck);
+    expect(withoutCard([], "A♠")).toEqual([]);
+  });
+
+  it("исходная колода не мутируется", () => {
+    const src = [...deck];
+    withoutCard(src, "K♦");
+    expect(src).toEqual(deck);
   });
 });
 

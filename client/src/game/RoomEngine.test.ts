@@ -119,6 +119,36 @@ describe("RoomEngine.setHand", () => {
   });
 });
 
+describe("RoomEngine: карта улетает с колоды", () => {
+  // Карта, утащенную с колоды пальцем, обязана покинуть стопку СРАЗУ, не дожидаясь эха
+  // сервера: к верхней карте привязаны кирпич колоды и её тень, и пока улетевшая карта
+  // числится верхней, вся колода «переезжает» в точку дропа.
+  it("улетевшая карта сразу уходит из колоды, а не ждёт эха сервера", async () => {
+    const { engine } = await mountEngine();
+    engine.setDeck(DECK_36);
+    const before = pixi.__liveSprites().length;
+    const top = DECK_36[DECK_36.length - 1]!;
+
+    engine.flyCardOff(top, { x: 100, y: 700, rot: 0 }, "me");
+
+    // Спрайт карты в колоде уничтожен, вместо него — один призрак в полёте: счёт тот же.
+    expect(pixi.__liveSprites().length).toBe(before);
+  });
+
+  it("эхо сервера с той же картой не плодит второй полёт", async () => {
+    const { engine } = await mountEngine();
+    engine.setDeck(DECK_36);
+    const top = DECK_36[DECK_36.length - 1]!;
+    engine.flyCardOff(top, { x: 100, y: 700, rot: 0 }, "me");
+    const after = pixi.__liveSprites().length;
+
+    engine.setDeck(DECK_36.slice(0, -1)); // пришло состояние без этой карты
+    engine.playCardMoved([{ card: top, from: "deck", to: "me" }]);
+
+    expect(pixi.__liveSprites().length).toBe(after);
+  });
+});
+
 describe("RoomEngine: сон рендер-цикла", () => {
   it("в покое цикл засыпает — в простое ноль кадров", async () => {
     const { app } = await mountEngine();
