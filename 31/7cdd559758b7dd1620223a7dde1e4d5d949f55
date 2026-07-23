@@ -1,0 +1,42 @@
+client/src/game/engine/constants.ts
+  s_b16a7b1f1196ad::t_9ca05e198c79ae 14-16
+client/src/RoomScreen.tsx
+  s_b16a7b1f1196ad::t_9ca05e198c79ae 227,237-238,252
+server/src/handRules.test.ts
+  s_b16a7b1f1196ad::t_23c9f384e6a5c5 2-9,105-118,120
+  s_b16a7b1f1196ad::t_96bd878a83f2d7 119,121-122
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_824e3138176772 2,66-83
+  s_b16a7b1f1196ad::t_9f24127155f9b4 84-85
+server/src/handRules.ts
+  s_b16a7b1f1196ad::t_23c9f384e6a5c5 51-57
+client/src/room/roomMenu.test.ts
+  s_b16a7b1f1196ad::t_ddad97ce6036bb 23,25,28-33
+client/src/game/barActions.test.ts
+  s_b16a7b1f1196ad::t_ddad97ce6036bb 33,35-46,49,52,55-56,60-65
+server/src/CardRoom.free.test.ts
+  s_b16a7b1f1196ad::t_824e3138176772 123-160
+client/src/room/useRoomSignals.ts
+  s_b16a7b1f1196ad::t_9ca05e198c79ae 5,92-95
+client/src/room/roomMenu.ts
+  s_b16a7b1f1196ad::t_ddad97ce6036bb 10,43-47
+  s_b16a7b1f1196ad::t_8325a539caf5a2 48
+client/src/game/barActions.ts
+  s_b16a7b1f1196ad::t_ddad97ce6036bb 18-21,36-37,49-50,52-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "317cdd559758b7dd1620223a7dde1e4d5d949f55",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
