@@ -1,0 +1,48 @@
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_153c36879a04ce 1788-1790
+  s_6b17180413249b::t_49fd47c45bf628 2899,2905
+  s_6b17180413249b::t_d9a2ecd4f27825 169
+  s_6b17180413249b::t_a57df4f18717d0 3474
+  s_6b17180413249b::t_7a426c28a7cf07 2558-2560
+  s_6b17180413249b::t_632f6b243913fd 2920-2923
+  s_6b17180413249b::t_1a586b5690f2a0 608-627
+  s_6b17180413249b::t_6c94f61b139046 2707-2710
+client/src/game/engine/zoneChrome.test.ts
+  s_6b17180413249b::t_566d85327c020e 36
+  s_6b17180413249b::t_5d8112243a9f44 53,55-56
+  s_6b17180413249b::t_27357b7ffdf4c9 42-43,87-88
+client/src/game/engine/zoneChrome.ts
+  s_6b17180413249b::t_45c924ac5dee97 34-39,43,46,48-49,61,65,70-71,77-78,83-84,93
+client/src/game/engine/seatPaint.ts
+  s_6b17180413249b::t_c68282c7387e0f 65-71
+client/src/game/zoneLabels.ts
+  s_6b17180413249b::t_f678995ce89021 33-36
+client/src/game/zoneLabels.test.ts
+  s_6b17180413249b::t_94085b9c1e780c 27-28
+client/src/game/engine/constants.ts
+  s_6b17180413249b::t_200d670237b6c6 130-132
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_ab0fd6d1efab7e 812-814,825-827
+client/src/game/dealReadyTint.ts
+  s_6b17180413249b::t_6f3b2a047bd777 9-10
+client/src/game/engine/zonePaint.ts
+  s_6b17180413249b::t_bc20fc3dcde8c3 63-74,76
+  s_6b17180413249b::t_8de5756ed62bb4 37
+  s_6b17180413249b::t_dfa0e651ae93e3 31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3ba6692eac0525ba74fed7f6e6f0acb519919ac8",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
