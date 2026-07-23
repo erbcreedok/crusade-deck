@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 804 tests
+cd client && npm test && npx tsc --noEmit   # 816 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -172,6 +172,16 @@ zero-sized rect — so hit-testing and painting both drop it without a special c
     the GESTURE, not on "is the deck fanned". That used to read `!this.deckFanned`, so a
     drag out of the open discard or a zone stack (a fan that isn't the deck's) quietly
     re-laid the DECK out as n−1.
+  - A zone stack has its OWN geometry (`playStack.ts`), not the deck's: the deck's offset
+    is about the thickness of a pack, a zone stack is about what's IN it. Back cards peek
+    out from under the front one, the stack never gets wider than 1.2 cards (the grid is
+    tight), and the BOTTOM card juts out into the bottom-right corner far enough for its
+    corner index to read — you can see what's at the bottom without opening the fan. The
+    vertical spread is bigger than the horizontal one for exactly that reason: the index
+    glyph occupies the lower third of the face texture. Grid cells are therefore measured
+    by the stack's FOOTPRINT, not by the card, or neighbours would overlap on precisely
+    the edges the spread exists to show. Unlike the deck and discard, a zone stack draws
+    ALL of its cards — hiding them would mean rendering a spread nobody can see.
   - While a card is being dragged over the zone the table ANSWERS (`playHover.ts`): the
     stack under the finger lifts and grows (so its shadow travels further on its own —
     lift IS the excess over the resting scale), and the immediate neighbours step aside,

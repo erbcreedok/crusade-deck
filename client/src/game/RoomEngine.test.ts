@@ -736,6 +736,43 @@ describe("RoomEngine: игральная зона", () => {
     expect(gapFromTarget(back.x, back.y)).toBeCloseTo(gapBefore, 0);
   });
 
+  // Кучка должна читаться как кучка, а не как одинокая карта: задние торчат из-под
+  // передней, а САМАЯ НИЖНЯЯ выпирает углом — по ней видно, что лежит на дне.
+  it("в кучке видны все карты, нижняя выпирает вправо-вниз", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦", "3♦", "4♦"]]); // 2♦ на дне, 4♦ сверху
+    for (let i = 0; i < 40; i++) app.ticker.__advance(16);
+
+    const cardAt = (face: string): any => pixi.__liveSprites().find((sp: any) => sp.label === face);
+    const bottom = cardAt("2♦");
+    const middle = cardAt("3♦");
+    const top = cardAt("4♦");
+
+    for (const sp of [bottom, middle, top]) expect(sp.visible).toBe(true);
+    expect(bottom.x).toBeGreaterThan(middle.x);
+    expect(middle.x).toBeGreaterThan(top.x);
+    expect(bottom.y).toBeGreaterThan(middle.y);
+    expect(middle.y).toBeGreaterThan(top.y);
+    // Дно лежит ПОД всеми: его выступающий угол не должен накрывать соседей сверху.
+    expect(bottom.zIndex).toBeLessThan(top.zIndex);
+  });
+
+  it("кучка не шире 1.2 карты, сколько бы карт в ней ни было", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦", "3♦", "4♦", "5♦", "6♦", "7♦", "8♦", "9♦"]]);
+    for (let i = 0; i < 40; i++) app.ticker.__advance(16);
+
+    const xs = ["2♦", "3♦", "4♦", "5♦", "6♦", "7♦", "8♦", "9♦"].map(
+      (f) => pixi.__liveSprites().find((sp: any) => sp.label === f)!.x,
+    );
+    const { computeLayout } = await import("./layout");
+    const { playGrid } = await import("./playGrid");
+    const layout = computeLayout(390, 800, undefined, true);
+    const cardW = playGrid(layout.centerZone, layout.cardW, layout.cardH, 1).cardW;
+
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(cardW * 0.2 + 0.5);
+  });
+
   // Веер ради одной верхней карты — лишний шаг на каждый ход. Закрытая кучка отдаёт её
   // прямо с места; веер остаётся на «покопаться в середине».
   it("верхняя карта тянется прямо из закрытой кучки, без раскрытия веера", async () => {

@@ -114,6 +114,7 @@ import {
 } from "./engine/constants";
 import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShadowLayer, ShufflePose } from "./engine/types";
 import { playPile, playPileIndex } from "./engine/boardPile";
+import { playStackOffset } from "./playStack";
 import { CLEAR_PLAY_LABEL, clearPlayButton, hitsClearPlay } from "./engine/clearPlayButton";
 import { flattenPlay, type PlaySlot } from "./playFlat";
 import { pickPlayCell, playGrid, type PlayGrid } from "./playGrid";
@@ -1154,24 +1155,34 @@ export class RoomEngine {
     // Поверх неё ложится ответ стола на драг: наведённая кучка приподнята, соседи отступили.
     const hov = playHoverAdjust(grid, this.playHover, slot.stack);
     const zs = (grid.cardW / this.layout.cardW) * hov.scale;
-    const so = stackOffset(slot.within, Math.max(1, slot.of), true);
+    // Разъезд кучки — свой (playStack.ts), в долях карты: колодная геометрия здесь не
+    // годится, она про толщину пачки, а кучке нужно показать, что лежит на дне.
+    const so = playStackOffset(slot.within, slot.of);
     return {
-      x: cell.cx + hov.dx + so.dx * zs,
-      y: cell.cy + hov.dy + so.dy * zs,
+      x: cell.cx + hov.dx + so.dx * this.layout.cardW * zs,
+      y: cell.cy + hov.dy + so.dy * this.layout.cardH * zs,
       rot: this.restJitter[i] ?? 0,
       scale: zs,
     };
   }
 
-  // Кучка показывает только верхушку — как колода и сброс. Раскрытая веером показывает всё.
+  /**
+   * Кучка зоны показывает ВСЕ свои карты, в отличие от колоды и сброса.
+   *
+   * У тех видна только верхушка, и это правильно: они про «сколько там осталось». Кучка
+   * же разъезжается веером-лесенкой (playStack.ts) — задние торчат из-под передней, а
+   * нижняя выпирает углом. Прятать их значило бы рисовать разъезд, которого не видно.
+   * Карт в кучке единицы, так что спрайты тут не экономим.
+   *
+   * z-порядок обратный номеру: нижняя карта (within = 0) выпирает ВПРАВО-ВНИЗ и обязана
+   * лежать под всеми — иначе её выступающий угол накрыл бы соседей сверху.
+   */
   private syncPlayVisibility(): void {
     const held = this.cardDrag?.v ?? this.rejectCard;
-    const fanned = playPileIndex(this.boardFan);
     this.playCards.forEach((c, i) => {
       const slot = this.playSlots[i];
       if (!slot) return;
-      const open = slot.stack === fanned;
-      c.sprite.visible = open || slot.within >= slot.of - 2 || c === held;
+      c.sprite.visible = true;
       if (c !== held) c.sprite.zIndex = this.pileZBase(playPile(slot.stack)) + slot.within;
     });
   }
@@ -3660,7 +3671,14 @@ export class RoomEngine {
       this.playStacks.forEach((_, k) => {
         const pile = playPile(k);
         if (this.boardFan === pile) return;
-        this.pushPileShadow(specs, this.pileCards(pile), this.pileZBase(pile), restScale);
+        const cards = this.pileCards(pile);
+        // Две тени на кучку: под нижней картой и под верхней. Кучка разъезжается на пятую
+        // часть ширины и треть высоты, и один силуэт оставил бы половину стопки висеть
+        // без тени. Силуэты сливаются маской, поэтому в перекрытии не темнеет (shadowPass).
+        this.pushPileShadow(specs, cards, this.pileZBase(pile), restScale);
+        if (cards.length > 1) {
+          this.pushPileShadow(specs, cards.slice(-1), this.pileZBase(pile), restScale);
+        }
       });
 
       // Раскрытый веер: тени через одну-две, чтобы не сложиться в полосу.

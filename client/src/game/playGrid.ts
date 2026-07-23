@@ -1,4 +1,5 @@
 import type { RoundedRect } from "./layout";
+import { PLAY_STACK_FOOTPRINT } from "./playStack";
 
 // Раскладка ИГРАЛЬНОЙ ЗОНЫ — среднего бокса стола. Сервер хранит только состав кучек
 // (GameState.play), а где какая окажется на экране, решает эта чистая функция по индексу.
@@ -24,7 +25,14 @@ export interface PlayCell {
 }
 
 export interface PlayGrid {
-  /** Ячейка на каждую кучку зоны, в порядке индексов сервера. */
+  /**
+   * Ячейка на каждую кучку зоны, в порядке индексов сервера.
+   *
+   * Ячейка меряется ГАБАРИТОМ КУЧКИ, а не карты: карты в кучке разъезжаются, и нижняя
+   * выпирает за край верхней (см. playStack.ts). Отводить ей ровно карту значило бы, что
+   * соседние кучки налезают друг на друга ровно теми краями, ради которых разъезд и
+   * сделан. Хит-тест от этого только выигрывает: попасть в кучку легче, чем в карту.
+   */
   cells: PlayCell[];
   /**
    * Ячейка «сюда — новая кучка»: следующая свободная. Место под неё резервируется всегда,
@@ -32,6 +40,7 @@ export interface PlayGrid {
    * негде было бы начать — свободного места на столе физически не осталось бы.
    */
   addCell: PlayCell;
+  /** Размер карты в зоне (не ячейки): ячейка шире и выше на габарит разъезда кучки. */
   cardW: number;
   cardH: number;
   cols: number;
@@ -62,9 +71,13 @@ export function playGrid(
   }
 
   const total = count + 1; // +1 — ячейка «сюда новую»
-  const { scale, cols } = fitScale(zone, cardW, cardH, total);
-  const w = cardW * scale;
-  const h = cardH * scale;
+  // Место кучке отводится по её габариту, а сама карта остаётся картой: сетка считает
+  // раскладку в footprint'ах, а наружу отдаёт и то, и другое.
+  const fw = cardW * PLAY_STACK_FOOTPRINT.w;
+  const fh = cardH * PLAY_STACK_FOOTPRINT.h;
+  const { scale, cols } = fitScale(zone, fw, fh, total);
+  const w = fw * scale;
+  const h = fh * scale;
   const gap = cardW * GAP * scale;
   const rows = Math.ceil(total / cols);
 
@@ -88,8 +101,10 @@ export function playGrid(
   return {
     cells: Array.from({ length: count }, (_, i) => cellAt(i)),
     addCell: cellAt(count),
-    cardW: w,
-    cardH: h,
+    // Размер САМОЙ КАРТЫ, а не ячейки: ячейка больше на габарит разъезда кучки, и
+    // рисовать карту по ячейке значило бы раздуть её на пятую часть.
+    cardW: cardW * scale,
+    cardH: cardH * scale,
     cols,
     rows,
     scrollMax,
@@ -100,14 +115,14 @@ export function playGrid(
  * Сколько колонок и какой масштаб. Перебор, а не формула: колонок заведомо мало (десятки),
  * а «лучше» здесь — не гладкая функция, у неё скачки на каждой смене числа строк.
  */
-function fitScale(zone: RoundedRect, cardW: number, cardH: number, total: number): { scale: number; cols: number } {
+function fitScale(zone: RoundedRect, cellW: number, cellH: number, total: number): { scale: number; cols: number } {
   let best = { scale: 0, cols: 1 };
   for (let cols = 1; cols <= total; cols++) {
     const rows = Math.ceil(total / cols);
     // Ширина строки: cols карт плюс cols+1 зазоров, всё в одном масштабе s. Отсюда
     // предельное s по каждой оси; берём меньшее и не крупнее исходной карты.
-    const byW = zone.w / (cols * cardW + GAP * cardW * (cols + 1));
-    const byH = zone.h / (rows * cardH + GAP * cardW * (rows + 1));
+    const byW = zone.w / (cols * cellW + GAP * cellW * (cols + 1));
+    const byH = zone.h / (rows * cellH + GAP * cellW * (rows + 1));
     const scale = Math.min(byW, byH, 1);
     if (scale > best.scale) best = { scale, cols };
   }
@@ -116,8 +131,8 @@ function fitScale(zone: RoundedRect, cardW: number, cardH: number, total: number
   // Пол сжатия достигнут: масштаб фиксируем, колонок берём столько, сколько влезает в
   // ширину, а лишние строки уходят под прокрутку.
   const scale = PLAY_MIN_SCALE;
-  const gap = cardW * GAP * scale;
-  const cols = Math.max(1, Math.floor((zone.w - gap) / (cardW * scale + gap)));
+  const gap = cellW * GAP * scale;
+  const cols = Math.max(1, Math.floor((zone.w - gap) / (cellW * scale + gap)));
   return { scale, cols };
 }
 
