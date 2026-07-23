@@ -5,6 +5,7 @@ import type { DraggedKind } from "../zoneLabels";
 import {
   noticeStyle,
   slotLabelFontSize,
+  slotLabelY,
   tableSlotChrome,
   zoneChrome,
   zoneLabelFontSize,
@@ -18,8 +19,6 @@ export interface ZonePaintDeps {
   labels: Partial<Record<DropZone, Text>>;
   /** Подписи боковых слотов игрового стола (колода / сброс). */
   slotLabels: Partial<Record<TableSlot, Text>>;
-  /** Колода разобрана до конца: только тогда её слот подписывается словом. */
-  deckEmpty: boolean;
   layout: RoomLayout;
   dragging: boolean;
   hoverZone: DropTarget | null;
@@ -29,7 +28,7 @@ export interface ZonePaintDeps {
 
 export function paintZones(d: ZonePaintDeps): void {
   d.g.clear();
-  paintTableSlots(d.g, d.layout, d.slotLabels, d.deckEmpty);
+  paintTableSlots(d.g, d.layout, d.slotLabels);
   const regions = dropZoneRegions(d.layout);
   (Object.keys(regions) as DropZone[]).forEach((zone) => {
     const { rect } = regions[zone];
@@ -86,7 +85,6 @@ export function paintTableSlots(
   g: Graphics,
   layout: RoomLayout,
   labels: Partial<Record<TableSlot, Text>>,
-  deckEmpty = false,
 ): void {
   const rects: Record<TableSlot, RoundedRect | null> = {
     deck: layout.deckSlot,
@@ -101,15 +99,10 @@ export function paintTableSlots(
     }
     const c = tableSlotChrome(slot);
     g.roundRect(rect.cx - rect.w / 2, rect.cy - rect.h / 2, rect.w, rect.h, rect.r).stroke(c.stroke);
-    // Под непустой колодой уже стоит её счётчик — вторая подпись легла бы прямо на него.
-    if (!label || (slot === "deck" && !deckEmpty)) {
-      if (label) label.visible = false;
-      continue;
-    }
+    if (!label) continue;
     label.text = c.label;
     label.x = rect.cx;
-    // Подпись под слотом, а не в нём: в слоте колоды лежат карты и накрыли бы её.
-    label.y = rect.cy + rect.h / 2 + layout.cardH * 0.16;
+    label.y = slotLabelY(rect, layout.cardH);
     label.style.fontSize = slotLabelFontSize(rect.w, layout.cardH);
     label.tint = c.tint;
     label.alpha = c.alpha;

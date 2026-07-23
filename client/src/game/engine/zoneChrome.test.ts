@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEAL_HAND_NOT_READY, DEAL_HAND_READY } from "../dealReadyTint";
 import { COLORS } from "./constants";
-import { noticeStyle, zoneChrome, zoneLabelFontSize } from "./zoneChrome";
+import { noticeStyle, slotLabelY, zoneChrome, zoneLabelFontSize } from "./zoneChrome";
 
 const IDLE = {
   zone: "center" as const,
@@ -65,6 +65,18 @@ describe("zoneLabelFontSize", () => {
   it("растёт с размером карты, но упирается в потолок", () => {
     expect(zoneLabelFontSize("center", 800, 40)).toBeLessThan(zoneLabelFontSize("center", 800, 200));
     expect(zoneLabelFontSize("center", 800, 5000)).toBe(44);
+  });
+});
+
+describe("slotLabelY", () => {
+  const rect = { cy: 400, h: 120 };
+
+  it("подпись стоит НАД боксом, а не внутри и не под ним", () => {
+    expect(slotLabelY(rect, 100)).toBeLessThan(rect.cy - rect.h / 2);
+  });
+
+  it("отступ растёт вместе с картой — на большом столе подпись не липнет к рамке", () => {
+    expect(slotLabelY(rect, 200)).toBeLessThan(slotLabelY(rect, 100));
   });
 });
 

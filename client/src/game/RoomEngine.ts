@@ -1991,7 +1991,6 @@ export class RoomEngine {
       g: this.zoneLayer,
       labels: this.zoneLabels,
       slotLabels: this.slotLabels,
-      deckEmpty: this.deckCount === 0,
       layout: this.layout,
       dragging: !!this.cardDrag,
       hoverZone: this.hoverZone,

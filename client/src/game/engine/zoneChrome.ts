@@ -81,6 +81,14 @@ export function tableSlotChrome(slot: TableSlot): {
   };
 }
 
+/**
+ * Подпись слота стоит НАД боксом: под колодой уже висит её счётчик, а внутри бокса
+ * подпись перекрыли бы карты. Возвращает y центра текста (у него anchor 0.5).
+ */
+export function slotLabelY(rect: { cy: number; h: number }, cardH: number): number {
+  return rect.cy - rect.h / 2 - cardH * 0.16;
+}
+
 /** Подпись слота мельче зонной: она служебная и не должна спорить с картами. */
 export function slotLabelFontSize(slotWidth: number, cardH: number): number {
   const base = Math.min(22, Math.max(10, cardH * 0.26));
