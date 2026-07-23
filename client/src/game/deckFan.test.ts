@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { boardFanCardScale, layoutDeckFan } from "./deckFan";
+import { FAN_SCALE, fanCardScale, layoutDeckFan } from "./deckFan";
 import { fanCard } from "./fan";
 
 const zone = { cx: 200, cy: 300, w: 400, h: 280 };
@@ -49,27 +49,30 @@ describe("layoutDeckFan", () => {
   });
 });
 
-describe("boardFanCardScale", () => {
-  const cardW = 63;
-
-  it("мало карт — крупнее обычного", () => {
-    expect(boardFanCardScale(3, 320, cardW)).toBeGreaterThan(1.2);
-    expect(boardFanCardScale(1, 320, cardW)).toBeGreaterThan(boardFanCardScale(6, 320, cardW));
+describe("fanCardScale", () => {
+  it("раскрытый веер чуть крупнее эталона — карты закрытой руки", () => {
+    expect(fanCardScale(1)).toBe(FAN_SCALE);
+    expect(fanCardScale(18)).toBe(FAN_SCALE);
+    expect(FAN_SCALE).toBeGreaterThan(1);
+    expect(FAN_SCALE).toBeLessThan(1.35);
   });
 
-  it("много карт — обычный размер, но не мельче", () => {
-    expect(boardFanCardScale(36, 320, cardW)).toBe(1);
-    expect(boardFanCardScale(52, 100, cardW)).toBe(1);
+  it("размер НЕ зависит от числа карт, пока веер не стал тесным", () => {
+    expect(fanCardScale(2)).toBe(fanCardScale(12));
   });
 
-  it("растёт вместе с отведённой шириной, но упирается в потолок", () => {
-    expect(boardFanCardScale(5, 400, cardW)).toBeGreaterThan(boardFanCardScale(5, 250, cardW));
-    expect(boardFanCardScale(2, 5000, cardW)).toBe(boardFanCardScale(1, 5000, cardW));
+  it("больше восемнадцати — карты плавно ужимаются к эталону", () => {
+    expect(fanCardScale(24)).toBeLessThan(FAN_SCALE);
+    expect(fanCardScale(36)).toBeLessThan(fanCardScale(24));
+    expect(fanCardScale(52)).toBeGreaterThan(0.9); // но мельче эталона не становятся
   });
 
-  it("вырожденные значения не ломают масштаб", () => {
-    expect(boardFanCardScale(0, 320, cardW)).toBe(1);
-    expect(boardFanCardScale(5, 0, cardW)).toBe(1);
-    expect(boardFanCardScale(5, 320, 0)).toBe(1);
+  it("ужимание монотонное — размер не скачет от карты к карте", () => {
+    let prev = fanCardScale(18);
+    for (let n = 19; n <= 60; n++) {
+      const cur = fanCardScale(n);
+      expect(cur).toBeLessThanOrEqual(prev);
+      prev = cur;
+    }
   });
 });

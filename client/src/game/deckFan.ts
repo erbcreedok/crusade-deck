@@ -24,31 +24,39 @@ export interface DeckFanArgs {
   reservedBelow?: number;
 }
 
-/** Насколько сдвинута каждая следующая карта веера — доля ширины карты. */
-const STEP_RATIO = 0.55;
-/** Потолок увеличения: дальше карта лезет за края даже на просторном столе. */
-const MAX_SCALE = 1.8;
-
 /**
- * Во сколько раз крупнее обычного рисуется карта в раскрытом вееере доски.
+ * Размер карты в РАСКРЫТОМ вееере — хоть на доске, хоть в руке.
  *
- * Веер — главное, на что смотрит игрок, пока он открыт, поэтому карты в нём тянутся
- * заполнить всю отведённую ширину: три карты видно крупно, тридцать — обычным размером.
- * Меньше обычного не делаем никогда: мелкий веер читается хуже стопки.
+ * Эталон стола — карта в закрытой руке (масштаб 1): так выглядят все стопки и почти все
+ * карты. Раскрытый веер — то, на что игрок смотрит прямо сейчас, поэтому его карты чуть
+ * крупнее эталона. Ширину веера это НЕ определяет: сколько бы карт ни было, они одного
+ * размера, а тесноту разруливает шаг между ними (clampFanWidth).
+ *
+ * Исключение — большие вееры: с полусотней карт крупный шрифт просто некуда девать, и
+ * карты плавно ужимаются обратно к эталону.
  */
-export function boardFanCardScale(count: number, availableW: number, cardW: number): number {
-  if (count <= 0 || availableW <= 0 || cardW <= 0) return 1;
-  // Ширина веера ≈ карта + сдвиг на каждую следующую (карты идут внахлёст).
-  const span = cardW * (1 + (count - 1) * STEP_RATIO);
-  return Math.max(1, Math.min(MAX_SCALE, availableW / span));
+export function fanCardScale(count: number): number {
+  if (count <= DENSE_FROM) return FAN_SCALE;
+  const t = Math.min(1, (count - DENSE_FROM) / (FULL_DECK - DENSE_FROM));
+  return FAN_SCALE - t * (FAN_SCALE - DENSE_SCALE);
 }
+
+/** Во сколько раз карта раскрытого веера крупнее карты закрытой руки. */
+export const FAN_SCALE = 1.2;
+/** С этого числа карт веер начинает ужиматься. */
+const DENSE_FROM = 18;
+/** Куда ужимается на полной колоде. */
+const DENSE_SCALE = 0.95;
+const FULL_DECK = 52;
 
 export function layoutDeckFan(args: DeckFanArgs): DeckFanGeom {
   const { stackAnchor: a, zone: z, count, cardW } = args;
   const anchor = { x: a.x, y: a.y };
   const angleDeg = fanMaxAngleDeg(count, anim.fan.maxAngleDeg, anim.fan.maxStepAngleDeg);
-  // Ширина — почти вся зона центра; clampFanWidth подрежет шаг при малом count.
-  const fit = z.w * 0.92;
+  // Ширина ДУГИ, а не всего веера: крайние карты торчат за её концы ещё на полкарты в
+  // каждую сторону. Поэтому из зоны сразу вычитаем карту — иначе веер свисает за край
+  // стола (а в игре — за край экрана).
+  const fit = Math.max(cardW, z.w - cardW);
   const width = clampFanWidth(fit, count, cardW, anim.fan.widthFactor, anim.fan.maxStepIdle);
   return { anchor, width, angleDeg };
 }

@@ -19,7 +19,7 @@ import { activeDropZones, type DragSource } from "./dropZoneActivity";
 import { dealSourceIndex } from "./topCard";
 import type { SeatView } from "./seats";
 import { layoutSeatHand, seatCardFaceUp, type SeatHandLayout } from "./seatHand";
-import { boardFanCardScale, layoutDeckFan } from "./deckFan";
+import { fanCardScale, layoutDeckFan } from "./deckFan";
 import { forbidDeckOpenTap } from "./forbidDeckOpen";
 import {
   dealHandAccent,
@@ -94,6 +94,8 @@ import {
   COLORS,
   DECK_ID,
   DRAG_SCALE,
+  DRAG_SHADOW_LIFT,
+  SHADOW_LABEL,
   EMOJI_FONT,
   HAND_ID,
   PIXEL_FONT,
@@ -590,12 +592,16 @@ export class RoomEngine {
     this.shadowLayer!.addChild(deckShadow);
     this.deckShadow = deckShadow;
 
-    // Отдельная тень под ОДНОЙ картой, которую тащат из веера: общая тень колоды в этот
-    // момент лежит под самим веером и «поднятую» карту не показывает.
+    // Отдельная тень под ОДНОЙ картой, которую тащат: общая тень колоды в этот момент
+    // лежит под стопкой и «поднятую» карту не показывает. Живёт не в слое теней, а прямо
+    // под самой картой в слое карт: карта в руке — верхний предмет стола, и её тень
+    // обязана ложиться поверх всего остального, включая раскрытый веер.
     const cardShadow = new Sprite(this.shadowTex!);
     cardShadow.anchor.set(0.5);
     cardShadow.visible = false;
-    this.shadowLayer!.addChild(cardShadow);
+    cardShadow.zIndex = Z.draggedCard - 1;
+    cardShadow.label = SHADOW_LABEL; // чтобы тени не путались с картами (в т.ч. в тестах)
+    this.cardLayer!.addChild(cardShadow);
     this.cardShadow = cardShadow;
 
     // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
@@ -3133,16 +3139,29 @@ export class RoomEngine {
   private syncFanShadows(): void {
     const cards = this.boardFan ? this.fanCards : [];
     const want = this.profile.shadows ? cards.length : 0;
+    // На тесном вееере тени соседних карт наложились бы в сплошную тёмную полосу под
+    // дугой. Поэтому рисуем не под каждой картой, а через одну-две: шаг берём по
+    // фактическому расстоянию между картами, и верхнюю карту рисуем всегда.
+    const minGap = this.layout.cardW * 0.45;
+    const shown = new Set<number>();
+    let lastX = Number.NEGATIVE_INFINITY;
+    cards.forEach((c, i) => {
+      if (i === cards.length - 1 || Math.abs(c.sprite.x - lastX) >= minGap) {
+        shown.add(i);
+        lastX = c.sprite.x;
+      }
+    });
     while (this.fanShadows.length < want) {
       const sp = new Sprite(this.shadowTex!);
       sp.anchor.set(0.5);
+      sp.label = SHADOW_LABEL;
       sp.zIndex = Z.boardFan - 1; // под своим веером, но НАД остальным столом
       this.cardLayer!.addChild(sp);
       this.fanShadows.push(sp);
     }
     this.fanShadows.forEach((sp, i) => {
       const c = cards[i];
-      if (!c || i >= want) {
+      if (!c || i >= want || !shown.has(i)) {
         sp.visible = false;
         return;
       }
@@ -3186,13 +3205,15 @@ export class RoomEngine {
       return;
     }
     s.visible = true;
-    const elev = Math.max(0, v.body.scaleVal / this.pileScale() - 1);
-    const off = lightShadowOffset(this.layout.cardH, elev);
+    // Высоту считаем от ЭТАЛОНА (карты закрытой руки), а не от масштаба стопки: карту
+    // подняли над столом, и чем крупнее она стала, тем дальше уходит тень.
+    const elev = Math.max(0, v.body.scaleVal - 1);
+    const off = lightShadowOffset(this.layout.cardH, elev * DRAG_SHADOW_LIFT);
     s.x = v.sprite.x + off.dx;
     s.y = v.sprite.y + off.dy;
     s.rotation = v.sprite.rotation;
     s.scale.set(this.baseScale * v.body.scaleVal * 1.05);
-    s.alpha = 0.62 + elev * 0.3;
+    s.alpha = 0.72 + elev * 0.2;
   }
 
   private createCardVisual(card: string): CardVisual {
@@ -3434,9 +3455,9 @@ export class RoomEngine {
     return { cx: (left + right) / 2, w: Math.max(this.layout.cardW, right - left) };
   }
 
-  /** Карты редкого веера крупнее: три штуки видно во весь стол, тридцать — обычным размером. */
+  /** Карты раскрытого веера доски: чуть крупнее эталона, тесный веер ужимается. */
   private boardFanScale(): number {
-    return boardFanCardScale(this.fanCount, this.boardFanArea().w, this.layout.cardW);
+    return fanCardScale(this.fanCount);
   }
 
   private deckFanGeom(): FanGeom {
@@ -3458,7 +3479,9 @@ export class RoomEngine {
   private handFanTarget(i: number): CardTargets {
     const g = this.handFanGeom();
     const c = fanCard(i, Math.max(1, this.handCount), g.anchor, g.width, g.angleDeg, anim.fan.widthFactor);
-    return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
+    // Раскрытый веер руки живёт по тому же правилу, что и веер доски: чуть крупнее
+    // эталона, а тесный — ужимается.
+    return { x: c.x, y: c.y, rot: c.rot, scale: fanCardScale(this.handCount) };
   }
 
   // Слот веера доски: геометрия одна на все стопки — где бы стопка ни лежала, раскрывается

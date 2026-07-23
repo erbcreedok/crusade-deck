@@ -284,9 +284,11 @@ describe("RoomEngine: отбой запрещённого дропа", () => {
     dragTopCardTo(app, engine, seat.rect.cx, seat.rect.cy);
     for (let i = 0; i < 6; i++) app.ticker.__advance(16); // отбой ещё идёт
 
-    // Считаем именно КАРТЫ (слой карт), а не тени: тень колоды тоже лежит у якоря.
+    // Считаем именно КАРТЫ стопок: тени живут в том же слое, но выше по z (тень поднятой
+    // карты — под ней самой, тени веера — под веером).
     const live = new Set(pixi.__liveSprites());
-    const cardsOnScene = findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible);
+    const cardsOnScene = findByZ(app.stage, 3)
+      .children.filter((c: any) => live.has(c) && c.visible && c.label !== "shadow");
     // На чужом месте — только сама отбиваемая карта.
     expect(cardsOnScene.filter((sp: any) => sp.y < 200).length).toBe(1);
     // В слоте колоды по-прежнему видна стопка: нижняя карта И новая верхняя.
@@ -424,7 +426,7 @@ describe("RoomEngine: веер колоды в игре", () => {
     const xs = (): number[] => {
       const live = new Set(pixi.__liveSprites());
       return findByZ(app.stage, 3)
-        .children.filter((c: any) => live.has(c) && c.visible && c.y > 200 && c.y < 600)
+        .children.filter((c: any) => live.has(c) && c.visible && c.label !== "shadow" && c.y > 200 && c.y < 600)
         .map((c: any) => c.x);
     };
 
@@ -455,7 +457,7 @@ describe("RoomEngine: веер колоды в игре", () => {
     const deckXs = findByZ(app.stage, 3)
       // Ниже 2000 живут только собранные стопки: веер идёт с Z.boardFan (3000), его тени —
       // на слой ниже веера.
-      .children.filter((c: any) => live.has(c) && c.visible && c.zIndex < 2000)
+      .children.filter((c: any) => live.has(c) && c.visible && c.label !== "shadow")
       .map((c: any) => c.x)
       .filter((x: number) => Math.abs(x - slot.cx) < slot.w);
     expect(deckXs.length).toBeGreaterThan(0);
@@ -823,6 +825,50 @@ describe("RoomEngine: что можно и нельзя делать со сто
 
       expect(discarded, `веер=${fan}`).toHaveLength(1);
     }
+  });
+});
+
+describe("RoomEngine: размеры карт", () => {
+  const cardsOf = (app: any) => {
+    const live = new Set(pixi.__liveSprites());
+    return findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible && c.label !== "shadow");
+  };
+
+  it("эталон — карта закрытой руки; раскрытый веер крупнее её", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setHand(["2♦", "3♦", "4♦"]);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+    const row = cardsOf(app)[0]?.scale?.x ?? 0;
+
+    engine.setSelectedDecks(["hand"]); // раскрыли веер руки
+    for (let i = 0; i < 120; i++) app.ticker.__advance(16);
+    const fan = cardsOf(app)[0]?.scale?.x ?? 0;
+
+    // Спрайт масштабируется от текстуры, поэтому сравниваем ОТНОШЕНИЕ, а не абсолют:
+    // закрытая рука — эталон, раскрытый веер чуть крупнее её.
+    expect(row).toBeGreaterThan(0);
+    expect(fan / row).toBeGreaterThan(1.1);
+    expect(fan / row).toBeLessThan(1.35);
+  });
+
+  it("карта в руке у игрока — самая крупная на столе", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+    const fan = Math.max(...cardsOf(app).map((c: any) => c.scale.x));
+
+    const deckHit = findByZ(app.stage, 10_000);
+    deckHit.__emit("pointerdown", { pointerId: 51, global: { x: 195, y: 310 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 51, global: { x: 215, y: 330 } });
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    const dragged = Math.max(...cardsOf(app).map((c: any) => c.scale.x));
+    expect(dragged).toBeGreaterThan(fan);
   });
 });
 
