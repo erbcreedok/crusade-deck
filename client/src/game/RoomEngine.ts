@@ -15,6 +15,7 @@ import { computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
 import { dropZoneRegions, pickDropTarget, pickDealTarget, pickSeat, type DropZone, type DropTarget } from "./dropZones";
 import { layoutSeats, type SeatBox } from "./seatLayout";
 import { dragModeFor, type DragMode } from "./dragMode";
+import { activeDropZones, type DragSource } from "./dropZoneActivity";
 import { dealSourceIndex } from "./topCard";
 import type { SeatView } from "./seats";
 import { layoutSeatHand, seatCardFaceUp, type SeatHandLayout } from "./seatHand";
@@ -2206,6 +2207,13 @@ export class RoomEngine {
     this.wake();
   }
 
+  // Какие зоны сейчас принимают карты. Раскрытый веер доски занимает середину стола и
+  // гасит всё вокруг — правила в dropZoneActivity.ts.
+  private liveDropZones(): Set<DropZone> {
+    const source: DragSource = !this.cardDrag ? "none" : this.cardDrag.fromHand ? "hand" : "board";
+    return activeDropZones({ boardFan: this.boardFan, source, gameMode: !!this.layout.discardSlot });
+  }
+
   // Зоны видны ВСЕГДА, но по-разному. В покое — еле заметные очертания и подпись, что это
   // за зона: игрок понимает разметку стола, не отвлекаясь на неё. Во время драга зоны
   // заливаются оверлеем, а подпись меняется на ДЕЙСТВИЕ — что будет, если бросить сюда.
@@ -2214,6 +2222,7 @@ export class RoomEngine {
     if (!this.zoneLayer) return;
     paintZones({
       g: this.zoneLayer,
+      live: this.liveDropZones(),
       labels: this.zoneLabels,
       slotLabels: this.slotLabels,
       layout: this.layout,

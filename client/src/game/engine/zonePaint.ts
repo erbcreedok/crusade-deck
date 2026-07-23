@@ -16,6 +16,8 @@ import {
 
 export interface ZonePaintDeps {
   g: Graphics;
+  /** Какие зоны сейчас принимают карты (см. dropZoneActivity.ts). */
+  live: Set<DropZone>;
   labels: Partial<Record<DropZone, Text>>;
   /** Подписи боковых слотов игрового стола (колода / сброс). */
   slotLabels: Partial<Record<TableSlot, Text>>;
@@ -37,12 +39,14 @@ export function paintZones(d: ZonePaintDeps): void {
       if (label) label.visible = false;
       return;
     }
+    const live = d.live.has(zone);
     const c = zoneChrome({
       zone,
       dragging: d.dragging,
-      active: d.dragging && d.hoverZone?.zone === zone,
+      active: live && d.dragging && d.hoverZone?.zone === zone,
       dragged: d.dragged,
       myReady: d.myReady,
+      live,
     });
     const x = rect.cx - rect.w / 2;
     const y = rect.cy - rect.h / 2;

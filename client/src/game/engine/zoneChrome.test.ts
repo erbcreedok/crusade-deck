@@ -4,6 +4,7 @@ import { COLORS } from "./constants";
 import { noticeStyle, slotLabelY, zoneChrome, zoneLabelFontSize } from "./zoneChrome";
 
 const IDLE = {
+  live: true,
   zone: "center" as const,
   dragging: false,
   active: false,
@@ -65,6 +66,16 @@ describe("zoneLabelFontSize", () => {
   it("растёт с размером карты, но упирается в потолок", () => {
     expect(zoneLabelFontSize("center", 800, 40)).toBeLessThan(zoneLabelFontSize("center", 800, 200));
     expect(zoneLabelFontSize("center", 800, 5000)).toBe(44);
+  });
+});
+
+describe("zoneChrome — погашенная зона", () => {
+  it("не зовёт к себе карту: ни заливки, ни действия, только бледный контур", () => {
+    const dead = zoneChrome({ ...IDLE, live: false, dragging: true, active: true, dragged: "card" });
+    expect(dead.fill).toBeNull();
+    expect(dead.label.text).toBe("стол"); // название зоны остаётся, действие — нет
+    expect(dead.label.alpha).toBeLessThan(0.2);
+    expect(dead.stroke.alpha).toBeLessThan(0.15);
   });
 });
 

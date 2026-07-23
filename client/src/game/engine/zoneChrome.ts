@@ -17,6 +17,8 @@ export interface ZoneChromeInput {
   dragged: DraggedKind;
   /** Моя готовность: в раздаче красит полосу руки жёлтым/серым. */
   myReady: boolean;
+  /** Зона сейчас принимает карты. Погашенная — только бледный контур, без подписи. */
+  live: boolean;
 }
 
 export interface ZoneChrome {
@@ -27,6 +29,15 @@ export interface ZoneChrome {
 }
 
 export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
+  // Погашенная зона не зовёт к себе карту: ни заливки, ни подписи действия — только
+  // бледная рамка, чтобы разметка стола не пропадала совсем.
+  if (!o.live) {
+    return {
+      fill: null,
+      stroke: { width: 1.5, color: COLORS.gold, alpha: 0.08 },
+      label: { text: zoneTitle(o.zone), tint: COLORS.gold, alpha: 0.12 },
+    };
+  }
   // Полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
   const dealHand = o.zone === "hand";
   const base = dealHand ? dealHandAccent(o.myReady) : COLORS.gold;
