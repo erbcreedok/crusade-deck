@@ -1,0 +1,29 @@
+client/src/game/RoomEngine.ts
+  s_266c1af3c36319::t_8d37ed33a67866 14,1171-1173,2790
+client/src/game/seatLayout.ts
+  s_266c1af3c36319::t_e3d3c606ba5100 1,50-56,92,112-114,116-118,125,139-143
+  s_266c1af3c36319::t_8d37ed33a67866 68-71
+client/src/game/seatLayout.test.ts
+  s_266c1af3c36319::t_280717c3973e78 2-3,11-12,105-118,121,214-241
+  s_266c1af3c36319::t_ddab13bd30a449 119-120
+  s_266c1af3c36319::t_bb25d2c4894576 242
+client/src/game/layout.ts
+  s_266c1af3c36319::t_76351b8cb0329e 85-106
+  s_266c1af3c36319::t_d3eb69b1e6b407 171,197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "515a209af67fcdf2e25476a47fb8e70bf70be859",
+  "prompts": {},
+  "sessions": {
+    "s_266c1af3c36319": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8002123b-556e-4b14-a4c0-0c338bd824a6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
