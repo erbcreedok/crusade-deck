@@ -1,0 +1,32 @@
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_8462b5c4b982ef 1466-1489
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_0763d273d3fd10 1504
+  s_6b17180413249b::t_f8cc9aa2cf035b 1251-1253
+client/src/game/seatHand.ts
+  s_6b17180413249b::t_0763d273d3fd10 48-56,65,104-106,131-133
+client/src/game/seatHand.test.ts
+  s_6b17180413249b::t_ea1ff959064818 54-64
+client/src/game/engine/seatPaint.ts
+  s_6b17180413249b::t_0763d273d3fd10 33-38,91,96-98
+CLAUDE.md
+  s_6b17180413249b::t_c450ae6c6af181 29,279-286
+CLAUDE_RU.md
+  s_6b17180413249b::t_a396d12457de08 26,264-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4ccd56066c5cc3e864fa110f3186d8d55c4fadb4",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
