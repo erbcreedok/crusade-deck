@@ -1,0 +1,34 @@
+client/src/game/dragMode.test.ts
+  s_b16a7b1f1196ad::t_7bdd51eb42addf 30,33-38
+client/src/game/dragMode.ts
+  s_b16a7b1f1196ad::t_7bdd51eb42addf 6-7,32-34
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_d875ac9ad28f86 335-360,374-396,398-403,425-427
+  s_b16a7b1f1196ad::t_04ae89a227c063 404-406,408-411,413-414,416-417,419-421,423-424
+  s_b16a7b1f1196ad::t_327a0dcf116937 361-373
+  s_b16a7b1f1196ad::t_f1867393a23d1d 397,407,412,415,418,422
+client/src/game/forbidDeckOpen.test.ts
+  s_b16a7b1f1196ad::t_d875ac9ad28f86 14
+client/src/RoomScreen.tsx
+  s_b16a7b1f1196ad::t_c0d252a91c85bd 66-68,113-115,159-163,178-183,189,203-209,213,349
+  s_b16a7b1f1196ad::t_6eab48e1cf989e 116-122
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_327a0dcf116937 1206-1208
+  s_b16a7b1f1196ad::t_37ec7351047a73 781-782,784-785,1199-1201,2134-2139,3004
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4954a6e3d7c28509418134712776d82eeaf26b4b",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
