@@ -27,6 +27,7 @@ export const TEST_PORTS = {
   hands: 2665,
   bots: 2666,
   free: 2667,
+  play: 2668,
 } as const;
 
 export function createGameServer() {

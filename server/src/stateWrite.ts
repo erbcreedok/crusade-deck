@@ -1,4 +1,5 @@
-import type { GameState, Player } from "./GameState.js";
+import { PlayStack, type GameState, type Player } from "./GameState.js";
+import type { PlayStacks } from "./playRules.js";
 
 // Запись в схему в одном месте.
 //
@@ -17,6 +18,28 @@ export function writeDeck(state: GameState, order: readonly string[]): void {
 export function writeDiscard(state: GameState, order: readonly string[]): void {
   state.discard.clear();
   order.forEach((card) => state.discard.push(card));
+}
+
+/** Игральная зона из схемы в обычные массивы — с ними работают чистые правила. */
+export function playStacks(state: GameState): string[][] {
+  return state.play.map((s) => s.cards.toArray());
+}
+
+/**
+ * Переписать игральную зону целиком.
+ *
+ * Кучки пересоздаются, а не правятся на месте: список короткий (кучек единицы, карт
+ * десятки), зато не приходится держать в голове, какие индексы уцелели после того, как
+ * опустевшая кучка исчезла из середины. Точечные патчи здесь экономили бы байты ценой
+ * ровно того класса багов, из-за которого в этом файле вообще запрещён `setAt`.
+ */
+export function writePlay(state: GameState, stacks: PlayStacks): void {
+  state.play.clear();
+  for (const cards of stacks) {
+    const stack = new PlayStack();
+    cards.forEach((card) => stack.cards.push(card));
+    state.play.push(stack);
+  }
 }
 
 /** Переписать руку игрока целиком новым порядком. */

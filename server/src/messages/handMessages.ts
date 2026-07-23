@@ -9,13 +9,16 @@ import {
   takeCardAt,
   takeTopCard,
 } from "../handRules.js";
+import { playCards } from "../playRules.js";
 import {
   clearAllHands,
   handsSnapshot,
+  playStacks,
   writeDeck,
   writeDiscard,
   writeFacing,
   writeHand,
+  writePlay,
 } from "../stateWrite.js";
 import type { MessageRoom } from "./host.js";
 
@@ -199,9 +202,16 @@ export function registerHandMessages(room: MessageRoom): void {
     if (!player?.isDealer) return;
     const { hands, counts } = handsSnapshot(state);
     const seatIds = room.seatIds();
-    // Сброс возвращается в колоду вместе с руками — иначе сыгранные карты пропали бы.
-    const out = collectHands(state.deck.toArray(), { ...hands, __discard: state.discard.toArray() });
+    // Сброс и игральная зона возвращаются в колоду вместе с руками — иначе сыгранные и
+    // выложенные карты пропали бы. Ключи с «__» не sessionId, а псевдоместа стола:
+    // collectHands перебирает значения и до имён ему дела нет.
+    const out = collectHands(state.deck.toArray(), {
+      ...hands,
+      __discard: state.discard.toArray(),
+      __play: playCards(playStacks(state)),
+    });
     writeDiscard(state, []);
+    writePlay(state, []);
     writeDeck(state, out.deck);
     writeFacing(state, out.faceUp);
     clearAllHands(state);

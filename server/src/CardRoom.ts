@@ -15,6 +15,7 @@ import { outcome, outcomeOnTimeout, tally, totalWeight } from "./voteTally.js";
 import { writeFreshDeck } from "./stateWrite.js";
 import { registerDeckMessages } from "./messages/deckMessages.js";
 import { registerHandMessages } from "./messages/handMessages.js";
+import { registerPlayMessages } from "./messages/playMessages.js";
 import { registerRoomMessages } from "./messages/roomMessages.js";
 import type { RoomHost } from "./messages/host.js";
 
@@ -47,9 +48,11 @@ export class CardRoom extends Room<GameState> implements RoomHost {
       this.state.inviteCode = registerInviteCode(this.roomId);
     }
 
-    // Обработчики сообщений разложены по темам (см. messages/*): колода, руки, комната.
+    // Обработчики сообщений разложены по темам (см. messages/*): колода, руки, игральная
+    // зона, комната.
     registerDeckMessages(this);
     registerHandMessages(this);
+    registerPlayMessages(this);
     registerRoomMessages(this);
   }
 
