@@ -551,14 +551,17 @@ describe("RoomEngine: сброс", () => {
   it("сброс с сервера лежит стопкой в своём слоте", async () => {
     const { engine, app } = await mountEngine();
     engine.setFreeMode(true);
-    const before = pixi.__liveSprites().length;
+    const cardCount = () =>
+      pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length;
+    const before = cardCount();
     engine.setDiscard(["2♦", "3♦"]);
     for (let i = 0; i < 20; i++) app.ticker.__advance(16);
 
-    expect(pixi.__liveSprites().length - before).toBe(2);
+    expect(cardCount() - before).toBe(2); // тени в счёт не идут: их пул общий на весь стол
     const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).discardSlot!;
     const live = new Set(pixi.__liveSprites());
-    const onScene = findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible);
+    const onScene = findByZ(app.stage, 3)
+      .children.filter((c: any) => live.has(c) && c.visible && c.label !== "shadow");
     const atSlot = onScene.filter((sp: any) => Math.abs(sp.x - slot.cx) < 60 && Math.abs(sp.y - slot.cy) < 60);
     expect(atSlot.length).toBeGreaterThan(0);
   });
@@ -869,6 +872,66 @@ describe("RoomEngine: размеры карт", () => {
 
     const dragged = Math.max(...cardsOf(app).map((c: any) => c.scale.x));
     expect(dragged).toBeGreaterThan(fan);
+  });
+});
+
+describe("RoomEngine: тени", () => {
+  const shadowsOf = (app: any) => {
+    const live = new Set(pixi.__liveSprites());
+    return findByZ(app.stage, 3).children.filter(
+      (c: any) => live.has(c) && c.visible && c.label === "shadow",
+    );
+  };
+
+  it("под плотным веером теней меньше, чем карт: они не складываются в полосу", async () => {
+    const { engine, app } = await mountEngine();
+    // Настоящая колода: девяти карт мало, веер из них просторный и тень нужна под каждой.
+    const full = ["♠", "♥", "♦", "♣"].flatMap((suit) =>
+      ["6", "7", "8", "9", "10", "J", "Q", "K", "A"].map((rank) => rank + suit),
+    );
+    engine.setFreeMode(true);
+    engine.setDeck(full);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 150; i++) app.ticker.__advance(16);
+
+    const shadows = shadowsOf(app);
+    expect(shadows.length).toBeGreaterThan(0);
+    expect(shadows.length).toBeLessThan(full.length / 2);
+  });
+
+  it("у карты в драге тень одна: в вееере она уже не теним", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+    const before = shadowsOf(app).length;
+
+    const deckHit = findByZ(app.stage, 10_000);
+    deckHit.__emit("pointerdown", { pointerId: 61, global: { x: 195, y: 310 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 61, global: { x: 215, y: 330 } });
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    // Карта ушла из веера в руку игрока: теней не прибавилось — её тень просто переехала.
+    expect(shadowsOf(app).length).toBeLessThanOrEqual(before);
+  });
+
+  it("тень поднятой карты лежит поверх всего стола", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+
+    const deckHit = findByZ(app.stage, 10_000);
+    deckHit.__emit("pointerdown", { pointerId: 62, global: { x: 195, y: 310 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 62, global: { x: 215, y: 330 } });
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    const top = Math.max(...shadowsOf(app).map((s: any) => s.zIndex));
+    expect(top).toBeGreaterThan(3000); // выше веера, который сам выше всего стола
   });
 });
 

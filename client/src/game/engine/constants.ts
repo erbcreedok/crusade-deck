@@ -56,6 +56,9 @@ export const HAND_ID = "hand";
  * перекрывать даже раскрытый веер (тот идёт ×1.2 от эталона, см. fanCardScale).
  */
 export const DRAG_SCALE = 1.45;
+/** Насколько приподнят над столом раскрытый веер — от этого зависит отброс его теней. */
+export const FAN_SHADOW_LIFT = 0.35;
+
 /** Метка теней на сцене: по ней их отличают от карт (слой у них общий). */
 export const SHADOW_LABEL = "shadow";
 
