@@ -19,14 +19,23 @@ rules can later be layered as configuration.
   for later (`client/src/firebase.ts`, `server/src/auth.ts`) but not configured or used
   until keys are supplied.
 - **Tests**: vitest in both packages (`npm test` in `server/` and `client/`).
-- **Deploy**: see `DEPLOY.md` (Cloudflare Tunnel, no open ports) or `README.md` for a
-  plain Linux server / Docker.
+- **Deploy**: production is **Fly.io**, two apps (`crusade-deck-server`,
+  `crusade-deck-client`), configs in the packages (`*/fly.toml`). Deploy with
+  `scripts/deploy.sh` — never a bare `fly deploy` (it keeps the server-first order and
+  passes the build number in). `.github/workflows/ci.yml` runs tests on every push and
+  deploys `main` after they pass. See `DEPLOY.md` for the Fly section, and for the
+  Cloudflare Tunnel / plain-Docker alternatives.
+- **Version**: `v<version>+<build>` (e.g. `v0.2.0+166`) — declared version from
+  `package.json` plus the commit count as the build number. `client/src/version.ts` and
+  `server/src/version.ts` share the format; shown at the bottom of the lobby, in the
+  settings menu (full form), and in the server's `/health`. Both packages declare the same
+  `version` (a test guards it) since they have separate build contexts.
 
 ## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 832 tests
+cd server && npm test && npx tsc --noEmit   # 225 tests
+cd client && npm test && npx tsc --noEmit   # 838 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -43,7 +52,7 @@ into `client/` or `server/` explicitly before `tsc`/`vitest`/`vite`.
 
 ## Table architecture (client)
 
-`client/src/game/RoomEngine.ts` (~3400 lines, ~187 methods averaging 18 lines) is an
+`client/src/game/RoomEngine.ts` (~4400 lines, ~237 methods averaging 19 lines) is an
 imperative engine: it owns a single
 Pixi `Application`, the ticker, and all visual objects (`CardVisual` — plain mutable
 structs, not React nodes). `RoomCanvas.tsx` is a thin React host: mounts the engine
@@ -302,8 +311,9 @@ A hard split that must not blur when adding new deck-related mechanics:
 
 ## Known trade-offs (deliberate, not forgotten)
 
-- `RoomEngine.ts` is still ~3400 lines, but no longer a wall: ~187 methods averaging 18
-  lines, the longest being `dropCard` (76) and `onPointerUp` (74). What keeps it big is
+- `RoomEngine.ts` is still ~4400 lines, but no longer a wall: ~237 methods averaging 19
+  lines, the longest being `dropCard` (~150 — it now routes drops for the deck, discard
+  and every play stack) and `beginCardDrag` (76). What keeps it big is
   ~120 private fields shared across gestures and animations — cutting it further means
   moving state out of the class (separate gesture and animation owners), which is a
   bigger change than anything done so far and needs a real reason to start.
