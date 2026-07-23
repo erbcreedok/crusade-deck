@@ -1,0 +1,93 @@
+client/src/game/engine/seatChrome.test.ts
+  s_b16a7b1f1196ad::t_16eaea28205b69 6,17-19,21,24-25,29-30
+client/src/RoomScreen.tsx
+  s_b16a7b1f1196ad::t_b05b248067c2ee 75
+  s_b16a7b1f1196ad::t_f7360cae373472 106-111,118,188,191-192,195-198,200,205,208,213,218,233
+client/src/game/barActions.test.ts
+  s_b16a7b1f1196ad::t_039efc4698a8e3 3,5-6,8,14-17,21,27,33
+client/src/game/engine/zoneChrome.test.ts
+  s_b16a7b1f1196ad::t_92977b4abf6b4b 10
+  s_b16a7b1f1196ad::t_9a84f96a2f9c00 24
+  s_b16a7b1f1196ad::t_16eaea28205b69 35-37,42-43,50
+client/src/game/engine/seatChrome.ts
+  s_b16a7b1f1196ad::t_348010af319a9f 30-32,37,39-40
+  s_b16a7b1f1196ad::t_0cd2b4b67412c5 21,23-24
+  s_b16a7b1f1196ad::t_fcf8405f7d5a41 34
+client/src/game/RoomCanvas.tsx
+  s_b16a7b1f1196ad::t_db3dfa1eeb41f5 67-68
+client/src/room/roomMenu.test.ts
+  s_b16a7b1f1196ad::t_039efc4698a8e3 29-32
+client/src/game/rejections.ts
+  s_b16a7b1f1196ad::t_554e3d756b9552 1-6,8
+client/src/room/useAutoDeal.ts
+  s_b16a7b1f1196ad::t_913b67ce73f28f 18-19,28,45,96
+client/src/game/seatHand.test.ts
+  s_b16a7b1f1196ad::t_16eaea28205b69 8,13-14
+  s_b16a7b1f1196ad::t_6e6e93d8101de5 7,9
+client/src/game/rejections.test.ts
+  s_b16a7b1f1196ad::t_039efc4698a8e3 2,5-8,12,22
+client/src/game/dragMode.ts
+  s_b16a7b1f1196ad::t_fcf8405f7d5a41 3,5-9,11,14-15,23,29-32
+client/src/game/forbidDeckOpen.test.ts
+  s_b16a7b1f1196ad::t_039efc4698a8e3 5-6,9-11,15
+client/src/game/engine/zoneChrome.ts
+  s_b16a7b1f1196ad::t_6f2aa86430d7a9 68
+  s_b16a7b1f1196ad::t_fcf8405f7d5a41 30-31
+client/src/game/engine/idleGate.ts
+  s_b16a7b1f1196ad::t_2041c3d0f2d018 27
+client/src/game/seatHand.ts
+  s_b16a7b1f1196ad::t_913b67ce73f28f 1,14-15,55
+client/src/game/deckStack.ts
+  s_b16a7b1f1196ad::t_7fd5ba1c60259a 26-30
+client/src/game/engineProps.ts
+  s_b16a7b1f1196ad::t_48780a7323659e 68-69,83
+client/src/game/engine/seatPaint.ts
+  s_b16a7b1f1196ad::t_fcf8405f7d5a41 52
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_7fd5ba1c60259a 79,945,1916,1943,2069,2721,2740,2859,2917
+  s_b16a7b1f1196ad::t_48e683f1b679aa 1014,1053,1056,1279-1284
+  s_b16a7b1f1196ad::t_97c28e57fb6ad3 1046,1289,1902,2193,2195,2197,2203,2205,2207,3103
+  s_b16a7b1f1196ad::t_92ba966924432c 2658
+  s_b16a7b1f1196ad::t_834f85e7db6fce 275,796,858-859,861,865-868,944,1231,1591,1593,1596,1598,1658,1666,1981,1999,2032,2055-2056,2068,2471,2714,2735,2807,2809,2814,2850,2852-2853,2895,2899,2911,2928,2981,3120
+  s_b16a7b1f1196ad::t_e471886ee863f1 1206,1676,1749,1812,1888,2977,3117,3198,3204,3213
+  s_b16a7b1f1196ad::t_c0452621f388d5 1340-1341
+  s_b16a7b1f1196ad::t_c1719e68dae7d5 630,974,1939,2667,2978,3119,3141
+  s_b16a7b1f1196ad::t_96ff20a6a4bf9b 1601,1604,1983
+  s_b16a7b1f1196ad::t_8399e7b5c6d45a 3003
+client/src/game/forbidDeckOpen.ts
+  s_b16a7b1f1196ad::t_913b67ce73f28f 5-6
+client/src/game/barActions.ts
+  s_b16a7b1f1196ad::t_fcf8405f7d5a41 4-7,14,40-45,51,53-56,60-63
+client/src/room/roomMenu.ts
+  s_b16a7b1f1196ad::t_554e3d756b9552 44
+client/src/room/readState.test.ts
+  s_b16a7b1f1196ad::t_16eaea28205b69 26
+client/src/game/deckStack.test.ts
+  s_b16a7b1f1196ad::t_7fd5ba1c60259a 2,135-137,140
+client/src/game/dragMode.test.ts
+  s_b16a7b1f1196ad::t_039efc4698a8e3 4-7,10-11,14-15,18-19,22-23,26-27,32,37
+client/src/room/useRoomSignals.ts
+  s_b16a7b1f1196ad::t_48780a7323659e 4,21,58-59,62,64,107
+client/src/game/zoneLabels.ts
+  s_b16a7b1f1196ad::t_7fd5ba1c60259a 7-10
+client/src/game/zoneLabels.test.ts
+  s_b16a7b1f1196ad::t_9a84f96a2f9c00 17-19
+  s_b16a7b1f1196ad::t_92977b4abf6b4b 13,30
+  s_b16a7b1f1196ad::t_d218f60469586d 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "12d4b1e8b4bca1d84e61d98ce35c086533aba75b",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
