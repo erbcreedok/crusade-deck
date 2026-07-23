@@ -100,7 +100,23 @@ export function zoneLabelFontSize(zone: DropZone, zoneWidth: number, cardH: numb
   return Math.max(9, Math.min(base, fit));
 }
 
-/** Размер «низяяя» / короткой надписи поверх стола. */
-export function noticeFontSize(cardH: number): number {
-  return Math.min(110, Math.max(34, cardH * 1.2));
+/**
+ * Размер надписи поверх стола («низяяя» и причины отказов) и ширина переноса.
+ *
+ * Кегль считается не только от карты, но и ОТ ТЕКСТА: «низяяя» — одно короткое слово и
+ * может быть огромным, а причина отказа вроде «карты берут сами» тем же кеглем уезжает за
+ * оба края экрана. Поэтому длинную надпись ужимаем и переносим по словам — на телефоне
+ * она ложится в две строки.
+ */
+export function noticeStyle(cardH: number, screenW: number, text: string): { fontSize: number; wrapWidth: number } {
+  const wrapWidth = Math.max(1, screenW * 0.86);
+  const base = Math.min(110, Math.max(34, cardH * 1.2));
+  const words = text.split(/\s+/).filter(Boolean);
+  // Строка переноса вмещает не меньше двух средних слов — иначе текст рассыпается в
+  // столбик по слову. И ни одно слово не должно быть шире строки: его бы обрезало.
+  const longestWord = words.reduce((m, w) => Math.max(m, w.length), 1);
+  const twoWords = words.length > 1 ? Math.ceil(text.length / 2) + 1 : text.length;
+  const need = Math.max(longestWord, Math.min(twoWords, text.length));
+  const fit = wrapWidth / Math.max(1, need * 0.62);
+  return { fontSize: Math.max(18, Math.min(base, fit)), wrapWidth };
 }

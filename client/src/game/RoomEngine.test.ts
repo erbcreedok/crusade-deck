@@ -225,6 +225,47 @@ describe("RoomEngine: карта улетает с колоды", () => {
   });
 });
 
+describe("RoomEngine: отбой запрещённого дропа", () => {
+  const bot = {
+    id: "bot",
+    name: "Бот",
+    isBot: true,
+    isReady: true,
+    isDealer: false,
+    connected: true,
+    handOpen: false,
+    handFanned: false,
+    handCount: 0,
+    hand: [] as string[],
+  };
+
+  // В свободе карту нельзя положить в чужую руку: она отскакивает. Но пока она летит
+  // обратно, она всё ещё ВЕРХНЯЯ карта колоды — а к верхней привязаны кирпич и вся
+  // видимая стопка. Из-за этого колода «переезжала» на чужое место, а в своём слоте
+  // оставалась одна нижняя карта.
+  it("отбитая карта не утаскивает за собой кирпич колоды", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setSelfDealState(true, false);
+    engine.setFreeMode(true);
+    engine.setSeats([bot]);
+    engine.setDeck(DECK_36);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const seat = (await import("./seatLayout")).layoutSeats(["bot"], 390, 800, { topOffset: 0 }).seats[0]!;
+    dragTopCardTo(app, engine, seat.rect.cx, seat.rect.cy);
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16); // отбой ещё идёт
+
+    // Считаем именно КАРТЫ (слой карт), а не тени: тень колоды тоже лежит у якоря.
+    const live = new Set(pixi.__liveSprites());
+    const cardsOnScene = findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible);
+    // На чужом месте — только сама отбиваемая карта.
+    expect(cardsOnScene.filter((sp: any) => sp.y < 200).length).toBe(1);
+    // В слоте колоды по-прежнему видна стопка: нижняя карта И новая верхняя.
+    expect(cardsOnScene.filter((sp: any) => sp.y > 200).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("RoomEngine: разметка игрового стола", () => {
   it("после «ГОУ!» колода уезжает в левый слот", async () => {
     const { engine, app } = await mountEngine();

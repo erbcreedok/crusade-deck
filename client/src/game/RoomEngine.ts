@@ -109,7 +109,7 @@ import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./e
 import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
 import { paintSeats } from "./engine/seatPaint";
-import { paintZones, styleZoneLabels } from "./engine/zonePaint";
+import { applyNoticeStyle, paintZones, styleZoneLabels } from "./engine/zonePaint";
 import type { TableSlot } from "./engine/zoneChrome";
 import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReveal } from "./engine/collapseArrow";
 import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
@@ -1394,7 +1394,7 @@ export class RoomEngine {
 
   // Короткая надпись поверх стола (переиспользуем оверлей «низяяя»).
   private showNotice(text: string): void {
-    if (this.rejectText) this.rejectText.text = text;
+    this.setNoticeText(text);
     this.notice = { t: 0, dur: anim.flip.noticeDur };
     this.wake();
   }
@@ -1935,7 +1935,7 @@ export class RoomEngine {
     const len = Math.hypot(dx, dy) || 1;
     this.reject = { t: 0, dur: 0.5, dirX: dx / len, dirY: dy / len };
     this.rejectCard = v;
-    if (this.rejectText) this.rejectText.text = text;
+    this.setNoticeText(text);
     v.body.setTarget({ x: px, y: py, scale: DRAG_SCALE, rot: 0 });
     this.wake();
   }
@@ -1956,7 +1956,7 @@ export class RoomEngine {
       dy /= len;
     }
     this.reject = { t: 0, dur: 0.5, dirX: dx, dirY: dy };
-    if (this.rejectText) this.rejectText.text = REJECT_TEXT;
+    this.setNoticeText(REJECT_TEXT);
     const zs = deckScale();
     for (let i = 0; i < this.cards.length; i++) {
       const so = stackOffset(i, this.cards.length, this.deckIsFaceUp());
@@ -1980,6 +1980,7 @@ export class RoomEngine {
       g: this.zoneLayer,
       labels: this.zoneLabels,
       slotLabels: this.slotLabels,
+      deckEmpty: this.deckCount === 0,
       layout: this.layout,
       dragging: !!this.cardDrag,
       hoverZone: this.hoverZone,
@@ -1992,7 +1993,16 @@ export class RoomEngine {
 
   // Размер шрифта подписей/«низяяя» от размера карты (обновляется на ресайзе).
   private styleZoneLabels(): void {
-    styleZoneLabels(this.zoneLabels, this.layout, this.rejectText);
+    styleZoneLabels(this.zoneLabels, this.layout, this.rejectText, this.w);
+  }
+
+  // Текст надписи поверх стола + подгонка кегля и переноса под него: длинная причина
+  // отказа обязана лечь в две строки, а не уехать за оба края экрана.
+  private setNoticeText(text: string): void {
+    const t = this.rejectText;
+    if (!t) return;
+    t.text = text;
+    applyNoticeStyle(t, this.layout.cardH, this.w);
   }
 
 
@@ -2227,10 +2237,26 @@ export class RoomEngine {
     );
   }
 
+  /**
+   * Верхняя карта колоды сейчас НЕ лежит в стопке: её либо тащат (раздача/тянучка), либо
+   * она отбивается после запрещённого дропа и летит домой.
+   *
+   * Признак нужен всем трём отрисовкам стопки разом: к верхней карте привязаны и кирпич
+   * колоды, и её видимость. Пока карта в стороне, стопку рисуем как n−1 — иначе колода
+   * «переезжает» за картой (на чужое место при отбое), а в своём слоте остаётся одна
+   * нижняя карта.
+   */
+  private topDetached(): boolean {
+    const n = this.cards.length;
+    if (n === 0) return false;
+    if (this.dealDrag && this.cardDrag) return true;
+    return !!this.rejectCard && this.rejectCard === this.cards[n - 1];
+  }
+
   private updateVisibility(): void {
     const detailed = this.detailedCards();
     const n = this.cards.length;
-    const dealing = this.dealDrag && !!this.cardDrag;
+    const dealing = this.topDetached();
     if (dealing && n >= 1 && !this.deckFanned) {
       const dragged = n - 1;
       const stackTop = n >= 2 ? n - 2 : -1;
@@ -2259,8 +2285,8 @@ export class RoomEngine {
     const g = this.deckBody;
     if (!g) return;
     g.clear();
-    // Во время раздачи кирпич рисуем по оставшейся стопке (без тащимой верхней).
-    const dealing = this.dealDrag && !!this.cardDrag;
+    // Пока верхняя карта в стороне (тащат или отбивают), кирпич рисуем по оставшейся стопке.
+    const dealing = this.topDetached();
     const n = dealing ? Math.max(0, this.cards.length - 1) : this.cards.length;
     if (n < 3) return;
     const w = this.layout.cardW;
@@ -2293,7 +2319,7 @@ export class RoomEngine {
   private syncDeckBody(): void {
     const g = this.deckBody;
     if (!g || !g.visible) return;
-    const dealing = this.dealDrag && !!this.cardDrag;
+    const dealing = this.topDetached();
     const top = dealing && this.cards.length >= 2
       ? this.cards[this.cards.length - 2]!
       : this.cards[this.cards.length - 1];
@@ -2594,7 +2620,7 @@ export class RoomEngine {
       this.notice.t += frameDt;
       if (this.notice.t >= this.notice.dur) {
         this.notice = null;
-        if (this.rejectText) this.rejectText.text = REJECT_TEXT; // вернуть текст по умолчанию
+        this.setNoticeText(REJECT_TEXT); // вернуть текст по умолчанию
       }
     }
 

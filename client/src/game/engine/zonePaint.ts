@@ -3,7 +3,7 @@ import { dropZoneRegions, type DropTarget, type DropZone } from "../dropZones";
 import type { RoomLayout, RoundedRect } from "../layout";
 import type { DraggedKind } from "../zoneLabels";
 import {
-  noticeFontSize,
+  noticeStyle,
   slotLabelFontSize,
   tableSlotChrome,
   zoneChrome,
@@ -18,6 +18,8 @@ export interface ZonePaintDeps {
   labels: Partial<Record<DropZone, Text>>;
   /** Подписи боковых слотов игрового стола (колода / сброс). */
   slotLabels: Partial<Record<TableSlot, Text>>;
+  /** Колода разобрана до конца: только тогда её слот подписывается словом. */
+  deckEmpty: boolean;
   layout: RoomLayout;
   dragging: boolean;
   hoverZone: DropTarget | null;
@@ -27,7 +29,7 @@ export interface ZonePaintDeps {
 
 export function paintZones(d: ZonePaintDeps): void {
   d.g.clear();
-  paintTableSlots(d.g, d.layout, d.slotLabels);
+  paintTableSlots(d.g, d.layout, d.slotLabels, d.deckEmpty);
   const regions = dropZoneRegions(d.layout);
   (Object.keys(regions) as DropZone[]).forEach((zone) => {
     const { rect } = regions[zone];
@@ -61,6 +63,20 @@ export function paintZones(d: ZonePaintDeps): void {
 }
 
 /**
+ * Надпись поверх стола: кегль и перенос по словам под ТЕКУЩИЙ текст. Вызывается и на
+ * ресайзе, и на каждой смене текста — длинная причина отказа должна лечь в две строки,
+ * а короткое «низяяя» остаться крупным.
+ */
+export function applyNoticeStyle(notice: Text, cardH: number, screenW: number): void {
+  const st = noticeStyle(cardH, screenW, notice.text);
+  notice.style.fontSize = st.fontSize;
+  notice.style.wordWrap = true;
+  notice.style.wordWrapWidth = st.wrapWidth;
+  notice.style.align = "center";
+  notice.style.lineHeight = st.fontSize * 0.92;
+}
+
+/**
  * Боковые слоты игрового стола: слева колода, справа сброс. Рисуются только в игре (в
  * раздаче их нет), тихой рамкой без заливки — это разметка стола, а не дроп-зоны: под
  * ними ничего не подсвечивается и на них ничего не бросают. Сброс пока просто пустое
@@ -70,6 +86,7 @@ export function paintTableSlots(
   g: Graphics,
   layout: RoomLayout,
   labels: Partial<Record<TableSlot, Text>>,
+  deckEmpty = false,
 ): void {
   const rects: Record<TableSlot, RoundedRect | null> = {
     deck: layout.deckSlot,
@@ -84,7 +101,11 @@ export function paintTableSlots(
     }
     const c = tableSlotChrome(slot);
     g.roundRect(rect.cx - rect.w / 2, rect.cy - rect.h / 2, rect.w, rect.h, rect.r).stroke(c.stroke);
-    if (!label) continue;
+    // Под непустой колодой уже стоит её счётчик — вторая подпись легла бы прямо на него.
+    if (!label || (slot === "deck" && !deckEmpty)) {
+      if (label) label.visible = false;
+      continue;
+    }
     label.text = c.label;
     label.x = rect.cx;
     // Подпись под слотом, а не в нём: в слоте колоды лежат карты и накрыли бы её.
@@ -101,6 +122,7 @@ export function styleZoneLabels(
   labels: Partial<Record<DropZone, Text>>,
   layout: RoomLayout,
   noticeText: Text | null,
+  screenW = 0,
 ): void {
   const regions = dropZoneRegions(layout);
   for (const zone of Object.keys(labels) as DropZone[]) {
@@ -108,5 +130,5 @@ export function styleZoneLabels(
     if (!t) continue;
     t.style.fontSize = zoneLabelFontSize(zone, regions[zone].rect.w, layout.cardH);
   }
-  if (noticeText) noticeText.style.fontSize = noticeFontSize(layout.cardH);
+  if (noticeText) applyNoticeStyle(noticeText, layout.cardH, screenW);
 }

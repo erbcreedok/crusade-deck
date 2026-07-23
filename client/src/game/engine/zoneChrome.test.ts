@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEAL_HAND_NOT_READY, DEAL_HAND_READY } from "../dealReadyTint";
 import { COLORS } from "./constants";
-import { noticeFontSize, zoneChrome, zoneLabelFontSize } from "./zoneChrome";
+import { noticeStyle, zoneChrome, zoneLabelFontSize } from "./zoneChrome";
 
 const IDLE = {
   zone: "center" as const,
@@ -68,9 +68,33 @@ describe("zoneLabelFontSize", () => {
   });
 });
 
-describe("noticeFontSize", () => {
-  it("зажат в разумные границы", () => {
-    expect(noticeFontSize(1)).toBe(34);
-    expect(noticeFontSize(1000)).toBe(110);
+describe("noticeStyle", () => {
+  const W = 390; // обычный телефон
+
+  it("короткое слово остаётся крупным", () => {
+    expect(noticeStyle(90, W, "низяяя").fontSize).toBeGreaterThan(60);
+  });
+
+  it("длинная фраза ужимается — иначе её обрезало бы краями экрана", () => {
+    const long = noticeStyle(90, W, "карты берут сами").fontSize;
+    expect(long).toBeLessThan(noticeStyle(90, W, "низяяя").fontSize);
+  });
+
+  it("фраза ложится в строку переноса: две строки, а не обрезок", () => {
+    const { fontSize, wrapWidth } = noticeStyle(90, W, "карты берут сами");
+    const halfPhrase = Math.ceil("карты берут сами".length / 2) + 1;
+    expect(halfPhrase * 0.62 * fontSize).toBeLessThanOrEqual(wrapWidth + 1e-9);
+    expect(wrapWidth).toBeLessThan(W); // с полями, а не впритык к краям
+  });
+
+  it("самое длинное слово влезает в строку целиком", () => {
+    const { fontSize, wrapWidth } = noticeStyle(90, W, "этих карт нет в колоде");
+    expect("колоде".length * 0.62 * fontSize).toBeLessThanOrEqual(wrapWidth + 1e-9);
+  });
+
+  it("кегль зажат в разумные границы", () => {
+    expect(noticeStyle(1, W, "низяяя").fontSize).toBe(34);
+    expect(noticeStyle(1000, 4000, "низяяя").fontSize).toBe(110);
+    expect(noticeStyle(1000, 100, "очень длинная причина отказа").fontSize).toBe(18);
   });
 });
