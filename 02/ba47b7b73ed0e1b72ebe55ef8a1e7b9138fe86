@@ -1,0 +1,58 @@
+server/src/GameState.ts
+  s_b16a7b1f1196ad::t_8063efed2cba81 67-70
+server/src/handRules.ts
+  s_b16a7b1f1196ad::t_8063efed2cba81 58-68
+client/src/game/dropZones.ts
+  s_b16a7b1f1196ad::t_234b119c35fe93 4-9,20-21,26-28
+client/src/room/readState.ts
+  s_b16a7b1f1196ad::t_4ebbd736099ced 36-37,105
+client/src/game/zoneLabels.ts
+  s_b16a7b1f1196ad::t_234b119c35fe93 15,22,27
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_ff7c59fe21b60b 2-17,100-113,158-160
+client/src/game/dropZones.test.ts
+  s_b16a7b1f1196ad::t_c4ace0931810f3 22,24-39
+client/src/RoomScreen.tsx
+  s_b16a7b1f1196ad::t_4ebbd736099ced 53,172-180,314,338
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_0530ef6d57e0c5 297-342
+server/src/stateWrite.ts
+  s_b16a7b1f1196ad::t_8063efed2cba81 16-21
+server/src/handRules.test.ts
+  s_b16a7b1f1196ad::t_8063efed2cba81 7,41-64
+  s_b16a7b1f1196ad::t_8cd3de32d08fe2 65-66
+client/src/game/engine/zonePaint.ts
+  s_b16a7b1f1196ad::t_214f8e13c00a5f 89
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_c781ec3f429671 258,611,614,828,868,873,2462-2463,2506,2529,2568,2762,2816,3051,3096-3112
+  s_b16a7b1f1196ad::t_0731810705712d 192-198,691-693,812-826,1934,3043-3050
+  s_b16a7b1f1196ad::t_ca0990403176f1 215,896-900,1520-1542,1924-1930,1935,2523
+  s_b16a7b1f1196ad::t_3e741f6071c804 827,829,1931-1933,1936,3052
+client/src/game/RoomCanvas.tsx
+  s_b16a7b1f1196ad::t_4ebbd736099ced 51,80
+server/src/CardRoom.free.test.ts
+  s_b16a7b1f1196ad::t_ff7c59fe21b60b 204-215,217,221-282
+  s_b16a7b1f1196ad::t_094f3c93612aa7 216,218-220
+client/src/game/engineProps.ts
+  s_b16a7b1f1196ad::t_4ebbd736099ced 15,38-39,89,96
+client/src/game/engine/zoneChrome.ts
+  s_b16a7b1f1196ad::t_214f8e13c00a5f 61-64
+client/src/room/useRoomState.ts
+  s_b16a7b1f1196ad::t_4ebbd736099ced 25,47,78,115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "02ba47b7b73ed0e1b72ebe55ef8a1e7b9138fe86",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
