@@ -52,7 +52,7 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setSeats(props.seats), [seatsSignature(props.seats)]);
   useEngineEffect(e, (en) => en.setSelectedDecks(props.selectedDecks), [props.selectedDecks.join(",")]);
   useEngineEffect(e, (en) => en.setFreeMode(props.freeMode), [props.freeMode]);
-  useEngineEffect(e, (en) => en.setDeckFanned(props.deckFanned), [props.deckFanned]);
+  useEngineEffect(e, (en) => en.setBoardFan(props.boardFan), [props.boardFan]);
   useEngineEffect(e, (en) => en.setCanDeal(props.canDeal), [props.canDeal]);
   useEngineEffect(e, (en) => en.setSelfId(props.selfId), [props.selfId]);
   useEngineEffect(
@@ -78,6 +78,8 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setOnEmptyTap(props.onEmptyTap), [props.onEmptyTap]);
   useEngineEffect(e, (en) => en.setOnDealCard(props.onDealCard), [props.onDealCard]);
   useEngineEffect(e, (en) => en.setOnDiscardCard(props.onDiscardCard), [props.onDiscardCard]);
+  useEngineEffect(e, (en) => en.setOnTakeDiscard(props.onTakeDiscard), [props.onTakeDiscard]);
+  useEngineEffect(e, (en) => en.setOnBoardFanChange(props.onBoardFanChange), [props.onBoardFanChange]);
   useEngineEffect(e, (en) => en.setOnDeckFanChange(props.onDeckFanChange), [props.onDeckFanChange]);
   useEngineEffect(e, (en) => en.setOnCardReorder(props.onCardReorder), [props.onCardReorder]);
   useEngineEffect(e, (en) => en.setOnShuffleChange(props.onShuffleChange), [props.onShuffleChange]);

@@ -122,6 +122,21 @@ export function registerHandMessages(room: MessageRoom): void {
     room.broadcast("card_moved", { moves: [{ card, from: client.sessionId, to: "discard" }] });
   });
 
+  // Забрать карту ИЗ СБРОСА себе в руку. Сброс лежит лицом вверх и виден всем, поэтому
+  // тут никакой слепоты нет — игрок берёт ровно то, что видит. Позиция считается так же,
+  // как у колоды: без index — верхняя карта сброса.
+  room.onMessage("take_discard", (client, message: { index?: number }) => {
+    const player = state.players.get(client.sessionId);
+    if (!player || !state.freeMode) return;
+    const pile = state.discard.toArray();
+    const out = message?.index === undefined ? takeTopCard(pile) : takeCardAt(pile, message.index);
+    if (!out) return;
+    writeDiscard(state, out.deck);
+    state.faceUp.delete(out.card); // карта ушла в руку — сторона решается рукой
+    player.hand.push(out.card);
+    room.broadcast("card_moved", { moves: [{ card: out.card, from: "discard", to: client.sessionId }] });
+  });
+
   // Свой порядок руки (сортировка/перестановка на клиенте). Принимается только
   // перестановка СВОЕЙ руки — состав не изменить.
   room.onMessage("set_hand_order", (client, message: { order?: string[] }) => {

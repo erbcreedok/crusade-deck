@@ -15,6 +15,7 @@ import { sortBySuit, sortByRank } from "./game/sortHand";
 import { seatsForViewer } from "./game/seatOrder";
 import { tallyVotes } from "./game/voteWeight";
 import type { AnimationSettings } from "./game/anim/animationSettings";
+import type { BoardPile } from "./game/engine/types";
 import type { RoomPlayer } from "./room/readState";
 import { useRoomState } from "./room/useRoomState";
 import { useRoomSignals } from "./room/useRoomSignals";
@@ -63,9 +64,10 @@ export function RoomScreen({
 
   const [draggingDeck, setDraggingDeck] = useState(false);
   const [handFanOpen, setHandFanOpen] = useState(false);
-  // Веер колоды в ИГРЕ — личный: его видит только тот, кто открыл, поэтому он живёт
-  // здесь, а не в схеме. В раздаче веер общий и приходит с сервера (deckFanned).
-  const [myDeckFanOpen, setMyDeckFanOpen] = useState(false);
+  // Веер доски в ИГРЕ — личный: его видит только тот, кто открыл, поэтому он живёт здесь,
+  // а не в схеме. Стопка одна на доску: раскрывая сброс, сворачиваешь колоду и наоборот.
+  // В раздаче веер общий, дилерский, и приходит с сервера (deckFanned).
+  const [myBoardFan, setMyBoardFan] = useState<BoardPile | null>(null);
   const [shuffleSignal, setShuffleSignal] = useState(0);
   const [autoDealing, setAutoDealing] = useState(false);
   // Выделение элементов стола. Тап выделяет, тап мимо — снимает; правила (что с чем
@@ -110,15 +112,16 @@ export function RoomScreen({
   // Колода всегда лежит в центре стола: раздаёт её дилер по одной карте, а в свободе
   // игроки тянут себе сами. Переносить её целиком по зонам больше некому.
   //
-  // Какой веер колоды показывать: в игре — свой личный, в раздаче — общий дилерский.
-  const deckFanOpen = freeMode ? myDeckFanOpen : deckFanned;
+  // Какой веер доски показывать: в игре — свой личный, в раздаче — общий дилерский.
+  const boardFan: BoardPile | null = freeMode ? myBoardFan : deckFanned ? "deck" : null;
 
-  // Личный веер живёт только пока есть что веером держать: смена режима стола, пустая
-  // колода или унесённая со стола колода — и он сворачивается сам.
+  // Личный веер живёт, только пока есть что держать веером: смена режима стола, пустая
+  // стопка или унесённая со стола колода — и он сворачивается сам.
   const deckOnTable = deckLocation === "center";
+  const fannedCount = myBoardFan === "discard" ? discard.length : deck.length;
   useEffect(() => {
-    if (!freeMode || deck.length === 0 || !deckOnTable) setMyDeckFanOpen(false);
-  }, [freeMode, deck.length, deckOnTable]);
+    if (!freeMode || fannedCount === 0 || !deckOnTable) setMyBoardFan(null);
+  }, [freeMode, fannedCount, deckOnTable]);
 
   // В свободе дилер перестаёт быть раздающим: вместе с раздачей у него пропадают тасовка,
   // веер колоды и всё остальное, что завязано на canDeal.
@@ -159,7 +162,7 @@ export function RoomScreen({
   // Тап мимо всего — снять выделение и свернуть свой веер колоды: это явное «убери».
   const onEmptyTap = useCallback(() => {
     setSelection(clearSelection());
-    setMyDeckFanOpen(false);
+    setMyBoardFan(null);
   }, []);
   const selectedDecks = selection.type === "deck" ? selection.ids : [];
 
@@ -180,13 +183,13 @@ export function RoomScreen({
         // не отправляем, хозяин позиции — он.
         if (to !== room.sessionId) return;
         const at = deck.indexOf(card);
-        room.send("take_card", myDeckFanOpen && at >= 0 ? { index: at } : {});
+        room.send("take_card", myBoardFan === "deck" && at >= 0 ? { index: at } : {});
         return;
       }
       if (!canDeal) return;
       room.send("deal_card", { card, to, rev: nextRev() });
     },
-    [freeMode, canDeal, room, nextRev, deck, myDeckFanOpen],
+    [freeMode, canDeal, room, nextRev, deck, myBoardFan],
   );
 
   // Скинуть свою карту в сброс — можно только в игре (в раздаче слота нет).
@@ -200,17 +203,26 @@ export function RoomScreen({
 
   const onDeckFanChange = useCallback(
     (open: boolean) => {
-      // В игре веер личный — никому его не рассылаем. В раздаче он общий, и менять его
-      // может только дилер (сервер проверяет это сам).
-      if (freeMode) {
-        setMyDeckFanOpen(open);
-        return;
-      }
+      // В раздаче веер общий, и менять его может только дилер (сервер проверяет сам).
+      if (freeMode) return; // в игре веером доски заведует onBoardFanChange
       if (!canDeal) return;
       setDeckFanned(open); // сразу, не ждём эхо
       room.send("set_deck_fanned", { open });
     },
     [freeMode, canDeal, room, setDeckFanned],
+  );
+
+  // Раскрыть/свернуть свою стопку на доске. Наружу ничего не шлём: веер личный.
+  const onBoardFanChange = useCallback((pile: BoardPile | null) => setMyBoardFan(pile), []);
+
+  // Забрать карту из сброса себе в руку. Сброс лежит лицом вверх — позиция честная.
+  const onTakeDiscard = useCallback(
+    (card: string) => {
+      if (!freeMode) return;
+      const at = discard.indexOf(card);
+      room.send("take_discard", at >= 0 ? { index: at } : {});
+    },
+    [freeMode, discard, room],
   );
 
   const sendHandOrder = useCallback(
@@ -346,7 +358,7 @@ export function RoomScreen({
         topInset={topInset}
         bottomInset={bottomInset}
         freeMode={freeMode}
-        deckFanned={deckFanOpen}
+        boardFan={boardFan}
         canDeal={canDeal}
         selfId={room.sessionId}
         selfReady={myReady}
@@ -362,6 +374,8 @@ export function RoomScreen({
         shoutSignal={shoutSignal}
         onDealCard={onDealCard}
         onDiscardCard={onDiscardCard}
+        onTakeDiscard={onTakeDiscard}
+        onBoardFanChange={onBoardFanChange}
         onDeckFanChange={onDeckFanChange}
         collectSignal={collectSignal}
         cardMovedSignal={cardMovedSignal}

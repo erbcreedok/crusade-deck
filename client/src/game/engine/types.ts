@@ -29,3 +29,6 @@ export interface ButtonLayout {
   y: number;
   r: number;
 }
+
+/** Стопка ДОСКИ (не рука): у каждой свой слот, но веером они раскрываются в одном месте. */
+export type BoardPile = "deck" | "discard";

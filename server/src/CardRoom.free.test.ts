@@ -296,6 +296,60 @@ describe("CardRoom: режим свободы", () => {
     expect(fx.moves).toEqual([{ card, from: player.sessionId, to: "discard" }]);
   });
 
+  it("take_discard забирает карту из сброса обратно в руку", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    // Двое скинули по карте — в сбросе есть из чего выбирать.
+    for (const who of [dealer, player]) {
+      waiter = room.waitForMessage("take_card");
+      who.send("take_card", {});
+      await waiter;
+      const card = room.state.players.get(who.sessionId)!.hand[0]!;
+      waiter = room.waitForMessage("discard_card");
+      who.send("discard_card", { card });
+      await waiter;
+    }
+    const pile = room.state.discard.toArray();
+    expect(pile.length).toBe(2);
+
+    waiter = room.waitForMessage("take_discard");
+    player.send("take_discard", { index: 0 }); // карта со дна сброса
+    await waiter;
+
+    expect(room.state.players.get(player.sessionId)!.hand.toArray()).toEqual([pile[0]]);
+    expect(room.state.discard.toArray()).toEqual([pile[1]]);
+  });
+
+  it("без индекса take_discard берёт верхнюю карту сброса, мусор отвергается", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    waiter = room.waitForMessage("take_card");
+    dealer.send("take_card", {});
+    await waiter;
+    const card = room.state.players.get(dealer.sessionId)!.hand[0]!;
+    waiter = room.waitForMessage("discard_card");
+    dealer.send("discard_card", { card });
+    await waiter;
+
+    waiter = room.waitForMessage("take_discard");
+    dealer.send("take_discard", { index: 42 }); // мусорная позиция
+    await waiter;
+    expect(room.state.discard.length).toBe(1);
+
+    waiter = room.waitForMessage("take_discard");
+    dealer.send("take_discard", {});
+    await waiter;
+    expect(room.state.discard.length).toBe(0);
+    expect(room.state.players.get(dealer.sessionId)!.hand.toArray()).toEqual([card]);
+  });
+
   it("чужую карту в сброс не отправить, и вне свободы сброса нет", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });

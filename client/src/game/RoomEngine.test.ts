@@ -348,12 +348,12 @@ describe("RoomEngine: веер колоды в игре", () => {
     engine.setFreeMode(true);
     engine.setDeck(DECK_36);
     const asked: boolean[] = [];
-    engine.setOnDeckFanChange((open: boolean) => asked.push(open));
+    engine.setOnBoardFanChange((pile: string | null) => asked.push(pile === "deck"));
 
     tapDeck(app);
     expect(asked).toEqual([true]);
 
-    engine.setDeckFanned(true); // React вернул флаг обратно в движок
+    engine.setBoardFan("deck"); // React вернул выбор обратно в движок
     tapDeck(app);
     expect(asked).toEqual([true, false]);
   });
@@ -365,7 +365,7 @@ describe("RoomEngine: веер колоды в игре", () => {
     for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
     expect(app.ticker.started).toBe(false);
 
-    engine.setDeckFanned(true);
+    engine.setBoardFan("deck");
     expect(app.ticker.started).toBe(true);
     for (let i = 0; i < 200 && app.ticker.started; i++) app.ticker.__advance(16);
     expect(app.ticker.started).toBe(false); // веер разъехался — цикл снова спит
@@ -376,7 +376,7 @@ describe("RoomEngine: веер колоды в игре", () => {
     engine.setSelfId("me");
     engine.setFreeMode(true);
     engine.setDeck(DECK_36);
-    engine.setDeckFanned(true);
+    engine.setBoardFan("deck");
     for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
 
     const taken: string[] = [];
@@ -394,11 +394,76 @@ describe("RoomEngine: веер колоды в игре", () => {
     expect(taken[0]).not.toBe(DECK_36[DECK_36.length - 1]);
   });
 
+  it("веер сброса раскрывается там же, где и веер колоды — по центру доски", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setDiscard(["2♦", "3♦", "4♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const play = (await import("./layout")).computeLayout(390, 800, undefined, true).centerZone;
+    const xs = (): number[] => {
+      const live = new Set(pixi.__liveSprites());
+      return findByZ(app.stage, 3)
+        .children.filter((c: any) => live.has(c) && c.visible && c.y > 200 && c.y < 600)
+        .map((c: any) => c.x);
+    };
+
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+    const spread = xs();
+
+    // Карты сброса разъехались вокруг центра игровой зоны, а не остались в своём слоте.
+    expect(Math.max(...spread) - Math.min(...spread)).toBeGreaterThan(play.w * 0.3);
+    expect(spread.some((x: number) => Math.abs(x - play.cx) < play.w * 0.3)).toBe(true);
+  });
+
+  it("веер доски один: раскрытие сброса сворачивает колоду", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setDiscard(["2♦", "3♦"]);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 120; i++) app.ticker.__advance(16);
+
+    // Колода снова компактной стопкой в своём слоте: разброс по x меньше карты.
+    const live = new Set(pixi.__liveSprites());
+    const deckXs = findByZ(app.stage, 3)
+      .children.filter((c: any) => live.has(c) && c.visible && c.x < 150)
+      .map((c: any) => c.x);
+    expect(Math.max(...deckXs) - Math.min(...deckXs)).toBeLessThan(40);
+  });
+
+  it("из веера сброса карта уходит в руку", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDiscard(["2♦", "3♦", "4♦", "5♦"]);
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+
+    const taken: string[] = [];
+    engine.setOnTakeDiscard((card: string) => taken.push(card));
+    const deckHit = findByZ(app.stage, 10_000);
+    deckHit.__emit("pointerdown", { pointerId: 7, global: { x: 150, y: 360 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: 170, y: 380 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: 195, y: 740 } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 7, global: { x: 195, y: 740 } });
+
+    expect(taken).toHaveLength(1);
+    expect(["2♦", "3♦", "4♦", "5♦"]).toContain(taken[0]);
+  });
+
   it("сосед забрал карту — раскрытый веер доезжает пружиной, а не моргает", async () => {
     const { engine, app } = await mountEngine();
     engine.setFreeMode(true);
     engine.setDeck(DECK_36);
-    engine.setDeckFanned(true);
+    engine.setBoardFan("deck");
     for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
 
     // Позиции спрайтов веера, отсортированные: карты по одной не различаем — важно, КАК
@@ -586,7 +651,7 @@ describe("RoomEngine: перерисовки без падений", () => {
     engine.setDeck(DECK_36);
     engine.setSeats([seat]);
     engine.setCanDeal(true);
-    engine.setDeckFanned(true);
+    engine.setBoardFan("deck");
     engine.setSelectedDecks(["hand"]);
     engine.resize(800, 400);
     app.ticker.__advance(16);

@@ -4,6 +4,7 @@ import { resolveProfile } from "./anim/animationSettings";
 import type { CardBackId } from "./cardBack";
 import type { DeckFxIncoming, DeckFxMessage } from "./deckFxClient";
 import type { SeatView } from "./seats";
+import type { BoardPile } from "./engine/types";
 
 // Что React передаёт движку стола. Отдельный модуль, потому что список длинный и нужен
 // в двух видах: как пропсы компонента и как «залить всё разом» при монтировании.
@@ -19,7 +20,8 @@ export interface EngineState {
   bottomInset: number;
   /** Режим свободы: карту со стола тянет каждый себе, в чужие руки не кладёт никто. */
   freeMode: boolean;
-  deckFanned: boolean;
+  /** Какая стопка доски раскрыта веером у ЭТОГО игрока: "deck", "discard" или ничего. */
+  boardFan: BoardPile | null;
   canDeal: boolean;
   selfId: string; // sessionId — дроп раздачи в полосу руки = себе
   selfReady: boolean;
@@ -37,6 +39,10 @@ export interface EngineCallbacks {
   onDealCard: (card: string, to: string) => void;
   /** Карта из руки ушла в сброс. */
   onDiscardCard: (card: string) => void;
+  /** Карту забрали из сброса себе в руку. */
+  onTakeDiscard: (card: string) => void;
+  /** Игрок раскрыл/свернул веер доски. */
+  onBoardFanChange: (pile: BoardPile | null) => void;
   onDeckFanChange: (open: boolean) => void;
   onCardReorder: (card: string, to: number) => void;
   onShuffleChange: (order: string[]) => void;
@@ -79,7 +85,7 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setFourColor(p.fourColor);
   engine.setCardBack(p.cardBack);
   engine.setFreeMode(p.freeMode);
-  engine.setDeckFanned(p.deckFanned);
+  engine.setBoardFan(p.boardFan);
   engine.setCanDeal(p.canDeal);
   engine.setSelfId(p.selfId);
   engine.setSelfDealState(p.selfReady, p.selfIsDealer);
@@ -94,6 +100,8 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setOnEmptyTap(p.onEmptyTap);
   engine.setOnDealCard(p.onDealCard);
   engine.setOnDiscardCard(p.onDiscardCard);
+  engine.setOnTakeDiscard(p.onTakeDiscard);
+  engine.setOnBoardFanChange(p.onBoardFanChange);
   engine.setOnDeckFanChange(p.onDeckFanChange);
   engine.setOnCardReorder(p.onCardReorder);
   engine.setOnShuffleChange(p.onShuffleChange);

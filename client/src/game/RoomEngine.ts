@@ -104,7 +104,7 @@ import {
   Z,
   ZERO_SHAKE,
 } from "./engine/constants";
-import type { ButtonLayout, CardVisual, FanGeom, ShufflePose } from "./engine/types";
+import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShufflePose } from "./engine/types";
 import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./engine/cardTextures";
 import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
@@ -203,7 +203,10 @@ export class RoomEngine {
 
   private fourColor = false; // четырёхцветная колода (♦ оранж, ♣ голубой) для слабовидящих
   private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
-  private deckFanned = false; // веер колоды на столе (серверное состояние; видно всем)
+  // Какая стопка ДОСКИ сейчас раскрыта веером — и раскрыта она всегда в одном месте, по
+  // центру игровой зоны (layout.boardFanAnchor). Веер один на доску: колода и сброс делят
+  // это место, открытие одного закрывает другой. Веер руки живёт отдельно и независимо.
+  private boardFan: BoardPile | null = null;
   private canDeal = false; // дилер может раздавать верхнюю карту
   private freeMode = false; // режим свободы: карту со стола тянет каждый себе
   private deckPointer = false; // мышь/палец над веером колоды (для liveFan при двух веерах)
@@ -213,7 +216,9 @@ export class RoomEngine {
   private selfIsDealer = false;
   private onDealCard: ((card: string, to: string) => void) | null = null;
   private onDiscardCard: ((card: string) => void) | null = null;
-  private onDeckFanChange: ((open: boolean) => void) | null = null; // тап открывает / стрелка сворачивает
+  private onTakeDiscard: ((card: string) => void) | null = null;
+  private onDeckFanChange: ((open: boolean) => void) | null = null;
+  private onBoardFanChange: ((pile: BoardPile | null) => void) | null = null; // тап открывает / стрелка сворачивает
   private handHit: Container | null = null; // хит-зона полосы руки
   private dealDrag = false; // тащим верхнюю карту на раздачу (не reorder веера)
   // Сторона КАЖДОЙ карты (карта → лицом ли вверх) — приходит из состояния сервера.
@@ -258,6 +263,7 @@ export class RoomEngine {
   private discardCounter: Text | null = null; // счётчик карт под сбросом
   private deckCounter: Text | null = null; // счётчик карт под колодой в центре (стопка и веер)
   private deckHit: Container | null = null;
+  private discardHit: Container | null = null; // тап по сбросу раскрывает его веером
 
   // Драг колоды дилером: press — палец/мышь прижаты у колоды (ещё не факт что драг),
   // dragging — порог смещения пройден, колода реально едет за курсором.
@@ -274,7 +280,8 @@ export class RoomEngine {
     y: number;
     index: number;
     canGrab: boolean; // на момент нажатия карта была видна достаточно, чтобы её взять
-    fromHand: boolean; // жест по руке (иначе — по колоде на столе)
+    fromHand: boolean; // жест по руке (иначе — по стопке доски)
+    pile: BoardPile; // с какой стопки доски начат жест (для руки не используется)
     samples: SwipeSample[]; // короткая история движения — по ней считается скорость свайпа
   } | null = null;
   private cardDrag: {
@@ -283,7 +290,8 @@ export class RoomEngine {
     insertAt: number;
     x: number;
     y: number;
-    fromHand: boolean; // драг из своей руки, а не из колоды
+    fromHand: boolean; // драг из своей руки, а не со стопки доски
+    pile: BoardPile; // с какой стопки доски взята карта
     samples: SwipeSample[]; // история движения — по ней ловим бросок вниз
   } | null = null;
   private cardShadow: Sprite | null = null;
@@ -600,11 +608,31 @@ export class RoomEngine {
     hit.on("pointerout", (e: FederatedPointerEvent) => this.onDeckHoverOut(e));
     this.world!.addChild(hit);
     this.deckHit = hit;
+
+    // Своя хит-зона у сброса: тап по нему раскрывает его веером — там же, по центру доски.
+    const discardHit = new Container();
+    discardHit.eventMode = "none";
+    discardHit.cursor = "pointer";
+    discardHit.zIndex = Z.deckHit;
+    discardHit.on("pointertap", (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      if (this.skipNextTap) {
+        this.skipNextTap = false;
+        return;
+      }
+      this.onBoardFanChange?.("discard");
+    });
+    this.world!.addChild(discardHit);
+    this.discardHit = discardHit;
+
     this.positionDeckHit();
 
     // Стрелки «сложить»: рука — любому; колода на столе — только дилеру (syncCollapseButton).
     this.collapseBtn = this.makeCollapseButton(() => this.onFanCollapse?.());
-    this.deckCollapseBtn = this.makeCollapseButton(() => this.onDeckFanChange?.(false));
+    this.deckCollapseBtn = this.makeCollapseButton(() => {
+      if (this.freeMode) this.onBoardFanChange?.(null);
+      else this.onDeckFanChange?.(false);
+    });
 
     this.handCounter = this.makeCounterText();
     this.deckCounter = this.makeCounterText();
@@ -697,6 +725,25 @@ export class RoomEngine {
   private get discardCards(): CardVisual[] {
     return this.discardPile.cards;
   }
+  /** Колода раскрыта веером (в раздаче это общий дилерский веер, в игре — личный). */
+  private get deckFanned(): boolean {
+    return this.boardFan === "deck";
+  }
+
+  /** Карты стопки доски по её имени. */
+  private pileCards(pile: BoardPile): CardVisual[] {
+    return pile === "discard" ? this.discardCards : this.cards;
+  }
+
+  /** Карты той стопки, что сейчас лежит веером на доске. По умолчанию — колода. */
+  private get fanCards(): CardVisual[] {
+    return this.boardFan === "discard" ? this.discardCards : this.cards;
+  }
+
+  private get fanCount(): number {
+    return this.boardFan === "discard" ? this.discardPile.count : this.deckCount;
+  }
+
   private get deckCount(): number {
     return this.deckPile.count;
   }
@@ -836,10 +883,16 @@ export class RoomEngine {
     this.wake();
   }
 
-  setDeckFanned(open: boolean): void {
-    // Веер колоды независим от веера руки: серверное состояние принимаем всегда.
-    if (open === this.deckFanned) return;
-    this.deckFanned = open;
+  /** Какую стопку доски держать раскрытой: "deck", "discard" или ничего. */
+  setBoardFan(pile: BoardPile | null): void {
+    if (pile === this.boardFan) return;
+    const was = this.boardFan;
+    this.boardFan = pile;
+    // Прежний веер собирается обратно в свой слот, новый — разъезжается по центру.
+    if (was === "discard" || pile === "discard") {
+      this.discardCards.forEach((c, i) => c.body.setTarget(this.discardRestTarget(i)));
+    }
+    this.syncDiscardCounter();
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.positionDeckHit();
     this.updateVisibility();
@@ -907,8 +960,18 @@ export class RoomEngine {
     this.onDiscardCard = fn;
   }
 
+  /** Карту забрали ИЗ сброса себе в руку (React шлёт take_discard). */
+  setOnTakeDiscard(fn: ((card: string) => void) | null): void {
+    this.onTakeDiscard = fn;
+  }
+
   setOnDeckFanChange(fn: ((open: boolean) => void) | null): void {
     this.onDeckFanChange = fn;
+  }
+
+  /** Игрок раскрыл/свернул веер доски (в игре он личный — наружу не рассылается). */
+  setOnBoardFanChange(fn: ((pile: BoardPile | null) => void) | null): void {
+    this.onBoardFanChange = fn;
   }
 
   // Чужие игроки за столом. Их посадка («П», см. seatLayout) отжимает центр стола, поэтому
@@ -1189,7 +1252,9 @@ export class RoomEngine {
     if (mode === "none") return;
 
     if (this.cardPress || this.cardDrag) return;
-    if (this.cards.length === 0 && mode !== "card") return;
+    // Пусто именно в ТОЙ стопке, с которой сейчас работает палец: колода может быть
+    // разобрана до нуля, а веер сброса — раскрыт, и тянуть из него по-прежнему можно.
+    if (this.fanCards.length === 0 && mode !== "card") return;
     // topCard — раздача со стопки/веера: тащим верхнюю (или ту, что под пальцем).
     // peek — не-дилер на открытом вееере: только глиссандо и тык, без драга и тасовки.
     // card — рука в фокусе: жест относится к КАРТЕ. Зажатый веер не таскаем, пока карта
@@ -1205,9 +1270,10 @@ export class RoomEngine {
       ...this.pressPoint(e),
       // Стопка отдаёт верхнюю карту, раскрытый веер — ту, что под пальцем. В свободе
       // раскрытый веер приходит сюда уже как mode === "card", то есть по второй ветке.
-      index: mode === "topCard" ? dealSourceIndex(this.cards.length, this.deckFanned, nearest) : nearest,
+      index: mode === "topCard" ? dealSourceIndex(this.fanCards.length, !!this.boardFan, nearest) : nearest,
       canGrab: mode === "topCard" ? true : mode === "peek" ? false : this.canGrabAt(nearest),
       fromHand: false,
+      pile: this.boardFan ?? "deck", // жест по доске относится к раскрытой стопке
       samples: this.startSamples(e),
     };
     this.wake();
@@ -1551,6 +1617,16 @@ export class RoomEngine {
     this.setHand(withoutCard(this.handCards, card));
   }
 
+  /**
+   * Карта уходит ИЗ СБРОСА в руку: то же самое, что flyCardOff у колоды, только стопка
+   * другая. Уходит сразу, не дожидаясь эха, иначе веер сброса продолжал бы держать место.
+   */
+  flyDiscardCardOff(card: string, from: FlightPoint, toId: string): void {
+    if (this.destroyed) return;
+    this.playDealFlight(card, from, toId);
+    this.setDiscard(withoutCard(this.discardPile.order, card));
+  }
+
   /** Старт полёта с текущей позы (дроп раздачи с пальца). */
   playDealFlight(card: string, from: FlightPoint, toId: string): void {
     const to = this.cardMoveAnchor(toId);
@@ -1734,7 +1810,8 @@ export class RoomEngine {
       onHand: false,
       handFocused: this.handFocused,
       canDeal: this.canDeal,
-      deckFanned: this.deckFanned,
+      // Раскрыт ЛЮБОЙ веер доски — карту берут под пальцем, а не «сверху стопки».
+      deckFanned: !!this.boardFan,
       freeMode: this.freeMode,
     });
   }
@@ -1743,7 +1820,7 @@ export class RoomEngine {
   // в зажатом веере полоска карты — пара пикселей, тащить нечего, сначала раздвинь тыком
   // или ховером (они и дают нужный зазор).
   private canGrabAt(index: number): boolean {
-    const xs = this.cards.map((c) => c.sprite.x);
+    const xs = this.fanCards.map((c) => c.sprite.x);
     return visibleSliver(xs, index) >= this.layout.cardW * anim.cardDrag.minGrabSliver;
   }
 
@@ -1765,7 +1842,7 @@ export class RoomEngine {
       x,
       g.anchor,
       g.width,
-      Math.max(1, this.deckCount),
+      Math.max(1, this.fanCount),
       g.angleDeg,
       anim.fan.widthFactor,
     );
@@ -1794,7 +1871,7 @@ export class RoomEngine {
     const p = this.cardPress;
     if (!p) return;
     const fromHand = this.handFocused && !this.dealDrag;
-    const stack = fromHand ? this.hand : this.cards;
+    const stack = fromHand ? this.hand : this.pileCards(p.pile);
     if (stack.length === 0) return;
     const v = stack[Math.max(0, Math.min(stack.length - 1, p.index))]!;
     this.cardPress = null;
@@ -1807,6 +1884,7 @@ export class RoomEngine {
       x: p.x,
       y: p.y,
       fromHand,
+      pile: p.pile,
       samples: [{ x: p.x, y: p.y, t: performance.now() }],
     };
     v.sprite.zIndex = 100_000;
@@ -1857,7 +1935,7 @@ export class RoomEngine {
     d.v.body.setTarget({ x: d.x, y: d.y, rot: 0, scale: DRAG_SCALE });
     const sp = anim.cardDrag.spread;
     // Драг руки трогает только this.hand — иначе колода в центре уезжает в нижний веер.
-    const stack = d.fromHand ? this.hand : this.cards;
+    const stack = d.fromHand ? this.hand : this.pileCards(d.pile);
     const n = stack.length;
     // На просторном веере (мало карт) amp=0: только дырка слота. Иначе сосед улетает
     // за следующую карту (визуально 2_31 вместо превью 213).
@@ -1913,8 +1991,14 @@ export class RoomEngine {
       if (seat) {
         const card = d.v.card;
         // Плавный полёт с пальца к месту; эхо card_moved этот же card пропустит.
-        this.flyCardOff(card, { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation }, seat);
-        this.onDealCard?.(card, seat);
+        const from = { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation };
+        if (d.pile === "discard") {
+          this.flyDiscardCardOff(card, from, seat);
+          this.onTakeDiscard?.(card);
+        } else {
+          this.flyCardOff(card, from, seat);
+          this.onDealCard?.(card, seat);
+        }
       } else if (this.deckFanned && this.inDeckFanArea(x, y)) {
         // Дроп обратно в веер колоды — перестановка, не возврат на родной слот.
         const to = this.insertDeckIndexAt(x);
@@ -2131,10 +2215,10 @@ export class RoomEngine {
     // Selection нет; старт драга выставляет skipNextTap и отменяет открытие.
     {
       this.dealDrag = false; // тап открытия — не раздача
-      // В игре веер колоды — личный: тап его открывает и складывает. Веер руки при этом
-      // не трогается, они независимы.
+      // В игре веер доски — личный: тап раскрывает стопку и складывает её обратно. Веер
+      // руки при этом не трогается, они независимы.
       if (this.freeMode) {
-        this.onDeckFanChange?.(!this.deckFanned);
+        this.onBoardFanChange?.(this.boardFan ? null : "deck");
         return;
       }
       if (forbidDeckOpenTap(this.canDeal, this.deckFanned, this.freeMode)) {
@@ -2165,6 +2249,7 @@ export class RoomEngine {
       index: this.nearestHandFanIndex(e.global.x),
       canGrab: true,
       fromHand: true,
+      pile: "deck", // рука — не стопка доски, поле не используется
       samples: this.startSamples(e),
     };
     this.wake();
@@ -2208,9 +2293,10 @@ export class RoomEngine {
   }
 
   private positionDeckHit(): void {
+    this.positionDiscardHit();
     if (!this.deckHit) return;
-    // Веер колоды на столе.
-    if (this.deckFanned) {
+    // Раскрытый веер доски — любой стопки: он лежит по центру, и палец работает с ним.
+    if (this.boardFan) {
       const z = this.layout.centerZone;
       const l = this.layout;
       const pad = l.cardW * 0.25;
@@ -2228,6 +2314,21 @@ export class RoomEngine {
     const w = (this.layout.cardW * 1.3 + ext.w) * zs;
     const h = (this.layout.cardH * 1.3 + ext.h) * zs;
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
+  }
+
+  // Хит-зона сброса — только его слот и только пока никакой веер не раскрыт: раскрытая
+  // стопка живёт по центру, и там за палец отвечает хит-зона доски.
+  private positionDiscardHit(): void {
+    const hit = this.discardHit;
+    if (!hit) return;
+    const slot = this.layout.discardSlot;
+    const idle = !this.boardFan && !!slot && this.discardPile.count > 0;
+    hit.eventMode = idle ? "static" : "none";
+    if (!idle || !slot) {
+      hit.hitArea = new Rectangle(0, 0, 0, 0);
+      return;
+    }
+    hit.hitArea = new Rectangle(slot.cx - slot.w / 2, slot.cy - slot.h / 2, slot.w, slot.h);
   }
 
   // Собрать анимацию настоящей растасовки, ПО ДЕЛЬТЕ каждой карты (|new-old|): дальние
@@ -2357,6 +2458,7 @@ export class RoomEngine {
   }
 
   private updateVisibility(): void {
+    this.syncDiscardVisibility();
     const detailed = this.detailedCards();
     const n = this.cards.length;
     const dealing = this.topDetached();
@@ -2380,6 +2482,16 @@ export class RoomEngine {
     if (this.deckShadow) {
       this.deckShadow.visible = this.profile.shadows && this.cards.length > 0;
     }
+  }
+
+  // Сброс: раскрытый веер показывает все карты, собранная стопка — только верхушку.
+  private syncDiscardVisibility(): void {
+    const cards = this.discardCards;
+    const fanned = this.boardFan === "discard";
+    cards.forEach((c, i) => {
+      c.sprite.visible = fanned || i >= cards.length - 2;
+      c.sprite.zIndex = i;
+    });
   }
 
   // Геометрия «кирпича»: торцы карт, лежащих ПОД верхней. Перерисовывается только когда
@@ -2535,10 +2647,13 @@ export class RoomEngine {
     this.shadowTex = null;
     this.faces.clear(); // снимает прогрев и освобождает лицевые текстуры
     this.deckHit = null;
+    this.discardHit = null;
     this.handHit = null;
     this.onDealCard = null;
     this.onDiscardCard = null;
+    this.onTakeDiscard = null;
     this.onDeckFanChange = null;
+    this.onBoardFanChange = null;
     this.onDragChange = null;
     this.reject = null;
     this.deckPile.clear();
@@ -3001,7 +3116,7 @@ export class RoomEngine {
     const cardH = this.layout.cardH;
     const handFan = this.fanOpen();
     // Стрелка колоды: только дилер, независимо от фокуса руки.
-    const deckFanBtn = (this.canDeal || this.freeMode) && this.deckFanned && this.cards.length > 0;
+    const deckFanBtn = (this.canDeal || this.freeMode) && !!this.boardFan && this.fanCount > 0;
     this.collapseWantShow = handFan;
     this.deckCollapseWantShow = deckFanBtn;
 
@@ -3059,6 +3174,7 @@ export class RoomEngine {
 
   // Сброс лежит стопкой в своём слоте (в раздаче слота нет — прячем за экран).
   private discardRestTarget(i: number): CardTargets {
+    if (this.boardFan === "discard") return this.deckFanTarget(i);
     const slot = this.layout.discardSlot;
     if (!slot) return { x: -9999, y: -9999, rot: 0, scale: deckScale() };
     const zs = deckScale();
@@ -3171,7 +3287,7 @@ export class RoomEngine {
       // стопок стола, где бы сами стопки ни лежали (см. layout.boardFanAnchor).
       stackAnchor: this.layout.boardFanAnchor,
       zone: this.layout.centerZone,
-      count: this.deckCount,
+      count: this.fanCount,
       cardW: this.layout.cardW,
       cardH: this.layout.cardH,
       reservedBelow: this.rowCounterSpace() + this.layout.cardH * 2 * anim.fan.collapse.hitRatio,
@@ -3186,9 +3302,11 @@ export class RoomEngine {
     return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
   }
 
+  // Слот веера доски: геометрия одна на все стопки — где бы стопка ни лежала, раскрывается
+  // она по центру игровой зоны.
   private deckFanTarget(i: number): CardTargets {
     const g = this.deckFanGeom();
-    const c = fanCard(i, Math.max(1, this.deckCount), g.anchor, g.width, g.angleDeg, anim.fan.widthFactor);
+    const c = fanCard(i, Math.max(1, this.fanCount), g.anchor, g.width, g.angleDeg, anim.fan.widthFactor);
     return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
   }
 
@@ -3229,12 +3347,12 @@ export class RoomEngine {
 
   // Индекс карты веера, ближайшей по x к точке тыка (по текущим позициям спрайтов).
   private nearestFanIndex(x: number): number {
-    return nearestIndexByX(this.cards.map((c) => c.sprite.x), x);
+    return nearestIndexByX(this.fanCards.map((c) => c.sprite.x), x);
   }
 
   // Тык по вееру колоды: даже если рука тоже открыта — волна идёт по колоде.
   private pokeDeckFan(x: number): void {
-    if (!this.deckFanned || this.deckCount < 2) return;
+    if (!this.boardFan || this.fanCount < 2) return;
     this.deckPointer = true;
     const p = anim.fan.wiggle.poke;
     const pi = this.nearestFanIndex(x);
