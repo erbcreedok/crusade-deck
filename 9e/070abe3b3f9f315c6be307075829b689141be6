@@ -1,0 +1,24 @@
+client/src/Lobby.tsx
+  s_6b17180413249b::t_933c6092fbc8d5 187-190
+client/src/Lobby.test.tsx
+  s_6b17180413249b::t_e97f59375e984c 88-98
+client/src/theme.css
+  s_6b17180413249b::t_933c6092fbc8d5 265,268-269,271-272,277-290
+  s_6b17180413249b::t_41c808e6441d45 291-292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "9e070abe3b3f9f315c6be307075829b689141be6",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
