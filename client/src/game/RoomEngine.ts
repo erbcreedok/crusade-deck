@@ -166,6 +166,7 @@ export class RoomEngine {
   private tableG: Graphics | null = null;
   private zoneLayer: Graphics | null = null; // подсветка дроп-зон при драге
   private zoneLabels: Partial<Record<DropZone, Text>> = {}; // текстовые подписи зон
+  private zoneHoverLabel: Text | null = null; // глагол наведённой зоны ПОВЕРХ карт
   private slotLabels: Partial<Record<TableSlot, Text>> = {}; // подписи слотов колоды/сброса
   private rejectText: Text | null = null; // «низяяя» по центру во время отскока
   // Клич «ГОУ!» — СВОЙ объект, а не переиспользованный rejectText: отказ и клич могут
@@ -604,6 +605,26 @@ export class RoomEngine {
     this.rejectText.visible = false;
     this.rejectText.zIndex = Z.rejectText; // поверх карт (world.sortableChildren)
     this.world!.addChild(this.rejectText);
+
+    // Глагол наведённой зоны рисуется ПОВЕРХ карт бокса (не на слое зон, что под картами),
+    // но НИЖЕ удерживаемой карты. Своя аккуратная тень вместо жирной обводки. eventMode
+    // "none" — выпадает из хит-теста, чтобы своим индексом не перекрывать ховер по стекам.
+    this.zoneHoverLabel = new Text({
+      text: "",
+      style: {
+        fontFamily: PIXEL_FONT,
+        fontSize: 30,
+        fill: 0xffffff,
+        letterSpacing: 2,
+        align: "center",
+        dropShadow: { color: 0x000000, blur: 2, angle: Math.PI / 4, distance: 2, alpha: 0.75 },
+      },
+    });
+    this.zoneHoverLabel.anchor.set(0.5);
+    this.zoneHoverLabel.visible = false;
+    this.zoneHoverLabel.eventMode = "none";
+    this.zoneHoverLabel.zIndex = Z.zoneHover;
+    this.world!.addChild(this.zoneHoverLabel);
     this.buildShout();
     this.buildTaunt();
     this.styleZoneLabels();
@@ -1764,7 +1785,9 @@ export class RoomEngine {
   private hoverZoneFor(dest: DropDest): DropTarget | null {
     if (!dest) return null;
     if (dest.pile === "discard") return { zone: "discard" };
-    if (dest.pile === "play") return { zone: "center" };
+    // Игровая зона при открытом вееере доски ОТКЛЮЧЕНА: центр принадлежит вееру. Не
+    // подсвечиваем его и не красим серым — там почти всегда ховер из-за самого веера.
+    if (dest.pile === "play") return this.boardFan ? null : { zone: "center" };
     if (dest.pile === "hand") return { zone: "hand" };
     if (dest.pile === "deck") return { zone: "deck" };
     return null; // чужое место — своя подсветка (setHoverSeat)
@@ -2532,7 +2555,9 @@ export class RoomEngine {
     }
     if (zone === "discard") return { pile: "discard" };
     if (zone === "deck") return { pile: "deck" };
-    if (zone === "center") return { pile: "play", stack: pickPlayCell(this.playGridNow(), x, y) };
+    // Игровая зона отключена, пока раскрыт веер доски — центр занят им. Дроп в центр в этом
+    // состоянии = мимо боксов (карта молча вернётся), а не в play.
+    if (zone === "center" && !this.boardFan) return { pile: "play", stack: pickPlayCell(this.playGridNow(), x, y) };
     return null;
   }
 
@@ -2679,9 +2704,10 @@ export class RoomEngine {
         finish();
         return;
       }
-      // В ИГРЕ центр стола — ИГРАЛЬНАЯ ЗОНА. Куда именно легла карта, решает сетка:
-      // попала на кучку — доливается в неё, мимо всех — начинает новую.
-      if (this.freeMode && zone === "center") {
+      // В ИГРЕ центр стола — ИГРАЛЬНАЯ ЗОНА (но не пока раскрыт веер доски: тогда центр
+      // занят им, зона отключена). Куда легла карта, решает сетка: на кучку — доливается,
+      // мимо всех — начинает новую.
+      if (this.freeMode && zone === "center" && !this.boardFan) {
         const stack = pickPlayCell(this.playGridNow(), x, y);
         this.flyHandCardOff(card, from, this.playDropRect(stack));
         this.onPlayCard?.(card, stack);
@@ -2870,12 +2896,13 @@ export class RoomEngine {
   // Сами правила — в engine/zoneChrome.ts, рисование — в engine/zonePaint.ts.
   private drawZones(): void {
     this.syncPlayClearButton();
-    if (!this.zoneLayer) return;
+    if (!this.zoneLayer || !this.zoneHoverLabel) return;
     paintZones({
       g: this.zoneLayer,
       live: this.liveDropZones(),
       labels: this.zoneLabels,
       slotLabels: this.slotLabels,
+      hoverLabel: this.zoneHoverLabel,
       layout: this.layout,
       dragging: !!this.cardDrag,
       hoverZone: this.hoverZone,
@@ -2890,6 +2917,10 @@ export class RoomEngine {
   // Размер шрифта подписей/«низяяя» от размера карты (обновляется на ресайзе).
   private styleZoneLabels(): void {
     styleZoneLabels(this.zoneLabels, this.layout, this.rejectText, this.w);
+    // Топ-лейбл наведённой зоны — крупнее подписей, чтобы читался поверх карт бокса.
+    if (this.zoneHoverLabel) {
+      this.zoneHoverLabel.style.fontSize = Math.max(16, Math.min(40, this.layout.cardH * 0.5));
+    }
   }
 
   // Текст надписи поверх стола + подгонка кегля и переноса под него: длинная причина
@@ -3440,6 +3471,7 @@ export class RoomEngine {
     this.tableG = null;
     this.zoneLayer = null;
     this.zoneLabels = {};
+    this.zoneHoverLabel = null;
     this.slotLabels = {};
     // Тексты мест уничтожил app.destroy({children:true}) — просто отпускаем ссылки.
     this.seatTexts = [];

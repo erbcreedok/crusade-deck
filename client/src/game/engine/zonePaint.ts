@@ -28,10 +28,13 @@ export interface ZonePaintDeps {
   myReady: boolean;
   /** Комната в игре: центр стола — игральная зона, а не место колоды. */
   inGame: boolean;
+  /** Лейбл ПОВЕРХ карт для наведённой зоны (со своей тенью, eventMode none). */
+  hoverLabel: Text;
 }
 
 export function paintZones(d: ZonePaintDeps): void {
   d.g.clear();
+  d.hoverLabel.visible = false; // покажем ниже, если под картой есть зона
   paintTableSlots(d.g, d.layout, d.slotLabels);
   const regions = dropZoneRegions(d.layout);
   (Object.keys(regions) as DropZone[]).forEach((zone) => {
@@ -57,10 +60,20 @@ export function paintZones(d: ZonePaintDeps): void {
     if (c.fill) d.g.roundRect(x, y, rect.w, rect.h, rect.r).fill(c.fill);
     d.g.roundRect(x, y, rect.w, rect.h, rect.r).stroke(c.stroke);
 
-    // Место лейбла — свойство зоны: у колоды снаружи (внутри её закрывают карты), поэтому
-    // центровой лейбл ей не рисуем совсем — за это отвечает paintTableSlots.
+    // Наведённая зона: глагол/«низя» рисуем ПОВЕРХ карт бокса отдельным лейблом (выше всех,
+    // со своей тенью). Он один на весь стол — под картой всегда не больше одной зоны.
+    if (c.hoverText) {
+      d.hoverLabel.text = c.hoverText.text;
+      d.hoverLabel.tint = c.hoverText.tint;
+      d.hoverLabel.x = rect.cx;
+      d.hoverLabel.y = rect.cy; // на месте центра зоны — в игровой зоне наплывает поверх стеков
+      d.hoverLabel.visible = true;
+    }
+
+    // Лейбл на слое зон: место — свойство зоны (у колоды снаружи, её рисует paintTableSlots).
+    // Под картой (hoverText) его прячем — читается только верхний.
     if (label) {
-      if (zoneLabelPlacement(zone) !== "center") {
+      if (zoneLabelPlacement(zone) !== "center" || c.hoverText) {
         label.visible = false;
       } else {
         label.text = c.label.text;
@@ -69,9 +82,6 @@ export function paintZones(d: ZonePaintDeps): void {
         label.visible = true;
         label.tint = c.label.tint;
         label.alpha = c.label.alpha;
-        // Обводка глагола на ховере — чтобы читался поверх содержимого бокса.
-        if (c.labelOutline) label.style.stroke = { color: c.labelOutline.color, width: c.labelOutline.width };
-        else label.style.stroke = { width: 0, color: 0 };
       }
     }
   });

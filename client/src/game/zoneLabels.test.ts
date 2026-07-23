@@ -24,8 +24,8 @@ describe("zoneAction", () => {
     expect(zoneAction("center", "card", false)).toBe("в колоду");
   });
 
-  it("своя карта и карта, которую тянут со стола, в руку подписаны по-разному", () => {
-    expect(zoneAction("hand", "card")).not.toBe(zoneAction("hand", "take"));
+  it("рука ВСЕГДА «в руку» — и своя карта, и взятая со стола, без разнобоя", () => {
+    expect(zoneAction("hand", "card")).toBe("в руку");
     expect(zoneAction("hand", "take")).toBe("в руку");
   });
 

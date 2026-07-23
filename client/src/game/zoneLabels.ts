@@ -30,7 +30,10 @@ export function zoneAction(zone: DropZone, dragged: DraggedKind, inGame = false)
     case "discard":
       return "сброс";
     case "hand":
-      return dragged === "take" ? "в руку" : "в руке";
+      // Всегда «в руку» — и когда берёшь чужую карту со стола, и когда кладёшь свою.
+      // Разнобоя «в руке»/«раздать» быть не должно.
+      void dragged;
+      return "в руку";
     case "deck":
       return "низя";
     case "center":

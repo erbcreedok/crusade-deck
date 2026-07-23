@@ -31,19 +31,22 @@ export interface ZoneChrome {
   fill: { color: number; alpha: number } | null;
   stroke: { width: number; color: number; alpha: number };
   label: { text: string; tint: number; alpha: number };
-  /** Обводка глагола для читаемости поверх содержимого бокса (на ховере). */
-  labelOutline: { color: number; width: number } | null;
+  /**
+   * Зона под картой: её глагол/«низя» надо нарисовать ПОВЕРХ карт бокса — движок рисует
+   * его отдельным лейблом выше всех (со своей тенью), а лейбл-на-слое-зон на это время
+   * прячет. Обводки нет — вместо неё аккуратная тень (см. движок).
+   */
+  hoverText: { text: string; tint: number } | null;
 }
 
 /**
- * Как выглядит дроп-зона в каждый момент. Пять состояний:
+ * Как выглядит дроп-зона в каждый момент. Состояния:
  *   idle (нет драга)               — еле заметная рамка + название по центру;
  *   драг, доступна, не наведена     — полупрозрачный фон + КРАТКИЙ глагол;
- *   драг, доступна, наведена        — почти непрозрачный фон + глагол с обводкой (читается
- *                                     поверх содержимого бокса);
+ *   драг, доступна, наведена        — почти непрозрачный фон + глагол ПОВЕРХ карт (hoverText);
  *   драг, НЕдоступна, не наведена   — остаётся в idle (не зовёт к себе);
- *   драг, НЕдоступна, наведена      — серый плотный оверлей + «низя».
- * Чистые правила, рисует по ним zonePaint.
+ *   драг, НЕдоступна, наведена      — серый плотный оверлей + «низя» поверх карт.
+ * Чистые правила, рисует по ним zonePaint/движок.
  */
 export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
   const dealHand = o.zone === "hand";
@@ -55,30 +58,30 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
       fill: null,
       stroke: { width: 1.5, color: base, alpha: 0.14 },
       label: { text: zoneTitle(o.zone, o.inGame), tint: base, alpha: o.dragging ? 0.1 : 0.16 },
-      labelOutline: null,
+      hoverText: null,
     };
   }
 
-  // Недоступная под картой: серый туман запрета + «низя», без всякого призыва.
+  // Недоступная под картой: серый туман запрета + «низя» поверх карт.
   if (!o.live) {
     return {
       fill: { color: FORBIDDEN_GRAY, alpha: 0.82 },
       stroke: { width: 3, color: COLORS.hot, alpha: 0.5 },
-      label: { text: "низя", tint: 0xe8ddc4, alpha: 0.95 },
-      labelOutline: { color: 0x000000, width: 3 },
+      label: { text: "низя", tint: 0xe8ddc4, alpha: 0 }, // на слое зон прячем — рисуем поверх
+      hoverText: { text: "низя", tint: 0xe8ddc4 },
     };
   }
 
   const verb = zoneAction(o.zone, o.dragged, o.inGame);
   if (o.hovered) {
-    // Наведена: фон почти непрозрачный, глагол крупный с обводкой — перекрывает содержимое
-    // бокса (карту, что держат, он не трогает — она выше всех по z).
+    // Наведена: фон почти непрозрачный, а глагол — ПОВЕРХ карт бокса (hoverText). Карту,
+    // что держат, он не трогает — она выше всех по z.
     const activeText = dealHand && !o.inGame ? dealSeatHoverLabel(true) : verb;
     return {
       fill: { color: dealHand ? base : COLORS.hot, alpha: 0.92 },
       stroke: { width: 5, color: COLORS.gold, alpha: 0.95 },
-      label: { text: activeText, tint: COLORS.ink, alpha: 0.98 },
-      labelOutline: { color: 0xffffff, width: 3 },
+      label: { text: activeText, tint: COLORS.ink, alpha: 0 }, // на слое зон прячем
+      hoverText: { text: activeText, tint: COLORS.ink },
     };
   }
 
@@ -87,7 +90,7 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
     fill: { color: base, alpha: 0.2 },
     stroke: { width: 2.5, color: base, alpha: 0.45 },
     label: { text: verb, tint: base, alpha: 0.6 },
-    labelOutline: null,
+    hoverText: null,
   };
 }
 

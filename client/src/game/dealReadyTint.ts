@@ -6,8 +6,8 @@ export const DEAL_HAND_READY = 0xd9b154;
 /** Серый — дроп-зона закрыта (не готов). */
 export const DEAL_HAND_NOT_READY = 0x8a9490;
 
-/** Подпись на ховере поверх бокса. */
-export const DEAL_HOVER_ACCEPT = "раздать";
+/** Подпись на ховере поверх места игрока: раздать карту ему — короткое «на!». */
+export const DEAL_HOVER_ACCEPT = "на!";
 export const DEAL_HOVER_REJECT = "Неа";
 
 /** Отбой при дропе в неготового. */

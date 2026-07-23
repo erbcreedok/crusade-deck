@@ -33,13 +33,14 @@ describe("zoneChrome", () => {
     expect(c.fill!.alpha).toBeGreaterThan(0.1);
   });
 
-  it("наведённая зона — почти непрозрачный фон и глагол с обводкой", () => {
+  it("наведённая зона — почти непрозрачный фон и глагол поверх карт", () => {
     const hover = zoneChrome({ ...IDLE, dragging: true, hovered: true });
     const drag = zoneChrome({ ...IDLE, dragging: true });
     expect(hover.stroke.width).toBeGreaterThan(drag.stroke.width);
     expect(hover.fill!.alpha).toBeGreaterThan(0.8); // почти непрозрачный
     expect(hover.fill!.alpha).toBeGreaterThan(drag.fill!.alpha);
-    expect(hover.labelOutline).not.toBeNull(); // обводка для читаемости
+    expect(hover.hoverText).not.toBeNull(); // глагол рисуется ПОВЕРХ карт бокса
+    expect(hover.label.alpha).toBe(0); // а на слое зон он спрятан (виден только верхний)
   });
 
   it("полоса руки красится по готовности", () => {
@@ -49,10 +50,10 @@ describe("zoneChrome", () => {
     expect(notReady.stroke.color).toBe(DEAL_HAND_NOT_READY);
   });
 
-  it("ховер своей руки в РАЗДАЧЕ — «раздать» тёмным по светлому", () => {
+  it("ховер своей руки в РАЗДАЧЕ — краткое «на!» тёмным по светлому", () => {
     const c = zoneChrome({ ...IDLE, zone: "hand", myReady: true, dragging: true, hovered: true });
-    expect(c.label.text).toBe("раздать");
-    expect(c.label.tint).toBe(COLORS.ink);
+    expect(c.hoverText!.text).toBe("на!"); // раздать карту сюда
+    expect(c.hoverText!.tint).toBe(COLORS.ink);
   });
 });
 
@@ -83,8 +84,8 @@ describe("zoneChrome — недоступная зона", () => {
     const forbidden = zoneChrome({ ...IDLE, live: false, dragging: true, hovered: true });
     expect(forbidden.fill).not.toBeNull();
     expect(forbidden.fill!.alpha).toBeGreaterThan(0.7); // плотный туман запрета
-    expect(forbidden.label.text).toBe("низя");
-    expect(forbidden.labelOutline).not.toBeNull();
+    expect(forbidden.hoverText!.text).toBe("низя"); // «низя» тоже поверх карт
+    expect(forbidden.label.alpha).toBe(0);
   });
 });
 

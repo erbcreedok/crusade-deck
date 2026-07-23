@@ -62,6 +62,13 @@ export function paintSeats(seats: readonly SeatView[], boxes: readonly SeatBox[]
     if (chrome.fill) d.g.roundRect(x, y, w, h, r).fill({ color: 0x000000, alpha: 0.18 });
     d.g.roundRect(x, y, w, h, r).stroke({ width: 2, color: chrome.border, alpha: chrome.strokeAlpha });
 
+    // Драг раздачи: место игрока — такая же дроп-зона, как боксы стола. Доступное (готов)
+    // зовёт к себе полупрозрачным фоном, наведённое (hot) получает плотный оверлей ниже.
+    // Только в РАЗДАЧЕ: в игре чужие руки закрыты (карту туда не положить), поэтому не зовём.
+    if (d.dealDragging && !d.inGame && chrome.dealReady && !hot) {
+      d.g.roundRect(x, y, w, h, r).fill({ color: chrome.readyTint, alpha: 0.22 });
+    }
+
     // Имя — к верхнему краю; середину в раздаче занимает стопка/веер руки.
     const label = new Text({
       text: seatLabel(seat),
