@@ -1,17 +1,17 @@
-import type { DeckZone } from "./deckZone";
 import type { Selection } from "./selection";
 
 // Что показывают две кнопки панели действий прямо сейчас. Кнопки не «принадлежат»
-// какому-то экрану — они перестраиваются под ТО, ЧТО ВЫДЕЛЕНО / роль × режим.
+// какому-то экрану — они перестраиваются под роль игрока и состояние стола.
+//
+// Состояний стола ровно два: РАЗДАЧА (дилер тасует и раздаёт, остальные жмут «Готов») и
+// СВОБОДА после «ГОУ!» (карты со стола берут сами, дилеру остаётся «Перераздача»).
 
 export type BarActionId =
-  | "deck_to_hand"
-  | "deck_to_center"
   | "ready"
   | "unready"
   | "wait"
   | "shuffle"
-  // Автораздача осталась действием, но переехала с панели в меню (см. roomMenu.ts).
+  // Автораздача живёт в меню (см. roomMenu.ts), но остаётся действием панели по смыслу.
   | "auto_deal"
   | "auto_deal_stop"
   | "go"
@@ -28,50 +28,37 @@ export interface BarActions {
 }
 
 export interface BarContext {
-  deckZone: DeckZone;
-  canMoveDeck: boolean;
-  dealMode?: boolean;
   /** Игра пошла: карты со стола берут сами (см. GameState.freeMode). */
   freeMode?: boolean;
   amIDealer?: boolean;
-  autoDealing?: boolean;
   myReady?: boolean;
   myFanOpen?: boolean; // задел под будущие кнопки у раскрытой руки
 }
 
 const NOTHING: BarActions = { main: null, secondary: null };
 
-export function barActionsFor(sel: Selection, ctx: BarContext): BarActions {
-  // Свобода проверяется ПЕРВОЙ: раздача из неё не выключается (dealMode остаётся), но
-  // раздавать больше нечего — единственное дилерское действие теперь «Перераздача».
+// Выделение пока ни на что не влияет: единственная выделяемая стопка — своя рука, и
+// действий у неё нет. Параметр остаётся в сигнатуре, потому что кнопки под выделенное —
+// исходная идея панели, и к ней вернутся, когда стопок на столе станет больше.
+export function barActionsFor(_sel: Selection, ctx: BarContext): BarActions {
+  // Свобода проверяется ПЕРВОЙ: раздавать больше нечего, единственное дилерское
+  // действие — собрать карты и начать заново.
   if (ctx.freeMode) {
     if (!ctx.amIDealer) return NOTHING; // остальным кнопки не нужны: карту берут жестом
     return { main: { id: "redeal", label: "Перераздача" }, secondary: null };
   }
 
-  // Режим раздачи: кнопки по роли, не по выделению колоды.
-  if (ctx.dealMode) {
-    if (ctx.amIDealer) {
-      return {
-        main: { id: "shuffle", label: "Перемешать" },
-        // «ГОУ!» — старт игры. Автораздача уехала в меню: она вспомогательная, а место
-        // на панели одно, и занимать его должно то, чем заканчивается раздача.
-        secondary: { id: "go", label: "ГОУ!" },
-      };
-    }
+  if (ctx.amIDealer) {
     return {
-      main: ctx.myReady
-        ? { id: "unready", label: "Не готов" }
-        : { id: "ready", label: "Готов" },
-      secondary: { id: "wait", label: "Ждите…" }, // disabled снаружи
+      main: { id: "shuffle", label: "Перемешать" },
+      // «ГОУ!» — старт игры. Автораздача уехала в меню: она вспомогательная, а место
+      // на панели одно, и занимать его должно то, чем заканчивается раздача.
+      secondary: { id: "go", label: "ГОУ!" },
     };
   }
 
-  // Вне раздачи — прежние действия колоды.
-  if (sel.type !== "deck" || sel.ids.length !== 1) return NOTHING;
-  if (!ctx.canMoveDeck) return NOTHING;
-
-  if (ctx.deckZone === "center") return { main: { id: "deck_to_hand", label: "В руку" }, secondary: null };
-  if (ctx.deckZone === "hand") return { main: null, secondary: { id: "deck_to_center", label: "В центр" } };
-  return NOTHING;
+  return {
+    main: ctx.myReady ? { id: "unready", label: "Не готов" } : { id: "ready", label: "Готов" },
+    secondary: { id: "wait", label: "Ждите…" }, // disabled снаружи
+  };
 }

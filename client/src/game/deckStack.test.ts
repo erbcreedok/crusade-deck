@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset, deckZoneScale } from "./deckStack";
+import { stackOffset, stackExtent, stackStripeIndices, lightShadowOffset, deckScale } from "./deckStack";
 
 const N = 36;
 
@@ -132,25 +132,9 @@ describe("stackStripeIndices", () => {
   });
 });
 
-describe("deckZoneScale", () => {
-  it("в центре стола колода крупнее, в руке — обычного размера", () => {
-    expect(deckZoneScale("center")).toBeGreaterThan(1);
-    expect(deckZoneScale("hand")).toBe(1);
-  });
-
-  it("на месте игрока колода мельче — должна помещаться в его прямоугольник", () => {
-    expect(deckZoneScale("seat")).toBeLessThan(1);
-    expect(deckZoneScale("seat")).toBeGreaterThan(0);
-  });
-
-  it("скрытая колода (держателя нет за столом) масштаб не меняет", () => {
-    expect(deckZoneScale("away")).toBe(1);
-  });
-
-  it("масштаб зоны участвует и в смещениях стопки — колода растёт целиком", () => {
-    const zs = deckZoneScale("center");
-    const so = stackOffset(10, 36);
-    expect(so.dx * zs).toBeCloseTo(stackOffset(10, 36).dx * zs, 10);
-    expect(zs).toBeCloseTo(1.25, 10);
+describe("deckScale", () => {
+  it("колода на столе крупнее карты в руке — она общая, её видно всем", () => {
+    expect(deckScale()).toBeGreaterThan(1);
   });
 });
+

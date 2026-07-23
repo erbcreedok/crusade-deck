@@ -4,14 +4,14 @@ import { seatHandKind, seatCardFaceUp, layoutSeatHand } from "./seatHand";
 const rect = { cx: 200, cy: 80, w: 120, h: 90 };
 
 describe("seatHandKind", () => {
-  it("вне раздачи и при пустой руке ничего не рисуем", () => {
-    expect(seatHandKind(false, 5, true)).toBe("empty");
-    expect(seatHandKind(true, 0, true)).toBe("empty");
+  it("пустая рука — ничего не рисуем", () => {
+    expect(seatHandKind(0, true)).toBe("empty");
+    expect(seatHandKind(0, false)).toBe("empty");
   });
 
   it("раскладку задаёт только веер, не handOpen", () => {
-    expect(seatHandKind(true, 3, false)).toBe("stack");
-    expect(seatHandKind(true, 3, true)).toBe("fan");
+    expect(seatHandKind(3, false)).toBe("stack");
+    expect(seatHandKind(3, true)).toBe("fan");
   });
 });
 
@@ -28,7 +28,6 @@ describe("layoutSeatHand", () => {
     tableCardW: 70,
     tableCardH: 100,
     seatScale: 0.45,
-    dealMode: true,
   };
 
   it("пустая — без карт и без счётчика", () => {

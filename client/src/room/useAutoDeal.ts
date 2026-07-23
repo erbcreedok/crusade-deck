@@ -15,7 +15,8 @@ export interface AutoDealOptions {
   /** Остановить (кончились карты/цели, или права пропали). */
   stop: () => void;
   amIDealer: boolean;
-  dealMode: boolean;
+  /** Идёт режим свободы: раздавать больше нечего, автораздачу гасим. */
+  freeMode: boolean;
   deck: string[];
   players: RoomPlayer[];
   /** Круг мест (серверный seatOrder). */
@@ -24,7 +25,7 @@ export interface AutoDealOptions {
 }
 
 export function useAutoDeal(o: AutoDealOptions): void {
-  const { room, active, amIDealer, dealMode } = o;
+  const { room, active, amIDealer, freeMode } = o;
   // Живой снимок стола для таймера. Через ref, а не через зависимости эффекта: колода и
   // игроки меняются на КАЖДЫЙ патч состояния (каждая розданная карта — это патч), и эффект
   // пересоздавал бы интервал по нескольку раз в секунду. Тогда отсчёт всё время начинался
@@ -41,7 +42,7 @@ export function useAutoDeal(o: AutoDealOptions): void {
       pendingRef.current = null;
       return;
     }
-    if (!amIDealer || !dealMode) {
+    if (!amIDealer || freeMode) {
       snapRef.current.stop();
       return;
     }
@@ -92,5 +93,5 @@ export function useAutoDeal(o: AutoDealOptions): void {
       st.i += 1;
     }, AUTO_DEAL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [active, amIDealer, dealMode, room]);
+  }, [active, amIDealer, freeMode, room]);
 }

@@ -10,13 +10,13 @@ describe("zoneTitle", () => {
 
 describe("zoneAction", () => {
   it("во время драга подпись говорит, ЧТО произойдёт при дропе", () => {
-    expect(zoneAction("center", "deck")).toContain("стол");
-    expect(zoneAction("hand", "deck")).toContain("руку");
+    expect(zoneAction("center", "card")).toContain("стол");
+    expect(zoneAction("hand", "card")).toContain("руке");
   });
 
-  it("для колоды и для одной карты действия разные", () => {
-    expect(zoneAction("center", "deck")).not.toBe(zoneAction("center", "card"));
-    expect(zoneAction("hand", "deck")).not.toBe(zoneAction("hand", "card"));
+  it("своя карта и карта, которую тянут со стола, подписаны по-разному", () => {
+    expect(zoneAction("center", "card")).not.toBe(zoneAction("center", "take"));
+    expect(zoneAction("hand", "card")).not.toBe(zoneAction("hand", "take"));
   });
 
   it("в режиме свободы карта со стола «берётся себе», а не «оставляется в руке»", () => {
@@ -27,7 +27,7 @@ describe("zoneAction", () => {
   it("все подписи непустые и короткие — это надпись поверх зоны", () => {
     for (const zone of ["center", "hand"] as const) {
       expect(zoneTitle(zone).length).toBeGreaterThan(0);
-      for (const kind of ["deck", "card", "take"] as const) {
+      for (const kind of ["card", "take"] as const) {
         const t = zoneAction(zone, kind);
         expect(t.length).toBeGreaterThan(0);
         expect(t.length).toBeLessThanOrEqual(20);

@@ -7,8 +7,7 @@ const IDLE = {
   zone: "center" as const,
   dragging: false,
   active: false,
-  dragged: "deck" as const,
-  dealMode: false,
+  dragged: "card" as const,
   myReady: false,
 };
 
@@ -21,8 +20,8 @@ describe("zoneChrome", () => {
   });
 
   it("во время драга подпись меняется на действие — и зависит от того, что тащат", () => {
-    expect(zoneChrome({ ...IDLE, dragging: true }).label.text).toBe("выложить на стол");
     expect(zoneChrome({ ...IDLE, dragging: true, dragged: "card" }).label.text).toBe("сыграть на стол");
+    expect(zoneChrome({ ...IDLE, dragging: true, dragged: "take" }).label.text).toBe("оставить на столе");
   });
 
   it("зона под курсором подсвечивается ярче и толще", () => {
@@ -33,28 +32,25 @@ describe("zoneChrome", () => {
     expect(hover.fill!.alpha).toBeGreaterThan(drag.fill!.alpha);
   });
 
-  it("в раздаче полоса руки красится по готовности", () => {
-    const ready = zoneChrome({ ...IDLE, zone: "hand", dealMode: true, myReady: true });
-    const notReady = zoneChrome({ ...IDLE, zone: "hand", dealMode: true, myReady: false });
+  it("полоса руки красится по готовности", () => {
+    const ready = zoneChrome({ ...IDLE, zone: "hand", myReady: true });
+    const notReady = zoneChrome({ ...IDLE, zone: "hand", myReady: false });
     expect(ready.stroke.color).toBe(DEAL_HAND_READY);
     expect(notReady.stroke.color).toBe(DEAL_HAND_NOT_READY);
   });
 
-  it("ховер своей руки в раздаче — плотный оверлей с «раздать» тёмным по светлому", () => {
-    const c = zoneChrome({ ...IDLE, zone: "hand", dealMode: true, myReady: true, dragging: true, active: true });
+  it("ховер своей руки — плотный оверлей с «раздать» тёмным по светлому", () => {
+    const c = zoneChrome({ ...IDLE, zone: "hand", myReady: true, dragging: true, active: true });
     expect(c.fill).toEqual({ color: DEAL_HAND_READY, alpha: 0.82 });
     expect(c.label.text).toBe("раздать");
     expect(c.label.tint).toBe(COLORS.ink);
   });
 
   it("себе раздать можно даже с myReady=false — подпись не превращается в «Неа»", () => {
-    const c = zoneChrome({ ...IDLE, zone: "hand", dealMode: true, myReady: false, dragging: true, active: true });
+    const c = zoneChrome({ ...IDLE, zone: "hand", myReady: false, dragging: true, active: true });
     expect(c.label.text).toBe("раздать");
   });
 
-  it("вне раздачи зона hand не красится акцентом готовности", () => {
-    expect(zoneChrome({ ...IDLE, zone: "hand" }).stroke.color).toBe(COLORS.gold);
-  });
 });
 
 describe("zoneLabelFontSize", () => {

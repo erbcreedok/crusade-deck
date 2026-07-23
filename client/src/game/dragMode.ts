@@ -1,46 +1,33 @@
-import type { DeckZone } from "./deckZone";
-
 // Что берёт палец, когда нажимает на карты.
 //
-//   рука вне фокуса — шеренга: тап выделяет / раскрывает; тащить стопку целиком нельзя
-//                     в режиме раздачи (колода живёт в центре);
+//   рука вне фокуса — шеренга: тап выделяет / раскрывает, тащить стопку целиком нечем;
 //   рука в фокусе   — веер: отдельные карты (перестановка);
-//   центр + dealMode + дилер — карта на раздачу (стопка: верх; веер: под пальцем);
-//   центр + freeMode — верхняя карта КАЖДОМУ: в свободе игроки тянут себе сами;
-//   центр + dealMode + не-дилер + открытый веер — только peek (ховер/глиссандо, без драга);
-//   центр без dealMode — вся колода (перенос в зоны).
+//   центр + дилер   — карта на раздачу (стопка: верх; веер: под пальцем);
+//   центр + свобода — верхняя карта КАЖДОМУ: игроки тянут себе сами;
+//   центр + остальные при раскрытом вееере — только peek (ховер/глиссандо, без драга).
+//
+// Колоды «в руке» и «на чужом месте» здесь больше нет: она всегда лежит в центре стола.
 
-export type DragMode = "deck" | "card" | "topCard" | "peek" | "none";
+export type DragMode = "card" | "topCard" | "peek" | "none";
 
 export interface DragContext {
-  zone: DeckZone;
+  /** Жест начался на своей руке (иначе — на колоде в центре). */
+  onHand: boolean;
   handFocused: boolean;
-  draggable: boolean; // двигать колоду целиком (дилер, не dealMode)
-  dealMode?: boolean;
   canDeal?: boolean; // дилер может раздавать верхнюю карту
   deckFanned?: boolean; // веер колоды на столе (для peek не-дилера)
   freeMode?: boolean; // режим свободы: колода на столе общая
 }
 
 export function dragModeFor({
-  zone,
+  onHand,
   handFocused,
-  draggable,
-  dealMode = false,
   canDeal = false,
   deckFanned = false,
   freeMode = false,
 }: DragContext): DragMode {
-  if (zone === "away") return "none";
-
-  // В режиме раздачи колода в центре: дилер раздаёт, остальные только смотрят веер.
-  // В свободе ролей нет — верхнюю карту тянет любой, и открытый веер этому не мешает.
-  if (dealMode && zone === "center") {
-    if (canDeal || freeMode) return "topCard";
-    return deckFanned ? "peek" : "none";
-  }
-
-  if (!draggable) return "none";
-  if (zone === "hand") return handFocused ? "card" : "deck";
-  return "deck";
+  if (onHand) return handFocused ? "card" : "none";
+  // Колода в центре: дилер раздаёт, в свободе тянет любой, остальные только смотрят веер.
+  if (canDeal || freeMode) return "topCard";
+  return deckFanned ? "peek" : "none";
 }

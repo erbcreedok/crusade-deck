@@ -15,7 +15,6 @@ export interface ZoneChromeInput {
   active: boolean;
   /** Что тащат — от этого зависит подпись действия. */
   dragged: DraggedKind;
-  dealMode: boolean;
   /** Моя готовность: в раздаче красит полосу руки жёлтым/серым. */
   myReady: boolean;
 }
@@ -28,8 +27,8 @@ export interface ZoneChrome {
 }
 
 export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
-  // В раздаче полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
-  const dealHand = o.dealMode && o.zone === "hand";
+  // Полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
+  const dealHand = o.zone === "hand";
   const base = dealHand ? dealHandAccent(o.myReady) : COLORS.gold;
 
   let fill: ZoneChrome["fill"] = null;
@@ -66,7 +65,7 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
  */
 export function zoneLabelFontSize(zone: DropZone, zoneWidth: number, cardH: number): number {
   const base = Math.min(44, Math.max(14, cardH * 0.5));
-  const longest = Math.max(zoneTitle(zone).length, zoneAction(zone, "deck").length, zoneAction(zone, "card").length);
+  const longest = Math.max(zoneTitle(zone).length, zoneAction(zone, "card").length, zoneAction(zone, "take").length);
   const fit = (zoneWidth * 0.9) / Math.max(1, longest * 0.62);
   return Math.max(9, Math.min(base, fit));
 }

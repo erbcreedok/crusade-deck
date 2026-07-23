@@ -5,7 +5,6 @@
 // Чистая математика: движок только рисует по этим числам.
 
 import { anim } from "./anim/config";
-import type { DeckZone } from "./deckZone";
 
 export interface Offset {
   dx: number;
@@ -24,13 +23,11 @@ export function stackOffset(i: number, count: number, mirrored = false): Offset 
   return { dx: (i - c) * sx + 0, dy: (i - c) * anim.deck.stackDy + 0 };
 }
 
-// Масштаб колоды по зоне: в центре стола она общая и крупная, в руке — обычного
-// размера (там веер, и увеличение только мешало бы), на чужом месте — мелкая:
-// место игрока небольшое, колода должна в него помещаться.
-export function deckZoneScale(zone: DeckZone): number {
-  if (zone === "center") return anim.deck.centerScale;
-  if (zone === "seat") return anim.deck.seatScale;
-  return 1; // рука: карты в натуральную величину, их надо читать
+// Масштаб колоды на столе: она общая и лежит в центре, поэтому крупнее карты в руке.
+// Раньше масштабов было три (центр / рука / чужое место) — колоду можно было носить по
+// зонам; теперь она всегда в центре.
+export function deckScale(): number {
+  return anim.deck.centerScale;
 }
 
 // Какие карты стопки рисовать «полосками» торцов в блоке колоды. Смещение на карту —

@@ -23,8 +23,7 @@ function fakeState(over: Record<string, unknown> = {}) {
     deck: ["2♣", "3♣"],
     faceUp: fakeMap({ "2♣": true, "3♣": false }),
     deckLocation: "center",
-    dealMode: true,
-    deckFanned: false,
+      deckFanned: false,
     ...over,
   };
 }
@@ -97,11 +96,6 @@ describe("readRoomState", () => {
   it("без seatOrder порядок мест берётся из списка игроков", () => {
     const s = readRoomState(fakeState({ seatOrder: undefined }), "me");
     expect(s.seatOrder).toEqual(["me", "bot"]);
-  });
-
-  it("dealMode выключен только явным false", () => {
-    expect(readRoomState(fakeState({ dealMode: undefined }), "me").dealMode).toBe(true);
-    expect(readRoomState(fakeState({ dealMode: false }), "me").dealMode).toBe(false);
   });
 
   it("зритель без места видит пустую руку", () => {

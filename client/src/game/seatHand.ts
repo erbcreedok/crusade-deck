@@ -1,4 +1,4 @@
-// Чужие руки на местах за столом (режим раздачи).
+// Чужие руки на местах за столом.
 //
 // Два независимых флага (как на сервере):
 //   handFanned — веер или стопка (раскладка);
@@ -11,8 +11,8 @@ import { stackOffset, stackExtent } from "./deckStack";
 
 export type SeatHandKind = "empty" | "stack" | "fan";
 
-export function seatHandKind(dealMode: boolean, handCount: number, handFanned: boolean): SeatHandKind {
-  if (!dealMode || handCount <= 0) return "empty";
+export function seatHandKind(handCount: number, handFanned: boolean): SeatHandKind {
+  if (handCount <= 0) return "empty";
   return handFanned ? "fan" : "stack";
 }
 
@@ -41,7 +41,6 @@ export interface SeatHandArgs {
   rect: { cx: number; cy: number; w: number; h: number };
   count: number;
   handFanned: boolean;
-  dealMode: boolean;
   tableCardW: number;
   tableCardH: number;
   /** доля от размера карты стола; по умолчанию anim.deck.seatScale */
@@ -53,7 +52,7 @@ const NAME_PAD = 0.22;
 const COUNTER_PAD = 0.2;
 
 export function layoutSeatHand(args: SeatHandArgs): SeatHandLayout {
-  const kind = seatHandKind(args.dealMode, args.count, args.handFanned);
+  const kind = seatHandKind(args.count, args.handFanned);
   const scale = args.seatScale ?? anim.deck.seatScale;
   const cardW = args.tableCardW * scale;
   const cardH = args.tableCardH * scale;

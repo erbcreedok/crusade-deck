@@ -26,7 +26,6 @@ export interface RoomStateView {
   myHand: string[];
   /** Применить свой порядок руки локально и запомнить его до подтверждения эхом. */
   applyMyHandOrder: (order: string[]) => void;
-  dealMode: boolean;
   freeMode: boolean;
   deckFanned: boolean;
   setDeckFanned: (open: boolean) => void;
@@ -45,7 +44,6 @@ export function useRoomState(room: Room): RoomStateView {
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deck, setDeck] = useState<string[]>([]);
   const [myHand, setMyHand] = useState<string[]>([]);
-  const [dealMode, setDealMode] = useState(true);
   const [freeMode, setFreeMode] = useState(false);
   const [deckFanned, setDeckFanned] = useState(false);
   const [deckLocation, setDeckLocation] = useState("center");
@@ -75,7 +73,6 @@ export function useRoomState(room: Room): RoomStateView {
       setPhase(s.phase);
       setProposal(s.proposal);
       setDeckLocation(s.deckLocation);
-      setDealMode(s.dealMode);
       setFreeMode(s.freeMode);
       setDeckFanned(s.deckFanned);
 
@@ -115,7 +112,6 @@ export function useRoomState(room: Room): RoomStateView {
     facing,
     myHand,
     applyMyHandOrder,
-    dealMode,
     freeMode,
     deckFanned,
     setDeckFanned,

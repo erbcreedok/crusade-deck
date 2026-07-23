@@ -50,9 +50,6 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setHand(props.hand), [props.hand.join(",")]);
   useEngineEffect(e, (en) => en.setSeats(props.seats), [seatsSignature(props.seats)]);
   useEngineEffect(e, (en) => en.setSelectedDecks(props.selectedDecks), [props.selectedDecks.join(",")]);
-  useEngineEffect(e, (en) => en.setDeckZone(props.deckZone), [props.deckZone]);
-  useEngineEffect(e, (en) => en.setDeckHolder(props.deckHolder), [props.deckHolder]);
-  useEngineEffect(e, (en) => en.setDealMode(props.dealMode), [props.dealMode]);
   useEngineEffect(e, (en) => en.setFreeMode(props.freeMode), [props.freeMode]);
   useEngineEffect(e, (en) => en.setDeckFanned(props.deckFanned), [props.deckFanned]);
   useEngineEffect(e, (en) => en.setCanDeal(props.canDeal), [props.canDeal]);
@@ -67,15 +64,8 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setFourColor(props.fourColor), [props.fourColor]);
   useEngineEffect(e, (en) => en.setCardBack(props.cardBack), [props.cardBack]);
   useEngineEffect(e, (en) => en.setCardFacing(props.facing), [props.facing]);
-  // Право менять колоду локально и быть источником правды — одно и то же условие.
-  useEngineEffect(
-    e,
-    (en) => {
-      en.setDeckDraggable(props.deckDraggable);
-      en.setAuthoritative(props.deckDraggable || props.canDeal);
-    },
-    [props.deckDraggable, props.canDeal],
-  );
+  // Право раздавать и быть источником правды для колоды — одно и то же условие.
+  useEngineEffect(e, (en) => en.setAuthoritative(props.canDeal), [props.canDeal]);
   useEngineEffect(
     e,
     (en) => en.setAnimationProfile(resolveProfile(props.animation)),
@@ -85,27 +75,17 @@ export function RoomCanvas(props: EngineProps) {
   // ——— жесты стола наверх ———
   useEngineEffect(e, (en) => en.setOnDeckTap(props.onDeckTap), [props.onDeckTap]);
   useEngineEffect(e, (en) => en.setOnEmptyTap(props.onEmptyTap), [props.onEmptyTap]);
-  useEngineEffect(e, (en) => en.setOnDeckDrop(props.onDeckDrop), [props.onDeckDrop]);
-  useEngineEffect(e, (en) => en.setOnDeckDropToSeat(props.onDeckDropToSeat), [props.onDeckDropToSeat]);
   useEngineEffect(e, (en) => en.setOnDealCard(props.onDealCard), [props.onDealCard]);
   useEngineEffect(e, (en) => en.setOnDeckFanChange(props.onDeckFanChange), [props.onDeckFanChange]);
   useEngineEffect(e, (en) => en.setOnCardReorder(props.onCardReorder), [props.onCardReorder]);
   useEngineEffect(e, (en) => en.setOnShuffleChange(props.onShuffleChange), [props.onShuffleChange]);
   useEngineEffect(e, (en) => en.setOnFanChange(props.onFanChange), [props.onFanChange]);
   useEngineEffect(e, (en) => en.setOnFanCollapse(props.onFanCollapse), [props.onFanCollapse]);
-  useEngineEffect(e, (en) => en.setOnFlipDeck(props.onFlipDeck), [props.onFlipDeck]);
-  useEngineEffect(e, (en) => en.setOnFlipCards(props.onFlipCards), [props.onFlipCards]);
   useEngineEffect(e, (en) => en.setOnDeckFx(props.onDeckFx), [props.onDeckFx]);
   useEngineEffect(e, (en) => en.setOnDragChange(props.onDragChange), [props.onDragChange]);
 
   // ——— разовые события: «сыграй это» ———
   useEngineEffect(e, (en) => props.shuffleSignal > 0 && en.shuffleAll(), [props.shuffleSignal]);
-  useEngineEffect(e, (en) => props.flipSignal > 0 && en.flipDeckByButton(), [props.flipSignal]);
-  useEngineEffect(
-    e,
-    (en) => props.rejectedFlip && en.rejectFlip(props.rejectedFlip.cards, props.rejectedFlip.text),
-    [props.rejectedFlip],
-  );
   useEngineEffect(
     e,
     (en) => props.noticeSignal && en.showRejectNotice(props.noticeSignal.text),

@@ -217,7 +217,6 @@ describe("RoomEngine: перерисовки без падений", () => {
     const { engine, app } = await mountEngine();
     engine.setDeck(DECK_36);
     engine.setSeats([seat]);
-    engine.setDealMode(true);
     engine.setCanDeal(true);
     engine.setDeckFanned(true);
     engine.setSelectedDecks(["hand"]);
@@ -237,7 +236,6 @@ describe("RoomEngine: перерисовки без падений", () => {
 
   it("открытая чужая рука рисуется на месте игрока", async () => {
     const { engine } = await mountEngine();
-    engine.setDealMode(true);
     engine.setSeats([{ ...seat, handOpen: true, handFanned: true }]);
     // Три карты руки соседа — это три дополнительных спрайта на его месте.
     expect(pixi.__liveSprites().length).toBeGreaterThanOrEqual(3);

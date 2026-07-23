@@ -24,7 +24,6 @@ export interface SeatPaintDeps {
   cardBack: CardBackId;
   cardW: number;
   cardH: number;
-  dealMode: boolean;
   /** Место под курсором во время драга карты на раздачу. */
   hoverSeat: string | null;
   /** Идёт ли драг карты на раздачу (только тогда место подсвечивается как дроп-зона). */
@@ -50,7 +49,7 @@ export function paintSeats(seats: readonly SeatView[], boxes: readonly SeatBox[]
     const x = cx - w / 2;
     const y = cy - h / 2;
     const hot = d.dealDragging && d.hoverSeat === seat.id;
-    const chrome = seatChrome({ ...seat, dealMode: d.dealMode });
+    const chrome = seatChrome({ ...seat });
 
     // Idle: только тонкая рамка-стиль (жёлтый/серый), без заливки и эффектов.
     // Контент внутри не красим — цвет только у обводки зоны.
@@ -81,7 +80,6 @@ export function paintSeats(seats: readonly SeatView[], boxes: readonly SeatBox[]
       rect: box.rect,
       count: visualCount,
       handFanned: seat.handFanned,
-      dealMode: d.dealMode,
       tableCardW: d.cardW,
       tableCardH: d.cardH,
     });

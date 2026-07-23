@@ -4,9 +4,10 @@
 
 import type { DropZone } from "./dropZones";
 
-// «take» — карта, которую игрок тянет СЕБЕ со стола в режиме свободы: жест тот же, что у
-// раздачи, а смысл обратный, и подпись зоны должна говорить именно об этом.
-export type DraggedKind = "deck" | "card" | "take";
+// Тащат всегда ОДНУ карту: «card» — свою (перестановка/раздача), «take» — чужую со стола
+// в режиме свободы (жест тот же, а смысл обратный, и подпись должна говорить об этом).
+// Колоды целиком в списке нет: она лежит в центре стола и никуда не переносится.
+export type DraggedKind = "card" | "take";
 
 const TITLES: Record<DropZone, string> = {
   center: "стол",
@@ -14,10 +15,6 @@ const TITLES: Record<DropZone, string> = {
 };
 
 const ACTIONS: Record<DraggedKind, Record<DropZone, string>> = {
-  deck: {
-    center: "выложить на стол",
-    hand: "взять в руку",
-  },
   card: {
     center: "сыграть на стол",
     hand: "оставить в руке",

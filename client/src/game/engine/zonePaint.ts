@@ -13,7 +13,6 @@ export interface ZonePaintDeps {
   dragging: boolean;
   hoverZone: DropTarget | null;
   dragged: DraggedKind;
-  dealMode: boolean;
   myReady: boolean;
 }
 
@@ -32,7 +31,6 @@ export function paintZones(d: ZonePaintDeps): void {
       dragging: d.dragging,
       active: d.dragging && d.hoverZone?.zone === zone,
       dragged: d.dragged,
-      dealMode: d.dealMode,
       myReady: d.myReady,
     });
     const x = rect.cx - rect.w / 2;

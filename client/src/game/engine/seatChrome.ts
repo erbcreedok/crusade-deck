@@ -9,7 +9,6 @@ export interface SeatChromeInput {
   isReady: boolean;
   connected: boolean;
   /** Раздача идёт: место красится по готовности, а не по роли. */
-  dealMode: boolean;
 }
 
 export interface SeatChrome {
@@ -19,33 +18,26 @@ export interface SeatChrome {
   alpha: number;
   /** Прозрачность самой обводки. */
   strokeAlpha: number;
-  /** Нужна ли тёмная заливка под содержимым (в раздаче её нет — только рамка). */
+  /** Нужна ли тёмная заливка под содержимым (сейчас — нет, только рамка). */
   fill: boolean;
-  /** Акцент готовности (жёлтый/серый) или null вне раздачи. */
-  readyTint: number | null;
+  /** Акцент готовности: жёлтый — принимает карты, серый — нет. */
+  readyTint: number;
   /** Принимает ли этот игрок карты: «Готов» или дилер (он всегда готов). */
   dealReady: boolean;
 }
 
 export function seatChrome(seat: SeatChromeInput): SeatChrome {
-  // Раздача: готов → жёлтый, не готов → серый. Дилер всегда готов.
+  // Место красится ГОТОВНОСТЬЮ, а не ролью: готов → жёлтый, не готов → серый; дилер
+  // готов всегда. Отключённый («на паузе») приглушён и рамкой, и содержимым — иначе он
+  // выглядел бы ждущим карту, хотя принять её сейчас некому.
   const dealReady = isDealReady(seat.isReady, seat.isDealer);
-  const readyTint = seat.dealMode ? dealHandAccent(dealReady) : null;
-  // Отключённый игрок («на паузе») — приглушён; дилер — золотая рамка вне раздачи.
-  const border =
-    readyTint != null
-      ? readyTint
-      : seat.isDealer
-        ? COLORS.dealerBorder
-        : seat.connected
-          ? COLORS.seatBorder
-          : COLORS.seatBorderOff;
+  const readyTint = dealHandAccent(dealReady);
   const alpha = seat.connected ? 1 : 0.45;
   return {
-    border,
+    border: seat.connected ? readyTint : COLORS.seatBorderOff,
     alpha,
-    strokeAlpha: (readyTint != null ? 0.22 : 0.55) * alpha,
-    fill: readyTint == null,
+    strokeAlpha: 0.22 * alpha,
+    fill: false,
     readyTint,
     dealReady,
   };

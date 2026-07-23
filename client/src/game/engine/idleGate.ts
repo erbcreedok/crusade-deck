@@ -24,8 +24,7 @@ export interface EngineActivity {
   reject: boolean;
   /** Сколько карт-призраков сейчас в полёте (раздача/сбор). */
   flights: number;
-  /** Палец на колоде / на карте / карта в драге. */
-  press: boolean;
+  /** Палец на карте / карта в драге. */
   cardPress: boolean;
   cardDrag: boolean;
   /** Кнопка «сложить» ещё проявляется или гаснет. */
@@ -52,7 +51,6 @@ export function canSleep(a: EngineActivity): boolean {
     !a.shout &&
     !a.reject &&
     a.flights === 0 &&
-    !a.press &&
     !a.cardPress &&
     !a.cardDrag &&
     !a.collapseBusy &&
