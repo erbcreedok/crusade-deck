@@ -1,0 +1,26 @@
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_44fc7a72ba9552 4214-4223,4225-4232,4234-4236,4238-4239
+  s_6b17180413249b::t_7e0e8cf54150ec 22
+client/src/game/deckFan.test.ts
+  s_6b17180413249b::t_054e6c7ad4ba40 2
+client/src/game/deckFan.ts
+  s_6b17180413249b::t_7678c5ca7f3221 1,3-6,12
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_240790bef9f556 371-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "dd518f59049ae96e6f8f017d3b240497fddd9576",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
