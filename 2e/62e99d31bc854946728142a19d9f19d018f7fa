@@ -1,0 +1,42 @@
+server/src/messages/roomMessages.ts
+  s_b16a7b1f1196ad::t_8b8086bf34d81a 4-5,19-20,22-24
+server/src/rejections.ts
+  s_b16a7b1f1196ad::t_19b86fb386f213 1-6,8,12-13
+  s_b16a7b1f1196ad::t_9fd6f03f8a067b 7
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_f26af7cc5c9c1f 114
+  s_b16a7b1f1196ad::t_8b8086bf34d81a 102-104
+server/src/GameState.ts
+  s_b16a7b1f1196ad::t_e5dfc9d8a59507 54-56
+  s_b16a7b1f1196ad::t_8b8086bf34d81a 50-51
+server/src/CardRoom.votes.test.ts
+  s_b16a7b1f1196ad::t_2c5cea56112242 2
+server/src/CardRoom.deck.test.ts
+  s_b16a7b1f1196ad::t_626585b9422a2f 2
+server/src/TestRoom.test.ts
+  s_b16a7b1f1196ad::t_2c5cea56112242 2
+server/src/CardRoom.visibility.test.ts
+  s_b16a7b1f1196ad::t_626585b9422a2f 2,11-13,16,19-20,52,57
+server/src/CardRoom.hands.test.ts
+  s_b16a7b1f1196ad::t_2c5cea56112242 2
+server/src/CardRoom.lifecycle.test.ts
+  s_b16a7b1f1196ad::t_2c5cea56112242 2
+server/src/messages/deckMessages.ts
+  s_b16a7b1f1196ad::t_4bf2af5191b682 3,5,8-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2e62e99d31bc854946728142a19d9f19d018f7fa",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
