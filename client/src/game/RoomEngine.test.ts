@@ -117,6 +117,22 @@ describe("RoomEngine.setHand", () => {
     engine.setHand(["3♦"]);
     expect(pixi.__liveSprites().length).toBe(after - 1);
   });
+
+  // Одно правило наложения на все раскладки руки: z растёт слева направо, правая сверху.
+  // Раньше свёрнутая шеренга разворачивала порядок, и он расходился с веером.
+  it("в свёрнутой руке z растёт слева направо — правая карта сверху", async () => {
+    const { engine, app } = await mountEngine();
+    const faces = ["2♦", "3♦", "4♦", "5♦"];
+    engine.setHand(faces); // без фокуса — это шеренга (idle-закрытая рука)
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    const sprites = faces
+      .map((f) => pixi.__liveSprites().find((s: any) => s.label === f)!)
+      .sort((a: any, b: any) => a.x - b.x); // слева направо
+    for (let i = 1; i < sprites.length; i++) {
+      expect(sprites[i]!.zIndex).toBeGreaterThan(sprites[i - 1]!.zIndex);
+    }
+  });
 });
 
 /** ВСЕ узлы с данным zIndex: хит-зон на Z.deckHit несколько (колода, сброс, зона). */

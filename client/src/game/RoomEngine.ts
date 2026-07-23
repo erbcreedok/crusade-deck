@@ -1057,7 +1057,10 @@ export class RoomEngine {
     this.handPile.reconcile(newOrder);
     this.hand.forEach((c, i) => {
       c.body.snapTo(this.handRestTarget(i));
-      c.sprite.zIndex = Z.handCards + (this.handRowMode() ? this.hand.length - i : i);
+      // Одно правило на все раскладки руки: z растёт слева направо, правая карта сверху.
+      // Раньше шеренга разворачивала порядок (length - i), а layoutHand — нет, и наложение
+      // «ломалось» в зависимости от того, какой путь тронул карты последним.
+      c.sprite.zIndex = Z.handCards + i;
       c.sprite.texture = this.faceTexture(c.card); // свою руку владелец видит всегда
       c.sprite.visible = true;
     });
