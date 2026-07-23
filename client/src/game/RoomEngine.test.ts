@@ -536,6 +536,70 @@ describe("RoomEngine: сброс", () => {
   });
 });
 
+describe("RoomEngine: драг по сложенной руке", () => {
+  /** Нажать на сложенную руку и увести палец в точку (x,y). */
+  function dragFromRow(app: any, x: number, y: number): void {
+    const handHit = findByZ(app.stage, 10_100);
+    const start = { x: 195, y: 700 };
+    handHit.__emit("pointerdown", { pointerId: 21, global: start, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 21, global: { x: start.x + 25, y: start.y - 25 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 21, global: { x, y } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 21, global: { x, y } });
+  }
+
+  it("сложенная рука отдаёт ВЕРХНЮЮ карту — веер раскрывать не нужно", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDiscard(["7♣"]);
+    engine.setHand(["2♦", "3♦", "4♦"]); // фокуса нет: рука лежит шеренгой
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const discarded: string[] = [];
+    engine.setOnDiscardCard((card: string) => discarded.push(card));
+
+    const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).discardSlot!;
+    dragFromRow(app, slot.cx, slot.cy);
+
+    expect(discarded).toEqual(["2♦"]); // именно та карта, что лежит поверх шеренги
+  });
+
+  it("драг по сложенной руке не раскрывает её всему столу", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setHand(["2♦", "3♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    let fanChanges = 0;
+    let collapses = 0;
+    // Сеттер сам зовёт колбэк один раз, сообщая текущее состояние — считаем ПОСЛЕ него.
+    engine.setOnFanChange(() => fanChanges++);
+    engine.setOnFanCollapse(() => collapses++);
+    fanChanges = 0;
+
+    dragFromRow(app, 195, 400); // увели карту на стол и отпустили
+    for (let i = 0; i < 60; i++) app.ticker.__advance(16);
+
+    expect(fanChanges).toBe(0); // веер руки никто не раскрывал
+    expect(collapses).toBe(0);
+  });
+
+  it("карта из сложенной руки, брошенная мимо, возвращается в шеренгу", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setHand(["2♦", "3♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    dragFromRow(app, 340, 180); // в пустоту у верхнего края
+    for (let i = 0; i < 120; i++) app.ticker.__advance(16);
+
+    const live = new Set(pixi.__liveSprites());
+    const strays = findByZ(app.stage, 3)
+      .children.filter((c: any) => live.has(c) && c.visible && c.y < 400);
+    expect(strays).toHaveLength(0);
+  });
+});
+
 describe("RoomEngine: что можно и нельзя делать со стопками доски", () => {
   const gameLayout = async () => (await import("./layout")).computeLayout(390, 800, undefined, true);
 

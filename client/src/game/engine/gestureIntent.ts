@@ -57,6 +57,8 @@ export interface PressContext {
   cardH: number;
   /** Жест начался на руке (иначе — на колоде). */
   fromHand: boolean;
+  /** Есть что сворачивать: рука раскрыта веером. У сложенной шеренги свайп вниз — драг. */
+  canCollapse: boolean;
   /** Это перетаскивание верхней карты на раздачу. */
   dealDrag: boolean;
   /** На момент нажатия карта была видна достаточно, чтобы её схватить. */
@@ -85,7 +87,9 @@ export function pressIntent(c: PressContext): PressIntent {
   if (!movedEnough(c.dx, c.dy)) return "wait";
   // Раздача верхней карты — сразу в драг, никакие свайпы её не перебивают.
   if (c.dealDrag) return "deal";
-  if (c.fromHand && isCollapseSwipe(c.vx, c.vy, c.travelDown, c.cardH)) return "collapse-hand";
+  if (c.fromHand && c.canCollapse && isCollapseSwipe(c.vx, c.vy, c.travelDown, c.cardH)) {
+    return "collapse-hand";
+  }
 
   if (c.swipeable && isSwipeUp(c.vx, c.vy, c.travelUp, c.cardH) && !c.fromHand) {
     // Тасовать может не каждый: не-дилер в раздаче просто продолжает глиссандо.

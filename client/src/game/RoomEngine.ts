@@ -296,6 +296,8 @@ export class RoomEngine {
     y: number;
     fromHand: boolean; // драг из своей руки, а не со стопки доски
     pile: BoardPile; // с какой стопки доски взята карта
+    // Карта взята со СЛОЖЕННОЙ стопки: едет за пальцем одна, соседи не раздвигаются.
+    loose: boolean;
     samples: SwipeSample[]; // история движения — по ней ловим бросок вниз
   } | null = null;
   private cardShadow: Sprite | null = null;
@@ -1367,6 +1369,14 @@ export class RoomEngine {
   // Перестановка внутри веера: карта ищет свой новый слот.
   private aimReorderDrag(x: number, y: number): void {
     const d = this.cardDrag!;
+    // Карта из СЛОЖЕННОЙ руки просто едет за пальцем: шеренга стоит как стояла, ей нечего
+    // раздвигать, а перестановка в сложенной руке лишена смысла.
+    if (d.loose) {
+      d.v.body.setTarget({ x, y, rot: 0, scale: DRAG_SCALE });
+      this.hoverZone = pickDropTarget(x, y, this.layout);
+      this.drawZones();
+      return;
+    }
     d.insertAt = d.fromHand ? this.insertHandIndexAt(x) : this.insertDeckIndexAt(x);
     this.hoverZone = pickDropTarget(x, y, this.layout);
     this.applyCardDragTargets();
@@ -1389,6 +1399,8 @@ export class RoomEngine {
       travelDown: p.y - p.startY,
       cardH: this.layout.cardH,
       fromHand: p.fromHand,
+      // Сворачивать нечего, пока рука сложена: там свайп вниз — это драг верхней карты.
+      canCollapse: this.handFocused,
       dealDrag: this.dealDrag,
       canGrab: p.canGrab,
       swipeable: this.fanOpen() && this.deckCount >= 2,
@@ -1878,7 +1890,9 @@ export class RoomEngine {
   private beginCardDrag(): void {
     const p = this.cardPress;
     if (!p) return;
-    const fromHand = this.handFocused && !this.dealDrag;
+    // Откуда карта — знает САМО нажатие. Раньше это выводили из фокуса руки, и жест по
+    // сложенной руке уходил за картой в колоду: фокуса нет — значит «не рука».
+    const fromHand = p.fromHand && !this.dealDrag;
     const stack = fromHand ? this.hand : this.pileCards(p.pile);
     if (stack.length === 0) return;
     const v = stack[Math.max(0, Math.min(stack.length - 1, p.index))]!;
@@ -1893,6 +1907,7 @@ export class RoomEngine {
       y: p.y,
       fromHand,
       pile: p.pile,
+      loose: fromHand && !this.handFocused,
       samples: [{ x: p.x, y: p.y, t: performance.now() }],
     };
     v.sprite.zIndex = 100_000;
@@ -2067,6 +2082,16 @@ export class RoomEngine {
         finish();
         return;
       }
+    }
+
+    // Карта из сложенной руки: перекладывать в шеренге нечего — просто возвращаем домой.
+    if (d.loose) {
+      this.returnCardHome(d.v);
+      this.onDragChange?.(false);
+      this.drawZones();
+      this.positionDeckHit();
+      this.wake();
+      return;
     }
 
     if (this.inFanArea(x, y)) {
@@ -2304,13 +2329,15 @@ export class RoomEngine {
     if (this.hand.length === 0) return;
     this.tapStartedOnDeck = true;
     this.skipNextTap = false;
-    if (!this.handFocused) return; // сложенная рука — только тап (выделение), без драга карт
     if (this.cardPress || this.cardDrag) return;
     this.dealDrag = false;
+    // Раскрытая рука отдаёт карту под пальцем, сложенная — ВЕРХНЮЮ (ту, что видна поверх
+    // шеренги). Из сложенной так быстрее достать единственную карту, а заодно видно, что
+    // под ней, — и всё это не раскрывая веер, который виден всему столу.
     this.cardPress = {
       id: e.pointerId,
       ...this.pressPoint(e),
-      index: this.nearestHandFanIndex(e.global.x),
+      index: this.handFocused ? this.nearestHandFanIndex(e.global.x) : 0,
       canGrab: true,
       fromHand: true,
       pile: "deck", // рука — не стопка доски, поле не используется

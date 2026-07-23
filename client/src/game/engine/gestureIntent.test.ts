@@ -21,6 +21,7 @@ const BASE: PressContext = {
   travelDown: 0,
   cardH: CARD_H,
   fromHand: false,
+  canCollapse: true,
   dealDrag: false,
   canGrab: false,
   swipeable: true,
@@ -73,6 +74,14 @@ describe("isCollapseSwipe", () => {
   it("короткий или медленный жест руку не складывает", () => {
     expect(isCollapseSwipe(0, 2000, 2, CARD_H)).toBe(false);
     expect(isCollapseSwipe(0, 5, CARD_H, CARD_H)).toBe(false);
+  });
+});
+
+describe("pressIntent — сложенная рука", () => {
+  it("свайп вниз по СЛОЖЕННОЙ руке — это драг карты, а не сворачивание", () => {
+    const swipeDown = { ...BASE, fromHand: true, dx: 0, dy: 40, vx: 0, vy: 2000, travelDown: CARD_H, canGrab: true };
+    expect(pressIntent({ ...swipeDown, canCollapse: true })).toBe("collapse-hand");
+    expect(pressIntent({ ...swipeDown, canCollapse: false })).toBe("grab");
   });
 });
 
