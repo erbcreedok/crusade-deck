@@ -1,0 +1,43 @@
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_ee4058cff53cc4 7,141-155
+  s_b16a7b1f1196ad::t_f542a34ca9ae3b 156-157
+client/src/game/dropZones.ts
+  s_b16a7b1f1196ad::t_b2609cb4c69189 5-11,29-31
+server/src/CardRoom.hands.test.ts
+  s_b16a7b1f1196ad::t_ee4058cff53cc4 173-212
+client/src/game/zoneLabels.ts
+  s_b16a7b1f1196ad::t_b2609cb4c69189 15,21,23,29
+client/src/game/engine/constants.ts
+  s_b16a7b1f1196ad::t_b2609cb4c69189 14-18
+server/src/handRules.test.ts
+  s_b16a7b1f1196ad::t_b90b089d3491f8 9,179-198
+  s_b16a7b1f1196ad::t_c0933a5621f264 199-200
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_ef8e02926a512b 539-641
+server/src/handRules.ts
+  s_b16a7b1f1196ad::t_b90b089d3491f8 79-89
+server/src/CardRoom.free.test.ts
+  s_b16a7b1f1196ad::t_ee4058cff53cc4 427-445
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_a6cb0229147583 100-101,222,971-975,1610,2009-2020,2036-2037,2039-2068,2694
+client/src/game/engine/zoneChrome.test.ts
+  s_b16a7b1f1196ad::t_8cf78dbd02e786 23
+client/src/game/zoneLabels.test.ts
+  s_b16a7b1f1196ad::t_8cf78dbd02e786 13,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2f5799f8fe6f4f77dbe0ed0d319ac0db781a92a4",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
