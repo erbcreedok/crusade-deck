@@ -20,10 +20,17 @@ describe("roomMenu", () => {
     expect(ids({}).slice(-2)).toEqual(["settings", "leave"]);
   });
 
-  it("в режиме свободы сбора и сброса в меню нет: сбор живёт в кнопке «Перераздача»", () => {
+  it("в свободе у дилера остаётся одна дилерская кнопка — перераздача", () => {
     const free = ids({ amIDealer: true, freeMode: true });
+    expect(free).toContain("redeal");
     expect(free).not.toContain("collect_hands");
     expect(free).not.toContain("reset_deck");
+    expect(free).not.toContain("auto_deal");
+  });
+
+  it("перераздача — только дилеру и только в свободе", () => {
+    expect(ids({ amIDealer: false, freeMode: true })).not.toContain("redeal");
+    expect(ids({ amIDealer: true, freeMode: false })).not.toContain("redeal");
   });
 
   it("сбор, сброс и автораздача — только дилеру и только в раздаче", () => {

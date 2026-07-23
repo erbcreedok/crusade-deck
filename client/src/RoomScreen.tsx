@@ -224,6 +224,7 @@ export function RoomScreen({
 
   const bar = barActionsFor(selection, {
     freeMode,
+    deckCount: deck.length,
     amIDealer,
     myReady,
     myFanOpen: handFanOpen,
@@ -233,7 +234,8 @@ export function RoomScreen({
       if (id === "ready" || id === "unready") room.send("ready");
       else if (id === "shuffle") setShuffleSignal((v) => v + 1);
       else if (id === "go") room.send("go", {});
-      else if (id === "redeal") room.send("collect_hands");
+      else if (id === "take_one") room.send("take_card", {});
+      else if (id === "take_all") room.send("take_all", {});
     },
     [room],
   );
@@ -247,7 +249,7 @@ export function RoomScreen({
     : undefined;
 
   const runMenuAction = (id: MenuActionId) => {
-    if (id === "collect_hands") room.send("collect_hands");
+    if (id === "redeal" || id === "collect_hands") room.send("collect_hands");
     else if (id === "reset_deck") room.send("reset_deck");
     else if (id === "auto_deal") setAutoDealing(true);
     else if (id === "auto_deal_stop") setAutoDealing(false);

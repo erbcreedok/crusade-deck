@@ -120,6 +120,44 @@ describe("CardRoom: режим свободы", () => {
     expect([...room.state.deck, ...a, ...b].sort()).toEqual([...before].sort());
   });
 
+  it("take_all забирает всю колоду со стола в свою руку", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+
+    const before = [...room.state.deck];
+    const moved = new Promise<{ moves: { card: string; from: string; to: string }[] }>((resolve) => {
+      dealer.onMessage("card_moved", (m) => resolve(m));
+    });
+    waiter = room.waitForMessage("take_all");
+    player.send("take_all", {});
+    await waiter;
+    const fx = await moved;
+
+    const hand = room.state.players.get(player.sessionId)!.hand.toArray();
+    expect(room.state.deck.length).toBe(0);
+    expect(hand.length).toBe(36);
+    expect(hand[0]).toBe(before[before.length - 1]); // сверху вниз, как если бы тянул по одной
+    expect([...hand].sort()).toEqual([...before].sort());
+    expect(fx.moves.length).toBe(36);
+    expect(room.state.deckFanned).toBe(false);
+  });
+
+  it("take_all без режима свободы не работает", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const player = await server().connectTo(room, { name: "Alice" });
+
+    const waiter = room.waitForMessage("take_all");
+    player.send("take_all", {});
+    await waiter;
+
+    expect(room.state.deck.length).toBe(36);
+    expect(room.state.players.get(player.sessionId)!.hand.length).toBe(0);
+  });
+
   it("take_card без режима свободы не работает", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const player = await server().connectTo(room, { name: "Alice" });

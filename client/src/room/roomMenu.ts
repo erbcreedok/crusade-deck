@@ -7,6 +7,7 @@
 // у края экрана. Отсюда «Выйти в меню» в самом конце списка.
 
 export type MenuActionId =
+  | "redeal"
   | "collect_hands"
   | "reset_deck"
   | "auto_deal"
@@ -38,6 +39,12 @@ export interface RoomMenuFlags {
 
 export function roomMenu(f: RoomMenuFlags): MenuEntry[] {
   const items: MenuEntry[] = [];
+
+  // В игре у дилера остаётся ровно одно право — закончить кон и раздать заново. На панели
+  // ему места нет: там кнопки взятия карт, одинаковые для всех.
+  if (f.amIDealer && f.freeMode) {
+    items.push({ id: "redeal", label: "♻ Перераздача" });
+  }
 
   // Дилерская работа с раздачей. В свободе её нет: сбор карт переехал в кнопку
   // «Перераздача», а сброс колоды сервер и так отклонит — фаза уже не лобби.

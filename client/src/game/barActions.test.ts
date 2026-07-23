@@ -30,23 +30,37 @@ describe("barActionsFor — раздача", () => {
 });
 
 describe("barActionsFor — режим свободы", () => {
-  const free = { freeMode: true };
+  const free = { freeMode: true, deckCount: 36 };
 
-  it("дилер: главное действие — Перераздача", () => {
-    const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
-    expect(a.main?.id).toBe("redeal");
-    expect(a.main?.label).toContain("Перераздача");
+  it("карты со стола берут кнопками: «Забрать 1» и «Забрать все»", () => {
+    const a = barActionsFor(EMPTY_SELECTION, free);
+    expect(a.main?.id).toBe("take_one");
+    expect(a.main?.label).toContain("1");
+    expect(a.secondary?.id).toBe("take_all");
+    expect(a.secondary?.label).toContain("все");
   });
 
-  it("свобода важнее раздачи: «ГОУ!» и «Перемешать» уступают место Перераздаче", () => {
+  it("кнопки одинаковы для всех: в свободе ролей за столом нет", () => {
+    const dealer = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
+    const guest = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: false });
+    expect(dealer).toEqual(guest);
+  });
+
+  it("свобода важнее раздачи: «ГОУ!» и «Перемешать» уступают место кнопкам взятия", () => {
     const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
-    expect(a.secondary?.id).not.toBe("go");
     expect(a.main?.id).not.toBe("shuffle");
+    expect(a.secondary?.id).not.toBe("go");
   });
 
-  it("остальным в свободе кнопок нет — карты берут жестом со стола", () => {
-    const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: false });
+  it("колода разобрана — брать нечего, кнопок нет", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...free, deckCount: 0 });
     expect(a.main).toBeNull();
     expect(a.secondary).toBeNull();
+  });
+
+  it("перераздача с панели ушла — она живёт в меню у дилера", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
+    expect(a.main?.id).not.toBe("redeal");
+    expect(a.secondary?.id).not.toBe("redeal");
   });
 });

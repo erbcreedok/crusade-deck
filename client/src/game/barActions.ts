@@ -15,7 +15,10 @@ export type BarActionId =
   | "auto_deal"
   | "auto_deal_stop"
   | "go"
-  | "redeal";
+  // Перераздача переехала с панели в меню (roomMenu.ts), но осталась действием по смыслу.
+  | "redeal"
+  | "take_one"
+  | "take_all";
 
 export interface BarAction {
   id: BarActionId;
@@ -30,6 +33,8 @@ export interface BarActions {
 export interface BarContext {
   /** Игра пошла: карты со стола берут сами (см. GameState.freeMode). */
   freeMode?: boolean;
+  /** Сколько карт осталось на столе: пусто — брать нечего. */
+  deckCount?: number;
   amIDealer?: boolean;
   myReady?: boolean;
   myFanOpen?: boolean; // задел под будущие кнопки у раскрытой руки
@@ -41,11 +46,14 @@ const NOTHING: BarActions = { main: null, secondary: null };
 // действий у неё нет. Параметр остаётся в сигнатуре, потому что кнопки под выделенное —
 // исходная идея панели, и к ней вернутся, когда стопок на столе станет больше.
 export function barActionsFor(_sel: Selection, ctx: BarContext): BarActions {
-  // Свобода проверяется ПЕРВОЙ: раздавать больше нечего, единственное дилерское
-  // действие — собрать карты и начать заново.
+  // Свобода проверяется ПЕРВОЙ. Кнопки тут у ВСЕХ одинаковые: ролей за столом больше нет,
+  // каждый берёт карты сам — пальцем со стола или этими двумя кнопками.
   if (ctx.freeMode) {
-    if (!ctx.amIDealer) return NOTHING; // остальным кнопки не нужны: карту берут жестом
-    return { main: { id: "redeal", label: "Перераздача" }, secondary: null };
+    if ((ctx.deckCount ?? 0) <= 0) return NOTHING; // стол разобран — брать нечего
+    return {
+      main: { id: "take_one", label: "Забрать 1" },
+      secondary: { id: "take_all", label: "Забрать все" },
+    };
   }
 
   if (ctx.amIDealer) {

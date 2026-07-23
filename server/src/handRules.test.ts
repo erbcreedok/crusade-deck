@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { collectHands, dealCardTo, takeTopCard, collectOrder, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import {
+  collectHands,
+  dealCardTo,
+  takeTopCard,
+  takeAllCards,
+  collectOrder,
+  DEALER_VOTE_WEIGHT,
+} from "./handRules.js";
 
 describe("collectHands", () => {
   const hands = { alice: ["A♠", "2♠"], bob: ["K♦"] };
@@ -91,6 +98,24 @@ describe("takeTopCard", () => {
   it("исходная колода не мутируется", () => {
     const src = [...deck];
     takeTopCard(src);
+    expect(src).toEqual(deck);
+  });
+});
+
+describe("takeAllCards", () => {
+  const deck = ["6♣", "K♦", "A♠"];
+
+  it("забирает всю колоду: сверху вниз, как если бы тянули по одной", () => {
+    expect(takeAllCards(deck)).toEqual({ deck: [], cards: ["A♠", "K♦", "6♣"] });
+  });
+
+  it("пустая колода — забирать нечего", () => {
+    expect(takeAllCards([])).toBeNull();
+  });
+
+  it("исходная колода не мутируется", () => {
+    const src = [...deck];
+    takeAllCards(src);
     expect(src).toEqual(deck);
   });
 });

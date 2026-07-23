@@ -48,6 +48,13 @@ export function takeTopCard(deck: readonly string[]): DealResult | null {
   return { deck: next, card };
 }
 
+// Забрать со стола ВСЮ оставшуюся колоду разом. Карты ложатся в руку сверху вниз — ровно
+// так же, как если бы игрок вытянул их по одной верхними (см. takeTopCard).
+export function takeAllCards(deck: readonly string[]): { deck: string[]; cards: string[] } | null {
+  if (deck.length === 0) return null;
+  return { deck: [], cards: [...deck].reverse() };
+}
+
 // Порядок облёта карт при сборе: по часовой ОТ ДИЛЕРА (его карты летят первыми).
 // Правило игры, а не деталь рассылки, — поэтому живёт здесь и проверяется тестами.
 // Дилера нет в круге (вышел) — облетаем места как есть, порядок хотя бы стабилен.

@@ -1,5 +1,5 @@
 import { isPermutationOf } from "../deckOrder.js";
-import { collectHands, collectOrder, dealCardTo, takeTopCard } from "../handRules.js";
+import { collectHands, collectOrder, dealCardTo, takeAllCards, takeTopCard } from "../handRules.js";
 import { clearAllHands, handsSnapshot, writeDeck, writeFacing, writeHand } from "../stateWrite.js";
 import type { MessageRoom } from "./host.js";
 
@@ -61,6 +61,26 @@ export function registerHandMessages(room: MessageRoom): void {
     // не показал бы, что карты в колоде убавилось.
     state.deckRev += 1;
     room.broadcast("card_moved", { moves: [{ card: out.card, from: "deck", to: client.sessionId }] });
+  });
+
+  // «Забрать все»: игрок сгребает со стола всю оставшуюся колоду. Права те же, что у
+  // take_card — в свободе стол общий, и грести с него может любой.
+  room.onMessage("take_all", (client) => {
+    const player = state.players.get(client.sessionId);
+    if (!player || !state.freeMode) return;
+    if (state.deckLocation !== "center") return;
+    const out = takeAllCards(state.deck.toArray());
+    if (!out) return;
+    writeDeck(state, out.deck);
+    for (const card of out.cards) {
+      state.faceUp.delete(card);
+      player.hand.push(card);
+    }
+    state.deckFanned = false; // со стола унесли всё — веера нет
+    state.deckRev += 1;
+    room.broadcast("card_moved", {
+      moves: out.cards.map((card) => ({ card, from: "deck", to: client.sessionId })),
+    });
   });
 
   // Свой порядок руки (сортировка/перестановка на клиенте). Принимается только

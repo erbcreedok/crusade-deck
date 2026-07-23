@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Room } from "colyseus.js";
 import { FxClock, shouldPlayFx, type DeckFxIncoming } from "../game/deckFxClient";
 import { rejectionText } from "../game/rejections";
+import { REDEAL_TEXT } from "../game/engine/constants";
 
 // Серверные сообщения-события (не состояние): отказы, чужие эффекты, облёты карт.
 // Каждое едет в движок как «сигнал» — объект с растущим seq, чтобы два одинаковых
@@ -88,6 +89,10 @@ export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): R
       const counts =
         msg?.counts && typeof msg.counts === "object" ? (msg.counts as Record<string, number>) : undefined;
       setCollectSignal({ order, counts, seq: ++seq });
+      // Сбор карт — событие всего стола, а не одного дилера: остальные видят, как карты
+      // улетают, и должны понимать, ПОЧЕМУ. Старту игры своя надпись не нужна — у него
+      // есть клич «ГОУ!».
+      setNoticeSignal({ text: REDEAL_TEXT, seq: ++seq });
       hRef.current.onCollected?.();
     };
     room.onMessage("hands_collected", collectPayload);
