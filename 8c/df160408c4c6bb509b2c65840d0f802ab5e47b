@@ -1,0 +1,34 @@
+client/src/game/playStack.ts
+  s_6b17180413249b::t_b89d1996548361 1-66
+client/src/game/playStack.test.ts
+  s_6b17180413249b::t_4c120cf5fc6d5a 1-84
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_04f804f2ca8544 3674-3681
+  s_6b17180413249b::t_6ed340e7f9ddf7 117,1158-1160,1162-1163,1169-1179,1185
+client/src/game/playGrid.ts
+  s_6b17180413249b::t_d53943250ca5ce 104-107
+  s_6b17180413249b::t_1fa159ce6aa91d 2,28-35,74-80,118,124-125,134-135
+  s_6b17180413249b::t_09935bafac0365 43
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_45593908d56704 739-775
+CLAUDE.md
+  s_6b17180413249b::t_68fdb5a25b4756 29,175-184
+CLAUDE_RU.md
+  s_6b17180413249b::t_d2519307a37ca2 26,167-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8cdf160408c4c6bb509b2c65840d0f802ab5e47b",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
