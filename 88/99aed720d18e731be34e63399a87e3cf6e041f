@@ -1,0 +1,103 @@
+client/src/game/forbidDeckOpen.ts
+  s_b16a7b1f1196ad::t_0d05becd318577 2-3,5-11
+client/src/game/engineProps.ts
+  s_b16a7b1f1196ad::t_ceb9f79023922b 24-25,64-67,90
+client/src/room/readState.ts
+  s_b16a7b1f1196ad::t_05d75583da27a4 39-40,108
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_34afe92326616d 233-234
+  s_b16a7b1f1196ad::t_aac8b4db17f521 97,101-103
+  s_b16a7b1f1196ad::t_e1078673213b15 204,1845
+  s_b16a7b1f1196ad::t_18ecf1332c01a2 2923
+  s_b16a7b1f1196ad::t_16924ca29d7664 1578-1593
+  s_b16a7b1f1196ad::t_980c2e8cffb763 138-139
+  s_b16a7b1f1196ad::t_536b934d5e96a4 134-137
+  s_b16a7b1f1196ad::t_5e6929bd79e619 518,520-521,524-525,531-545
+  s_b16a7b1f1196ad::t_e262c8b444a296 117,2599,2642-2643
+  s_b16a7b1f1196ad::t_15dd10e6bbe7b0 2206-2212
+  s_b16a7b1f1196ad::t_96c0c388e6be0d 2906
+  s_b16a7b1f1196ad::t_c152c31ac86e74 29,817,821-829,835,1232-1237,1304,1950-1958,2015,2020-2024,2032,2253
+  s_b16a7b1f1196ad::t_8e58cc0dfabc7e 2838-2842
+  s_b16a7b1f1196ad::t_adb9fdbf1ce440 497,501-517,519,522-523,526-530
+  s_b16a7b1f1196ad::t_519a54f5b51587 2641,2644
+  s_b16a7b1f1196ad::t_ceb6781efa00d7 830-834,836-838
+  s_b16a7b1f1196ad::t_aa245c511c7b30 546,2890-2905,2907
+  s_b16a7b1f1196ad::t_8313b4f47622ae 547
+client/src/game/zoneLabels.ts
+  s_b16a7b1f1196ad::t_b1aaf1fca7c54d 7-9,25-27
+  s_b16a7b1f1196ad::t_7e095795d5c68e 28
+client/src/game/dragMode.ts
+  s_b16a7b1f1196ad::t_28ff3a49609f38 22,32,37,39
+  s_b16a7b1f1196ad::t_2a27e73c2118de 9
+client/src/game/engine/shout.ts
+  s_b16a7b1f1196ad::t_4dd7646b00a8b0 22-44
+  s_b16a7b1f1196ad::t_2476229091c2b3 1-21,45-67
+client/src/room/roomMenu.test.ts
+  s_b16a7b1f1196ad::t_3f378663249fd1 6,8
+  s_b16a7b1f1196ad::t_a8bcbaf1a56f03 20-23,32-59
+  s_b16a7b1f1196ad::t_2dbeeed5d0ed1e 60
+client/src/game/zoneLabels.test.ts
+  s_b16a7b1f1196ad::t_b1aaf1fca7c54d 22-26,30
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_5f5db4cc0ec8a8 28-35
+  s_b16a7b1f1196ad::t_a2454716d43dde 166-168
+  s_b16a7b1f1196ad::t_8d37dc826747cf 145-165,169-177
+client/src/game/engine/idleGate.test.ts
+  s_b16a7b1f1196ad::t_96ce48ff6f6e2b 13,40
+client/src/game/barActions.ts
+  s_b16a7b1f1196ad::t_73ac0cb82c686f 34-35,45-51,57-59
+  s_b16a7b1f1196ad::t_129af8902e4f48 14,16-18
+client/src/room/useRoomSignals.ts
+  s_b16a7b1f1196ad::t_9618837de64424 72-81,85-88
+  s_b16a7b1f1196ad::t_b374c71aa6355f 4,124
+  s_b16a7b1f1196ad::t_57781bf6325126 27-37,40,44
+  s_b16a7b1f1196ad::t_492e484369612f 56,60
+  s_b16a7b1f1196ad::t_7e9bdcf4ffb894 89-90
+client/src/game/engine/shout.test.ts
+  s_b16a7b1f1196ad::t_08a358edfd43b9 47-74
+  s_b16a7b1f1196ad::t_7a5df7fef3a6b2 2
+  s_b16a7b1f1196ad::t_069bd6785efdf1 1,3-46
+client/src/game/engine/idleGate.ts
+  s_b16a7b1f1196ad::t_fc8c8cdf779042 52
+  s_b16a7b1f1196ad::t_bd3711c49673ae 21-22
+client/src/room/useRoomState.ts
+  s_b16a7b1f1196ad::t_05d75583da27a4 30,49,79,119
+client/src/RoomScreen.tsx
+  s_b16a7b1f1196ad::t_ea3cb7f78c8a1d 58,78,116-118,125,180-182,185-190,194,278,290-291,307-309,321,323,376,393-394
+client/src/game/RoomCanvas.tsx
+  s_b16a7b1f1196ad::t_ceb9f79023922b 56,109-114
+client/src/game/barActions.test.ts
+  s_b16a7b1f1196ad::t_19202e5937fa8b 88-114
+  s_b16a7b1f1196ad::t_b90db4fa048e94 65-66,68-69,72,74
+client/src/game/engine/constants.ts
+  s_b16a7b1f1196ad::t_8330c4368b2652 14-26
+  s_b16a7b1f1196ad::t_3c2b1ca4e18c08 72
+client/src/game/dealReadyTint.ts
+  s_b16a7b1f1196ad::t_531f88feed2afe 15-16
+client/src/game/dropZones.test.ts
+  s_b16a7b1f1196ad::t_80c2fa92e68834 92-100
+client/src/room/roomMenu.ts
+  s_b16a7b1f1196ad::t_72a721c1f3759f 4-7,12-14,31-32,34-35,51-53,56-67,86
+client/src/game/dragMode.test.ts
+  s_b16a7b1f1196ad::t_c6ec362f691bfe 54-86
+client/src/game/forbidDeckOpen.test.ts
+  s_b16a7b1f1196ad::t_80c2fa92e68834 14-17
+client/src/game/dropZones.ts
+  s_b16a7b1f1196ad::t_b1504d6d5beceb 46,54,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8899aed720d18e731be34e63399a87e3cf6e041f",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
