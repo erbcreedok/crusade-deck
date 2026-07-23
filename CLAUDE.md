@@ -25,8 +25,8 @@ rules can later be layered as configuration.
 ## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 165 tests
-cd client && npm test && npx tsc --noEmit   # 616 tests
+cd server && npm test && npx tsc --noEmit   # 197 tests
+cd client && npm test && npx tsc --noEmit   # 754 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -57,7 +57,9 @@ each with tests next to it: `constants.ts` (texture size, palette, layer zIndexe
 `cardTextures.ts` (face/back/shadow factories), `faceTextureCache.ts` (cache + warm-up
 in batches), `fanGeometry.ts`, `seatChrome.ts`/`seatPaint.ts` (rules vs. drawing for
 other players' seats), `zoneChrome.ts`/`zonePaint.ts` (same split for drop zones),
-`collapseArrow.ts`, `scramble.ts`, `idleGate.ts`.
+`collapseArrow.ts`, `scramble.ts`, `idleGate.ts`, `shadowPass.ts` (ONE shadow pass for
+every layer — there used to be three competing mechanisms), `shufflePose.ts`, `shout.ts`
+(the taunt bubbles «соснуть»/«сосать»).
 
 Why not `@pixi/react`: an earlier attempt on it crashed under React StrictMode (double
 mount on a canvas whose WebGL context was already destroyed → "context lost"). The
@@ -117,6 +119,38 @@ and draws the result:
 - `dealing.ts`, `dragMode.ts`, `dropZones.ts`, `selection.ts`, `barActions.ts` —
   auto-deal queue, what can be dragged in which mode, drop zones, table-element
   selection, which two buttons the bottom bar shows.
+- `deckFan.ts`, `topCard.ts`, `sortHand.ts`, `zoneLabels.ts`, `taunt.ts` — board-fan
+  geometry, which card of a pile is on top, sorting one's own hand, and what a drop zone
+  is CALLED at rest («стол», «сброс») versus what it PROMISES mid-drag («сбросить»,
+  «взять себе») — the label follows what's in the player's fingers, not just the zone.
+
+## The board: piles on the table
+
+In dealing (`phase: "lobby"`) the table is not marked up at all: the deck lies in the
+centre and `centerZone` IS the whole table. «ГОУ!» marks the board into boxes
+(`layout.ts`): `deckSlot` on the left, `centerZone` in the middle, `discardSlot` on the
+right. A box that doesn't exist is `null`, and `dropZones.ts` turns that into a
+zero-sized rect — so hit-testing and painting both drop it without a special case.
+
+- **`GameState.discard`** — cards played off the table. Always face up (they've been
+  played, there's nothing left to hide), the last element is the top card.
+  `discard_card` puts one there from a hand, `take_discard` pulls one back out.
+  `collect_hands` («Перераздача») returns both the discard and everyone's hands to the deck.
+- **A board pile fans out on tap.** `BoardPile` (`engine/types.ts`) is which pile THIS
+  viewer has open; it's local, unlike `GameState.deckFanned` (the dealer's blind-shuffle
+  fan, which appears and vanishes for everyone at once). Any board fan opens at
+  `layout.boardFanAnchor` — the centre of the play area — no matter which slot the pile
+  itself sits in, so an open fan never hangs off the edge of the screen and is always
+  where the eye expects it.
+- **Every side element of the board shares one width** (`boardSlotWidth`): the deck slot,
+  the discard slot and a side neighbour's seat read as a single column glued to the screen
+  edge, and a mismatch there reads as an accident rather than as layout. The reference is
+  the deck — the only one whose size is dictated by its contents. The discard keeps that
+  width while empty too: the box marks the table out, it doesn't report how full it is.
+- Seating is a «П» (`seatLayout.ts`): at most one neighbour per side (and always either
+  two of them or none), everyone else goes into the scrolling top strip. Side neighbours
+  do NOT narrow the table — on a phone that would squeeze the play area into a slit;
+  instead the edge boxes yield (the deck slides lower, the discard gets shorter).
 
 ## Networking: what's truth vs. just pretty
 
@@ -168,8 +202,14 @@ A hard split that must not blur when adding new deck-related mechanics:
 - **Free mode** (`GameState.freeMode`, off until the dealer presses «ГОУ!») — the first
   brick of the future rules system (rules will later be configs). It flips the room into
   `phase: "playing"` WITHOUT dealing the deck out: the deck stays in the centre face
-  down, and every player pulls the top card for themselves
-  (`take_card`). Nobody may put a card into someone else's hand — the dealer included:
+  down, and every player pulls a card for themselves — `take_card` takes the top one by
+  default but accepts a POSITION, because the deck can be fanned out locally and any card
+  in the fan is grabbable; `take_all` empties the deck into one hand. The bottom bar shows
+  these as the shouts «соснуть»/«сосать» rather than as buttons labelled "take" (they're
+  the only labels that fit a 375px phone without being cut — the underlying
+  label-shortening still measures characters while the button is measured in pixels, so a
+  long label will get clipped again).
+  Nobody may put a card into someone else's hand — the dealer included:
   `deal_card` answers `action_rejected` with `free_mode`. Two simultaneous pulls need no
   extra logic — Colyseus processes messages one at a time, so the first taker gets the
   top card and the second gets the next one. The only way out is `collect_hands`
