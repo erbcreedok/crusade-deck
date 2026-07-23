@@ -275,6 +275,25 @@ describe("RoomEngine: карта улетает с колоды", () => {
 
     expect(pixi.__liveSprites().length).toBe(after);
   });
+
+  // card_moved с from/to = "play"/"discard" НЕ должен трогать колоду: раньше эти метки
+  // сваливались в дефолт cardMoveAnchor (якорь колоды), и карта из стека зоны летела «от
+  // колоды», а «В СБРОС» (play→discard) дёргал колоду (колода→колода).
+  it("полёт play→discard не якорится на колоде", async () => {
+    const { engine } = await mountEngine();
+    engine.setFreeMode(true);
+    const deckAnchor = (engine as any).layout.deckAnchor;
+    const fromPlay = (engine as any).cardMoveAnchor("play");
+    const fromDiscard = (engine as any).cardMoveAnchor("discard");
+    const fromPlayStack = (engine as any).cardMoveAnchor("play:2");
+
+    for (const a of [fromPlay, fromDiscard, fromPlayStack]) {
+      const onDeck = Math.abs(a.x - deckAnchor.x) < 1 && Math.abs(a.y - deckAnchor.y) < 1;
+      expect(onDeck).toBe(false); // якорь НЕ на колоде
+    }
+    // Колода остаётся собой.
+    expect((engine as any).cardMoveAnchor("deck")).toMatchObject({ x: deckAnchor.x, y: deckAnchor.y });
+  });
 });
 
 describe("RoomEngine: отбой запрещённого дропа", () => {

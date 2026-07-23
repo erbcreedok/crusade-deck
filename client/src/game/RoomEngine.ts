@@ -2005,8 +2005,9 @@ export class RoomEngine {
       const to = this.cardMoveAnchor(m.to);
       const toSelf = m.to === this.selfId;
       const faceUp = toSelf || this.seatShowsFaces(m.to);
-      // Схема уже увеличила handCount — не рисуем карту на месте, пока летит призрак.
-      const seatBiasId = !toSelf && m.to !== "deck" ? m.to : null;
+      // Смещение счётчика — только у настоящего МЕСТА соседа (схема уже +1, но призрак ещё
+      // летит). Для сброса/зоны/колоды места нет — bias там ни к чему.
+      const seatBiasId = !toSelf && this.seatBoxes.some((b) => b.id === m.to) ? m.to : null;
       this.enqueueCardFlight({
         card: m.card,
         from,
@@ -2123,14 +2124,29 @@ export class RoomEngine {
       const a = this.layout.deckAnchor;
       return { x: a.x, y: a.y, rot: 0 };
     }
+    // Сброс и игральная зона — свои якоря. Раньше их тут НЕ БЫЛО, и любой card_moved с
+    // from/to = "discard"/"play" сваливался в дефолт (якорь колоды): карта из стека зоны
+    // летела «от колоды», а «В СБРОС» (play→discard) давал колода→колода и дёргал стопку.
+    if (pile === "discard") {
+      const slot = this.layout.discardSlot;
+      if (slot) return { x: slot.cx, y: slot.cy, rot: 0 };
+      const z = this.layout.centerZone;
+      return { x: z.cx, y: z.cy, rot: 0 };
+    }
+    if (pile === "play" || pile.startsWith("play:")) {
+      const a = this.layout.boardFanAnchor;
+      return { x: a.x, y: a.y, rot: 0 };
+    }
     if (pile === this.selfId) {
       const a = this.layout.handAnchor;
       return { x: a.x, y: a.y, rot: 0 };
     }
     const box = this.seatBoxes.find((b) => b.id === pile);
     if (box) return { x: box.rect.cx, y: box.rect.cy, rot: 0 };
-    const a = this.layout.deckAnchor;
-    return { x: a.x, y: a.y, rot: 0 };
+    // Неизвестное место — центр стола, а НЕ колода: карта из ниоткуда пусть летит из
+    // центра, а не тревожит колоду.
+    const z = this.layout.centerZone;
+    return { x: z.cx, y: z.cy, rot: 0 };
   }
 
   private enqueueCardFlight(opts: {
