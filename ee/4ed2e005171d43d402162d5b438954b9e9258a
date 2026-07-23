@@ -1,0 +1,36 @@
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_a179eea7430c78 309-311,2747,3196,3208-3212,3215-3231,3235
+  s_b16a7b1f1196ad::t_4fd244273db125 3162,3175,3189,3191-3194,3244
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_f9220fdbb89fb2 916-936
+  s_b16a7b1f1196ad::t_4bbfd4680ecebe 884,894-914
+  s_b16a7b1f1196ad::t_553000526ef6ab 915
+client/src/game/engine/shadowPass.ts
+  s_b16a7b1f1196ad::t_4fd244273db125 12-16,20
+.gitignore
+  s_266c1af3c36319::t_29972b6acae434 13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ee4ed2e005171d43d402162d5b438954b9e9258a",
+  "prompts": {},
+  "sessions": {
+    "s_266c1af3c36319": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8002123b-556e-4b14-a4c0-0c338bd824a6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
