@@ -894,7 +894,10 @@ describe("RoomEngine: что можно и нельзя делать со сто
     expect(["2♦", "3♦"]).toContain(put[0]);
   });
 
-  it("в игре стопку доски не переложить: карта из веера обратно в веер — отбой", async () => {
+  // Порядок стопки доски в игре не двигают, но карта, отпущенная там же, откуда её взяли,
+  // — это не нарушение, а «передумал». Такое возвращается МОЛЧА: надпись-отказ должна
+  // оставаться редкой, иначе её перестают читать вообще.
+  it("в игре стопку доски не переложить: карта тихо возвращается на место", async () => {
     const { engine, app } = await mountEngine();
     engine.setSelfId("me");
     engine.setFreeMode(true);
@@ -917,7 +920,8 @@ describe("RoomEngine: что можно и нельзя делать со сто
 
     expect(reordered).toHaveLength(0);
     expect(taken).toHaveLength(0);
-    expect(allTexts(app.stage).some((t) => t.includes("не тасуют"))).toBe(true);
+    // Надпись поверх стола так и не показалась: жест прошёл бесшумно.
+    expect(findByZ(app.stage, 5000).visible).toBe(false); // Z.rejectText
   });
 
   it("карта из веера сброса, брошенная мимо, возвращается в веер", async () => {

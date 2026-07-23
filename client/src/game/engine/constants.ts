@@ -11,8 +11,6 @@ export const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 } as const;
 /** Надпись «сюда нельзя» при запрещённом дропе колоды. */
 export const REJECT_TEXT = "низяяя";
 
-/** Отбой при попытке переложить карту в колоде или сбросе во время игры. */
-export const REORDER_REJECT_TEXT = "тут не тасуют";
 /** Отбой при попытке положить карту в колоду во время игры. */
 export const DECK_DROP_REJECT_TEXT = "колода закрыта";
 

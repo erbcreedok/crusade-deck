@@ -103,7 +103,6 @@ import {
   HAND_ID,
   PIXEL_FONT,
   REJECT_TEXT,
-  REORDER_REJECT_TEXT,
   DECK_DROP_REJECT_TEXT,
   SHOUT_COLORS,
   SHOUT_EMOJI,
@@ -2379,20 +2378,22 @@ export class RoomEngine {
         }
       } else if (this.boardFan && this.inDeckFanArea(x, y)) {
         // Дроп обратно в тот же веер. В раздаче дилер так перекладывает карты колоды; в
-        // ИГРЕ стопки доски трогать нельзя — только брать из них, поэтому отбой.
+        // ИГРЕ порядок стопок доски не двигают — карта просто ложится обратно.
+        //
+        // Молча, без надписи: игрок ничего не нарушил и ничего не потерял — он подвигал
+        // карту и отпустил её там же, откуда взял. Ругаться на такое значит ругаться на
+        // каждое «передумал», а надпись-отказ должна оставаться редкой, иначе её
+        // перестают читать. Отбой с объяснением остаётся там, где действие ОСМЫСЛЕННОЕ,
+        // но запрещено (карта в закрытую колоду, раздача не готовому игроку).
         // Правило пока зашито; станет настройкой вместе с правилами игры.
         if (this.freeMode) {
-          this.startCardReject(d.v, x, y, REORDER_REJECT_TEXT);
-          this.onDragChange?.(false);
-          this.drawZones();
-          this.positionDeckHit();
-          this.wake();
-          return;
+          this.returnCardHome(d.v);
+        } else {
+          const to = this.insertDeckIndexAt(x);
+          this.reorderLocally(d.v.card, to);
+          this.alignUnderTouch(x, y);
+          this.onCardReorder?.(d.v.card, to);
         }
-        const to = this.insertDeckIndexAt(x);
-        this.reorderLocally(d.v.card, to);
-        this.alignUnderTouch(x, y);
-        this.onCardReorder?.(d.v.card, to);
       } else {
         this.returnCardHome(d.v);
       }
