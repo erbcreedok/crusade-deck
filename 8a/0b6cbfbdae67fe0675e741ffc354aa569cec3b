@@ -1,0 +1,30 @@
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_e0aaeacadf98c5 2309-2319,2329-2332
+  s_6b17180413249b::t_a3cc851f876274 2837-2870
+  s_6b17180413249b::t_e4a0bbaf386f8c 704
+  s_6b17180413249b::t_201e9f5d4e96e0 682,698-700
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_5732ee491c4b40 759,788,790
+  s_6b17180413249b::t_148cee7a569651 739-757,760-786,789,791-795
+  s_6b17180413249b::t_94d590626db698 591-598,688,758,787,807
+CLAUDE.md
+  s_6b17180413249b::t_9032a712e05279 29,167-174
+CLAUDE_RU.md
+  s_6b17180413249b::t_1511750747d3bc 26,160-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8a0b6cbfbdae67fe0675e741ffc354aa569cec3b",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
