@@ -2,11 +2,13 @@ import type { RoomLayout, RoundedRect } from "./layout";
 import type { SeatBox } from "./seatLayout";
 
 // Куда можно бросить карту:
-//   center  — общий стол (в игре это средний бокс),
-//   hand    — моя рука,
-//   discard — сброс: правый слот игрового стола. Его нет в раздаче — стол ещё не размечен,
-//             и зона появляется только вместе со слотом (см. layout.discardSlot).
-export type DropZone = "center" | "hand" | "discard";
+//   center  — общий стол. В РАЗДАЧЕ там же лежит колода, и брошенная карта уходит в неё;
+//   hand    — моя рука;
+//   deck    — слот колоды в ИГРЕ. Зона есть (по ней видно, что бокс не просто картинка),
+//             но карты не принимает: в игре колода закрыта, из неё только берут;
+//   discard — сброс: правый слот игрового стола.
+// Зон колоды и сброса нет в раздаче — там стол ещё не размечен на боксы.
+export type DropZone = "center" | "hand" | "deck" | "discard";
 
 export interface DropTarget {
   zone: DropZone;
@@ -24,7 +26,9 @@ export function dropZoneRegions(layout: RoomLayout): Record<DropZone, ZoneDef> {
     center: { rect: layout.centerZone, droppable: true },
     hand: { rect: layout.handZone, droppable: true },
     // Пустой прямоугольник = зоны нет: и попадание, и отрисовка отсекают её по нулевым
-    // размерам, поэтому в раздаче сброс просто не существует.
+    // размерам, поэтому в раздаче боксов доски просто не существует.
+    // Колода зону имеет, но НЕ принимает карты — «низя» показывает движок.
+    deck: { rect: layout.deckSlot ?? NO_RECT, droppable: false },
     discard: { rect: layout.discardSlot ?? NO_RECT, droppable: !!layout.discardSlot },
   };
 }

@@ -170,6 +170,46 @@ describe("CardRoom: руки игроков", () => {
     expect(dealer2.state.deck.length).toBe(36);
   });
 
+  it("put_card_to_deck: в раздаче любой игрок кладёт свою карту обратно в колоду", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    let waiter = room.waitForMessage("ready");
+    player.send("ready");
+    await waiter;
+    const card = room.state.deck[room.state.deck.length - 1]!;
+    waiter = room.waitForMessage("deal_card");
+    dealer.send("deal_card", { card, to: player.sessionId });
+    await waiter;
+    expect(room.state.deck.length).toBe(35);
+
+    waiter = room.waitForMessage("put_card_to_deck");
+    player.send("put_card_to_deck", { card });
+    await waiter;
+
+    expect(room.state.players.get(player.sessionId)!.hand.length).toBe(0);
+    expect(room.state.deck.length).toBe(36);
+    expect(room.state.deck[room.state.deck.length - 1]).toBe(card); // легла наверх
+    expect(room.state.faceUp.get(card)).toBe(false); // и рубашкой вверх, как вся колода
+  });
+
+  it("чужую карту в колоду не положить", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    const card = room.state.deck[room.state.deck.length - 1]!;
+    let waiter = room.waitForMessage("deal_card");
+    dealer.send("deal_card", { card, to: dealer.sessionId });
+    await waiter;
+
+    waiter = room.waitForMessage("put_card_to_deck");
+    player.send("put_card_to_deck", { card });
+    await waiter;
+
+    expect(room.state.deck.length).toBe(35);
+    expect(room.state.players.get(dealer.sessionId)!.hand.length).toBe(1);
+  });
+
   it("set_hand_order принимает перестановку своей руки и отбивает подмену", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });

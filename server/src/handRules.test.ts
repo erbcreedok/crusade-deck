@@ -6,6 +6,7 @@ import {
   takeCardAt,
   takeAllCards,
   discardCard,
+  putCardToDeck,
   collectOrder,
   DEALER_VOTE_WEIGHT,
 } from "./handRules.js";
@@ -172,6 +173,28 @@ describe("takeAllCards", () => {
     const src = [...deck];
     takeAllCards(src);
     expect(src).toEqual(deck);
+  });
+});
+
+describe("putCardToDeck", () => {
+  const hand = ["A♠", "2♠"];
+  const deck = ["6♣", "K♦"];
+
+  it("карта уходит из руки НАВЕРХ колоды", () => {
+    expect(putCardToDeck(hand, deck, "A♠")).toEqual({ hand: ["2♠"], deck: ["6♣", "K♦", "A♠"] });
+  });
+
+  it("чужую или несуществующую карту в колоду не положить", () => {
+    expect(putCardToDeck(hand, deck, "10♥")).toBeNull();
+    expect(putCardToDeck([], deck, "A♠")).toBeNull();
+  });
+
+  it("исходные стопки не мутируются", () => {
+    const h = [...hand];
+    const d = [...deck];
+    putCardToDeck(h, d, "A♠");
+    expect(h).toEqual(hand);
+    expect(d).toEqual(deck);
   });
 });
 

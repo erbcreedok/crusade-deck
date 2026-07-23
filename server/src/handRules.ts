@@ -76,6 +76,17 @@ export function discardCard(
   return { hand: hand.filter((c) => c !== card), discard: [...discard, card] };
 }
 
+// Положить карту из руки обратно в колоду — она ложится НАВЕРХ. Так игроки возвращают
+// лишнее в раздаче; в игре колода закрыта для этого (правило проверяет обработчик).
+export function putCardToDeck(
+  hand: readonly string[],
+  deck: readonly string[],
+  card: string,
+): { hand: string[]; deck: string[] } | null {
+  if (!hand.includes(card)) return null;
+  return { hand: hand.filter((c) => c !== card), deck: [...deck, card] };
+}
+
 // Порядок облёта карт при сборе: по часовой ОТ ДИЛЕРА (его карты летят первыми).
 // Правило игры, а не деталь рассылки, — поэтому живёт здесь и проверяется тестами.
 // Дилера нет в круге (вышел) — облетаем места как есть, порядок хотя бы стабилен.

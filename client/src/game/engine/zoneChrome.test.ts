@@ -20,7 +20,7 @@ describe("zoneChrome", () => {
   });
 
   it("во время драга подпись меняется на действие — и зависит от того, что тащат", () => {
-    expect(zoneChrome({ ...IDLE, dragging: true, dragged: "card" }).label.text).toBe("сыграть на стол");
+    expect(zoneChrome({ ...IDLE, dragging: true, dragged: "card" }).label.text).toBe("вернуть в колоду");
     expect(zoneChrome({ ...IDLE, dragging: true, dragged: "take" }).label.text).toBe("оставить на столе");
   });
 

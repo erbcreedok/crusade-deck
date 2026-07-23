@@ -424,6 +424,25 @@ describe("CardRoom: режим свободы", () => {
     expect(room.state.players.get(other.sessionId)!.hand.length).toBe(0);
   });
 
+  it("в игре карту в колоду не положить — колода закрыта", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    waiter = room.waitForMessage("take_card");
+    dealer.send("take_card", {});
+    await waiter;
+    const card = room.state.players.get(dealer.sessionId)!.hand[0]!;
+
+    waiter = room.waitForMessage("put_card_to_deck");
+    dealer.send("put_card_to_deck", { card });
+    await waiter;
+
+    expect(room.state.deck.length).toBe(35); // колода не приняла
+    expect(room.state.players.get(dealer.sessionId)!.hand.toArray()).toEqual([card]);
+  });
+
   it("«Перераздача» (collect_hands) выводит комнату из свободы обратно в лобби", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });

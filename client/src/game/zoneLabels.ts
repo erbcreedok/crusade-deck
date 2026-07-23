@@ -12,18 +12,21 @@ export type DraggedKind = "card" | "take";
 const TITLES: Record<DropZone, string> = {
   center: "стол",
   hand: "рука",
+  deck: "колода",
   discard: "сброс",
 };
 
 const ACTIONS: Record<DraggedKind, Record<DropZone, string>> = {
   card: {
-    center: "сыграть на стол",
+    center: "вернуть в колоду", // в раздаче центр стола — это и есть место колоды
     hand: "оставить в руке",
+    deck: "колода закрыта",
     discard: "сбросить",
   },
   take: {
     center: "оставить на столе",
     hand: "взять себе",
+    deck: "колода закрыта",
     discard: "сбросить",
   },
 };

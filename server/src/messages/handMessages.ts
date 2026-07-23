@@ -4,6 +4,7 @@ import {
   collectOrder,
   dealCardTo,
   discardCard,
+  putCardToDeck,
   takeAllCards,
   takeCardAt,
   takeTopCard,
@@ -135,6 +136,23 @@ export function registerHandMessages(room: MessageRoom): void {
     state.faceUp.delete(out.card); // карта ушла в руку — сторона решается рукой
     player.hand.push(out.card);
     room.broadcast("card_moved", { moves: [{ card: out.card, from: "discard", to: client.sessionId }] });
+  });
+
+  // Положить карту из руки обратно в колоду. Разрешено ВСЕМ, но только в раздаче: там
+  // колода — общий инвентарь стола, из неё раздают и в неё возвращают лишнее. В игре
+  // колода закрыта: карты из неё только берут, иначе игрок мог бы прятать сыгранное
+  // обратно в стопку. Правило пока зашито; станет настройкой вместе с правилами игры.
+  room.onMessage("put_card_to_deck", (client, message: { card?: string }) => {
+    const player = state.players.get(client.sessionId);
+    const card = message?.card;
+    if (!player || state.freeMode || typeof card !== "string") return;
+    const out = putCardToDeck(player.hand.toArray(), state.deck.toArray(), card);
+    if (!out) return;
+    writeHand(player, out.hand);
+    writeDeck(state, out.deck);
+    state.faceUp.set(card, false); // в колоде всё лежит рубашкой вверх
+    state.deckRev += 1;
+    room.broadcast("card_moved", { moves: [{ card, from: client.sessionId, to: "deck" }] });
   });
 
   // Свой порядок руки (сортировка/перестановка на клиенте). Принимается только

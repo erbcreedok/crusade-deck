@@ -97,6 +97,8 @@ import {
   HAND_ID,
   PIXEL_FONT,
   REJECT_TEXT,
+  REORDER_REJECT_TEXT,
+  DECK_DROP_REJECT_TEXT,
   SHOUT_COLORS,
   SHOUT_EMOJI,
   SHOUT_TEXT,
@@ -217,6 +219,7 @@ export class RoomEngine {
   private onDealCard: ((card: string, to: string) => void) | null = null;
   private onDiscardCard: ((card: string) => void) | null = null;
   private onTakeDiscard: ((card: string) => void) | null = null;
+  private onPutToDeck: ((card: string) => void) | null = null;
   private onDeckFanChange: ((open: boolean) => void) | null = null;
   private onBoardFanChange: ((pile: BoardPile | null) => void) | null = null; // тап открывает / стрелка сворачивает
   private handHit: Container | null = null; // хит-зона полосы руки
@@ -965,6 +968,11 @@ export class RoomEngine {
     this.onTakeDiscard = fn;
   }
 
+  /** Карту из руки вернули в колоду — так можно только в раздаче (put_card_to_deck). */
+  setOnPutToDeck(fn: ((card: string) => void) | null): void {
+    this.onPutToDeck = fn;
+  }
+
   setOnDeckFanChange(fn: ((open: boolean) => void) | null): void {
     this.onDeckFanChange = fn;
   }
@@ -1599,9 +1607,8 @@ export class RoomEngine {
    * руку сразу — по той же причине, что и у колоды (см. flyCardOff): пока она числится в
    * стопке, веер руки продолжает держать под неё место.
    */
-  flyHandCardOff(card: string, from: FlightPoint): void {
+  flyHandCardOff(card: string, from: FlightPoint, to: { cx: number; cy: number } | null): void {
     if (this.destroyed) return;
-    const to = this.layout.discardSlot;
     if (to) {
       this.enqueueCardFlight({
         card,
@@ -1999,8 +2006,18 @@ export class RoomEngine {
           this.flyCardOff(card, from, seat);
           this.onDealCard?.(card, seat);
         }
-      } else if (this.deckFanned && this.inDeckFanArea(x, y)) {
-        // Дроп обратно в веер колоды — перестановка, не возврат на родной слот.
+      } else if (this.boardFan && this.inDeckFanArea(x, y)) {
+        // Дроп обратно в тот же веер. В раздаче дилер так перекладывает карты колоды; в
+        // ИГРЕ стопки доски трогать нельзя — только брать из них, поэтому отбой.
+        // Правило пока зашито; станет настройкой вместе с правилами игры.
+        if (this.freeMode) {
+          this.startCardReject(d.v, x, y, REORDER_REJECT_TEXT);
+          this.onDragChange?.(false);
+          this.drawZones();
+          this.positionDeckHit();
+          this.wake();
+          return;
+        }
         const to = this.insertDeckIndexAt(x);
         this.reorderLocally(d.v.card, to);
         this.alignUnderTouch(x, y);
@@ -2016,17 +2033,39 @@ export class RoomEngine {
       return;
     }
 
-    // Сброс: карту из руки роняют в правый слот игрового стола. Зона появляется только в
-    // игре (см. layout.discardSlot), поэтому в раздаче сюда не попасть.
-    if (fromHand && pickDropTarget(x, y, this.layout)?.zone === "discard") {
+    if (fromHand) {
+      const zone = pickDropTarget(x, y, this.layout)?.zone;
       const card = d.v.card;
-      this.flyHandCardOff(card, { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation });
-      this.onDiscardCard?.(card);
-      this.onDragChange?.(false);
-      this.drawZones();
-      this.positionDeckHit();
-      this.wake();
-      return;
+      const from = { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation };
+      const finish = () => {
+        this.onDragChange?.(false);
+        this.drawZones();
+        this.positionDeckHit();
+        this.wake();
+      };
+
+      // Сброс принимает карту всегда — и собранный, и раскрытый веером: слот на месте
+      // в обоих случаях. Зона есть только в игре (см. layout.discardSlot).
+      if (zone === "discard" || (this.boardFan === "discard" && this.inDeckFanArea(x, y))) {
+        this.flyHandCardOff(card, from, this.layout.discardSlot);
+        this.onDiscardCard?.(card);
+        finish();
+        return;
+      }
+      // Колода в ИГРЕ закрыта: бокс на столе есть, но карты не принимает — отбой с
+      // объяснением, а не молчаливый возврат.
+      if (zone === "deck") {
+        this.startCardReject(d.v, x, y, DECK_DROP_REJECT_TEXT);
+        finish();
+        return;
+      }
+      // В РАЗДАЧЕ центр стола — место колоды: брошенная туда карта возвращается в неё.
+      if (!this.freeMode && zone === "center") {
+        this.flyHandCardOff(card, from, { cx: this.layout.deckAnchor.x, cy: this.layout.deckAnchor.y });
+        this.onPutToDeck?.(card);
+        finish();
+        return;
+      }
     }
 
     if (this.inFanArea(x, y)) {
@@ -2652,6 +2691,7 @@ export class RoomEngine {
     this.onDealCard = null;
     this.onDiscardCard = null;
     this.onTakeDiscard = null;
+    this.onPutToDeck = null;
     this.onDeckFanChange = null;
     this.onBoardFanChange = null;
     this.onDragChange = null;

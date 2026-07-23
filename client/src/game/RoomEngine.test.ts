@@ -536,6 +536,109 @@ describe("RoomEngine: сброс", () => {
   });
 });
 
+describe("RoomEngine: что можно и нельзя делать со стопками доски", () => {
+  const gameLayout = async () => (await import("./layout")).computeLayout(390, 800, undefined, true);
+
+  /** Утащить карту из раскрытой руки в точку (x,y). */
+  function dragHandTo(app: any, x: number, y: number): void {
+    const handHit = findByZ(app.stage, 10_100);
+    const start = { x: 195, y: 700 };
+    handHit.__emit("pointerdown", { pointerId: 9, global: start, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 9, global: { x: start.x + 20, y: start.y - 20 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 9, global: { x, y } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 9, global: { x, y } });
+  }
+
+  it("в игре карту в колоду не положить — отбой, а не молчание", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setHand(["2♦", "3♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const put: string[] = [];
+    const discarded: string[] = [];
+    engine.setOnPutToDeck((card: string) => put.push(card));
+    engine.setOnDiscardCard((card: string) => discarded.push(card));
+
+    const slot = (await gameLayout()).deckSlot!;
+    dragHandTo(app, slot.cx, slot.cy);
+
+    expect(put).toHaveLength(0);
+    expect(discarded).toHaveLength(0);
+    const texts = allTexts(app.stage);
+    expect(texts.some((t) => t.includes("колода закрыта"))).toBe(true);
+  });
+
+  it("в раздаче карту в колоду положить можно — центр стола это её место", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setDeck(DECK_36);
+    engine.setHand(["2♦", "3♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const put: string[] = [];
+    engine.setOnPutToDeck((card: string) => put.push(card));
+
+    const deal = (await import("./layout")).computeLayout(390, 800);
+    dragHandTo(app, deal.deckAnchor.x, deal.deckAnchor.y);
+
+    expect(put).toHaveLength(1);
+    expect(["2♦", "3♦"]).toContain(put[0]);
+  });
+
+  it("в игре стопку доски не переложить: карта из веера обратно в веер — отбой", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+    const reordered: string[] = [];
+    const taken: string[] = [];
+    engine.setOnCardReorder((card: string) => reordered.push(card));
+    engine.setOnDealCard((card: string) => taken.push(card));
+
+    const play = (await gameLayout()).centerZone;
+    const deckHit = findByZ(app.stage, 10_000);
+    deckHit.__emit("pointerdown", { pointerId: 8, global: { x: play.cx - 40, y: play.cy }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 8, global: { x: play.cx - 20, y: play.cy + 10 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 8, global: { x: play.cx + 40, y: play.cy } });
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 8, global: { x: play.cx + 40, y: play.cy } });
+
+    expect(reordered).toHaveLength(0);
+    expect(taken).toHaveLength(0);
+    expect(allTexts(app.stage).some((t) => t.includes("не тасуют"))).toBe(true);
+  });
+
+  it("сбросить карту можно и в собранный сброс, и в раскрытый", async () => {
+    for (const fan of [null, "discard"] as const) {
+      pixi.__reset();
+      document.body.innerHTML = "";
+      const { engine, app } = await mountEngine();
+      engine.setSelfId("me");
+      engine.setFreeMode(true);
+      engine.setDiscard(["7♣"]);
+      engine.setHand(["2♦", "3♦"]);
+      engine.setSelectedDecks(["hand"]);
+      engine.setBoardFan(fan);
+      for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+      const discarded: string[] = [];
+      engine.setOnDiscardCard((card: string) => discarded.push(card));
+
+      const slot = (await gameLayout()).discardSlot!;
+      dragHandTo(app, slot.cx, slot.cy);
+
+      expect(discarded, `веер=${fan}`).toHaveLength(1);
+    }
+  });
+});
+
 describe("RoomEngine: разметка игрового стола", () => {
   it("после «ГОУ!» колода уезжает в левый слот", async () => {
     const { engine, app } = await mountEngine();

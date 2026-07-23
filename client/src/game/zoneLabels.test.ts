@@ -10,7 +10,7 @@ describe("zoneTitle", () => {
 
 describe("zoneAction", () => {
   it("во время драга подпись говорит, ЧТО произойдёт при дропе", () => {
-    expect(zoneAction("center", "card")).toContain("стол");
+    expect(zoneAction("center", "card")).toContain("колод"); // в раздаче центр — место колоды
     expect(zoneAction("hand", "card")).toContain("руке");
   });
 
@@ -25,7 +25,7 @@ describe("zoneAction", () => {
   });
 
   it("все подписи непустые и короткие — это надпись поверх зоны", () => {
-    for (const zone of ["center", "hand"] as const) {
+    for (const zone of ["center", "hand", "deck", "discard"] as const) {
       expect(zoneTitle(zone).length).toBeGreaterThan(0);
       for (const kind of ["card", "take"] as const) {
         const t = zoneAction(zone, kind);
