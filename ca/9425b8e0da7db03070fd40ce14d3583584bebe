@@ -1,0 +1,29 @@
+server/src/roomHarness.ts
+  s_6b17180413249b::t_89708882223a03 31
+server/src/moveRules.test.ts
+  s_6b17180413249b::t_b38c21f26ca941 1-76
+server/src/moveRules.ts
+  s_6b17180413249b::t_6c16a2c82b7df9 1-99
+server/src/messages/playMessages.ts
+  s_6b17180413249b::t_3533ea19260004 75-118
+  s_6b17180413249b::t_925f0995c1f07e 2-9,12-13
+  s_6b17180413249b::t_d46329bd8526d8 14
+server/src/CardRoom.play.test.ts
+  s_6b17180413249b::t_2b5ec547623557 162-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ca9425b8e0da7db03070fd40ce14d3583584bebe",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
