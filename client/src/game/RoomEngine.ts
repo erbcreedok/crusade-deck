@@ -96,6 +96,8 @@ import {
   DRAG_SCALE,
   DRAG_SHADOW_LIFT,
   FAN_SHADOW_LIFT,
+  SHADOW_ALPHA,
+  SHADOW_COLOR,
   SHADOW_LABEL,
   EMOJI_FONT,
   HAND_ID,
@@ -107,10 +109,11 @@ import {
   SHOUT_EMOJI,
   SHOUT_TEXT,
   TEX_H,
+  TEX_W,
   Z,
   ZERO_SHAKE,
 } from "./engine/constants";
-import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShufflePose } from "./engine/types";
+import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShadowLayer, ShufflePose } from "./engine/types";
 import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./engine/cardTextures";
 import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
@@ -120,7 +123,7 @@ import type { TableSlot } from "./engine/zoneChrome";
 import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReveal } from "./engine/collapseArrow";
 import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
 import { canSleep } from "./engine/idleGate";
-import { fanShadowIndices, liftOf, type ShadowCaster } from "./engine/shadowPass";
+import { fanShadowIndices, liftOf, shadowSilhouette, type ShadowCaster } from "./engine/shadowPass";
 import { SHOUT_DUR, shoutEmojiOffset, shoutFontSize, shoutPose } from "./engine/shout";
 import { CardPile } from "./engine/CardPile";
 import { shufflePose, shuffleProgress, shouldSwapZ } from "./engine/shufflePose";
@@ -303,7 +306,10 @@ export class RoomEngine {
     loose: boolean;
     samples: SwipeSample[]; // история движения — по ней ловим бросок вниз
   } | null = null;
-  private shadows: Sprite[] = []; // общий пул теней: и стопки, и веер, и поднятая карта
+  // Два слоя теней: стол (стопки и веер) и поднятая карта. В каждом — маска из силуэтов
+  // и одна заливка сквозь неё, поэтому тени слоя сливаются, а не темнеют друг о друга.
+  private tableShadows: ShadowLayer | null = null;
+  private raisedShadows: ShadowLayer | null = null;
   // «Выплеск» по свайпу вверх: несколько карт вылетают из веера и возвращаются, пока
   // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
   // если новый порядок придёт в полёте, карта просто вернётся уже в новый слот.
@@ -584,9 +590,11 @@ export class RoomEngine {
     });
   }
 
-  // «Кирпич» колоды. Тени сюда не входят: они живут одним пулом и пересчитываются
-  // каждый кадр (см. syncShadows) — сколько теней нужно, столько и будет.
+  // «Кирпич» колоды и два слоя теней (см. paintShadows).
   private buildShadows(): void {
+    this.tableShadows = this.makeShadowLayer();
+    this.raisedShadows = this.makeShadowLayer();
+
     // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
     // всё, что под ней, рисуется одной Graphics (см. drawDeckBody).
     const body = new Graphics();
@@ -758,10 +766,21 @@ export class RoomEngine {
     return this.boardFan === pile ? Z.boardFan : 0;
   }
 
-  /** Разложить стопки доски по слоям: раскрытая — сверху, собранная — на своём месте. */
+  /**
+   * Разложить стопки доски по слоям: раскрытая — сверху, собранная — на своём месте.
+   *
+   * Карту, которую держит палец, не трогаем: она уже поднята на самый верх (Z.draggedCard),
+   * и вернуть её в слой стопки значило бы уронить её ПОД собственную тень — та лежит на
+   * слой ниже поднятой карты, а не ниже стопки.
+   */
   private applyPileZ(): void {
-    this.cards.forEach((c, i) => (c.sprite.zIndex = this.pileZBase("deck") + i));
-    this.discardCards.forEach((c, i) => (c.sprite.zIndex = this.pileZBase("discard") + i));
+    const held = this.cardDrag?.v ?? this.rejectCard;
+    this.cards.forEach((c, i) => {
+      if (c !== held) c.sprite.zIndex = this.pileZBase("deck") + i;
+    });
+    this.discardCards.forEach((c, i) => {
+      if (c !== held) c.sprite.zIndex = this.pileZBase("discard") + i;
+    });
   }
 
   private get deckCount(): number {
@@ -2577,9 +2596,10 @@ export class RoomEngine {
     const cards = this.discardCards;
     const fanned = this.boardFan === "discard";
     const z = this.pileZBase("discard");
+    const held = this.cardDrag?.v ?? this.rejectCard;
     cards.forEach((c, i) => {
-      c.sprite.visible = fanned || i >= cards.length - 2;
-      c.sprite.zIndex = z + i;
+      c.sprite.visible = fanned || i >= cards.length - 2 || c === held;
+      if (c !== held) c.sprite.zIndex = z + i; // поднятая карта остаётся наверху сцены
     });
   }
 
@@ -2727,7 +2747,8 @@ export class RoomEngine {
     this.shoutFires = [];
     this.shout = null;
     this.shadowLayer = null;
-    this.shadows = [];
+    this.tableShadows = null;
+    this.raisedShadows = null;
     this.deckBody = null;
     this.cardLayer = null;
     this.backTex = null;
@@ -3179,30 +3200,69 @@ export class RoomEngine {
     });
   }
 
-  /** Разложить пул спрайтов-теней по собранному списку; лишние прячем. */
+  /**
+   * Нарисовать тени так, чтобы наложения НЕ складывали альфу.
+   *
+   * Приём стандартный: силуэты всех теней слоя собираются в МАСКУ (это их объединение), и
+   * сквозь неё один раз заливается полупрозрачный прямоугольник во весь экран. Пересеклись
+   * две тени или двадцать — заливка ложится ровно один раз, плотность везде одна.
+   * Спрайт-на-тень так не умеет в принципе: каждый кладёт свою альфу поверх предыдущей.
+   *
+   * Слоёв два, потому что тени должны лежать на разной высоте сцены: тени стола и веера —
+   * под веером, тень поднятой карты — над ним. Внутри слоя наложений нет по построению;
+   * между слоями пересечение возможно, но это тени РАЗНОЙ высоты (стол и рука игрока), и
+   * лёгкое сгущение там читается правильно.
+   */
   private paintShadows(specs: ShadowCaster[]): void {
-    if (!this.cardLayer || !this.shadowTex) return;
-    while (this.shadows.length < specs.length) {
-      const sp = new Sprite(this.shadowTex);
-      sp.anchor.set(0.5);
-      sp.label = SHADOW_LABEL;
-      this.cardLayer.addChild(sp);
-      this.shadows.push(sp);
+    const table = specs.filter((s) => s.z < Z.draggedCard - 1);
+    const raised = specs.filter((s) => s.z >= Z.draggedCard - 1);
+    this.paintShadowLayer(this.tableShadows, table, Z.boardFan - 1);
+    this.paintShadowLayer(this.raisedShadows, raised, Z.draggedCard - 1);
+  }
+
+  /** Один слой теней: маска из силуэтов + единственная заливка сквозь неё. */
+  private paintShadowLayer(layer: ShadowLayer | null, specs: ShadowCaster[], z: number): void {
+    if (!layer) return;
+    const { mask, fill } = layer;
+    mask.clear();
+    if (specs.length === 0) {
+      fill.visible = false;
+      return;
     }
-    this.shadows.forEach((sp, i) => {
-      const spec = specs[i];
-      if (!spec) {
-        sp.visible = false;
-        return;
-      }
+    for (const spec of specs) {
       const off = lightShadowOffset(this.layout.cardH, spec.lift);
-      sp.visible = true;
-      sp.x = spec.x + off.dx;
-      sp.y = spec.y + off.dy;
-      sp.rotation = spec.rot;
-      sp.scale.set(this.baseScale * spec.scale * 1.04);
-      sp.zIndex = spec.z;
-    });
+      const scale = this.baseScale * spec.scale * 1.04;
+      mask
+        .poly(
+          shadowSilhouette({
+            x: spec.x + off.dx,
+            y: spec.y + off.dy,
+            w: TEX_W * scale,
+            h: TEX_H * scale,
+            rot: spec.rot,
+          }),
+        )
+        // Цвет маски не важен — важна её форма. Но красим ею же: если движок вдруг решит
+        // нарисовать маску как обычную фигуру, на столе будут тени, а не белые пятна.
+        .fill({ color: SHADOW_COLOR, alpha: SHADOW_ALPHA });
+    }
+    fill.visible = true;
+    fill.zIndex = z;
+    fill.clear();
+    fill.rect(0, 0, this.w, this.h).fill({ color: SHADOW_COLOR, alpha: SHADOW_ALPHA });
+  }
+
+  /** Слой теней: заливка во весь экран, обрезанная маской-объединением силуэтов. */
+  private makeShadowLayer(): ShadowLayer {
+    const mask = new Graphics();
+    const fill = new Graphics();
+    fill.label = SHADOW_LABEL;
+    fill.mask = mask;
+    fill.visible = false;
+    // Маска обязана жить на сцене, иначе Pixi её не отрисует и не применит.
+    this.cardLayer!.addChild(mask);
+    this.cardLayer!.addChild(fill);
+    return { mask, fill };
   }
 
   private createCardVisual(card: string): CardVisual {
@@ -3441,8 +3501,9 @@ export class RoomEngine {
     if (!slot) return { cx, w: this.layout.centerZone.w };
     // Полоса СИММЕТРИЧНА относительно центра доски: веер должен стоять ровно посередине,
     // а не съезжать влево только потому, что слева места больше. Ширину берём по тесной
-    // стороне — до слота сброса.
-    const gap = this.layout.cardW * 0.2;
+    // стороне — до слота сброса; сам слот высокий во весь стол, поэтому подходить к нему
+    // вплотную не страшно: даже накрыв его край, веер оставит зону сброса видимой.
+    const gap = this.layout.cardW * 0.08;
     const half = Math.min(cx - Math.max(4, this.layout.cardW * 0.1), slot.cx - slot.w / 2 - gap - cx);
     return { cx, w: Math.max(this.layout.cardW, half * 2) };
   }

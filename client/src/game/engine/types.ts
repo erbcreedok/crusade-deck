@@ -32,3 +32,9 @@ export interface ButtonLayout {
 
 /** Стопка ДОСКИ (не рука): у каждой свой слот, но веером они раскрываются в одном месте. */
 export type BoardPile = "deck" | "discard";
+
+/** Слой теней: маска-объединение силуэтов и одна заливка сквозь неё (см. RoomEngine). */
+export interface ShadowLayer {
+  mask: import("pixi.js").Graphics;
+  fill: import("pixi.js").Graphics;
+}

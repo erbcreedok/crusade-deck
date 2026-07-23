@@ -220,15 +220,34 @@ describe("computeLayout — игровой стол", () => {
     }
   });
 
-  it("все три бокса живут в прежней полосе стола — рука не задета", () => {
+  it("боксы разъезжаются к краям экрана, но руку не трогают", () => {
     for (const [w, h] of sizes) {
       const deal = computeLayout(w, h);
       const game = computeLayout(w, h, undefined, true);
       expect(game.handZone).toEqual(deal.handZone);
       for (const box of [game.deckSlot!, game.centerZone, game.discardSlot!]) {
-        expect(box.cx - box.w / 2).toBeGreaterThanOrEqual(deal.centerZone.cx - deal.centerZone.w / 2 - 1e-9);
-        expect(box.cx + box.w / 2).toBeLessThanOrEqual(deal.centerZone.cx + deal.centerZone.w / 2 + 1e-9);
+        expect(box.cx - box.w / 2).toBeGreaterThanOrEqual(0);
+        expect(box.cx + box.w / 2).toBeLessThanOrEqual(w);
+        expect(box.cy + box.h / 2).toBeLessThanOrEqual(game.handZone.cy - game.handZone.h / 2 + 1e-9);
       }
+    }
+  });
+
+  it("игровая зона шире, чем центр стола в раздаче: боксы ушли к краям", () => {
+    for (const [w, h] of sizes) {
+      const deal = computeLayout(w, h);
+      const game = computeLayout(w, h, undefined, true);
+      const boxes = game.deckSlot!.w + game.centerZone.w + game.discardSlot!.w;
+      expect(boxes).toBeGreaterThan(deal.centerZone.w);
+    }
+  });
+
+  it("сброс — колонка во всю высоту стола: в неё удобно целиться картой", () => {
+    for (const [w, h] of sizes) {
+      const game = computeLayout(w, h, undefined, true);
+      expect(game.discardSlot!.h).toBe(game.centerZone.h);
+      expect(game.discardSlot!.h).toBeGreaterThan(game.deckSlot!.h);
+      expect(game.discardSlot!.w).toBeLessThan(game.deckSlot!.w);
     }
   });
 

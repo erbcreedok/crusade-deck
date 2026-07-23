@@ -139,7 +139,16 @@ export function computeLayout(
     };
   }
 
-  const table = splitGameTable(centerZone, cardW, cardH);
+  // Игровой стол шире «центра»: боксы колоды и сброса уезжают к самым краям свободной
+  // области, освобождая середину под веер. Центр же остаётся зоной игры.
+  const gameBand: RoundedRect = {
+    cx: (freeLeft + (w - freeRight)) / 2,
+    cy: centerZone.cy,
+    w: Math.max(centerZone.w, w - freeLeft - freeRight - 8),
+    h: centerZone.h,
+    r,
+  };
+  const table = splitGameTable(gameBand, cardW, cardH);
   return {
     centerZone: table.play,
     deckSlot: table.deck,
@@ -158,6 +167,10 @@ export function computeLayout(
 // Ширина боковых слотов: стопка карт с запасом. В игре стопки лежат обычным размером
 // (deckScale(true) === 1), поэтому слоту хватает карты плюс поля.
 const SLOT_PAD = 1.25;
+// Сброс — колонка ВО ВСЮ ВЫСОТУ стола и поуже колоды: в него целятся картой, и высокая
+// узкая мишень удобнее квадратной. Заодно раскрытый веер, даже подойдя вплотную, не
+// закрывает её целиком — сверху и снизу колонка остаётся видна.
+const DISCARD_PAD = 1.05;
 // Игровая зона всегда шире слотов — это главный бокс стола, туда будут ложиться карты.
 const PLAY_MIN_RATIO = 1.15;
 
@@ -174,21 +187,24 @@ function splitGameTable(
   cardH: number,
 ): { deck: RoundedRect; play: RoundedRect; discard: RoundedRect } {
   const gap = Math.max(6, cardW * 0.12);
-  const wantSlot = cardW * SLOT_PAD;
+  const wantDeck = cardW * SLOT_PAD;
+  const wantDiscard = cardW * DISCARD_PAD;
   // Что останется игре, если взять слоты желаемого размера. Не хватает — режем слоты.
   const free = band.w - 2 * gap;
-  const slotW = Math.max(cardW, Math.min(wantSlot, free / (2 + PLAY_MIN_RATIO)));
-  const playW = Math.max(cardW * 1.05, free - 2 * slotW);
-  const slotH = Math.min(band.h, Math.max(cardH * SLOT_PAD, cardH));
+  const shrink = Math.min(1, free / (wantDeck + wantDiscard + cardW * PLAY_MIN_RATIO));
+  const deckW = Math.max(cardW, wantDeck * shrink);
+  const discardW = Math.max(cardW * 0.8, wantDiscard * shrink);
+  const playW = Math.max(cardW * 1.05, free - deckW - discardW);
+  const deckH = Math.min(band.h, Math.max(cardH * SLOT_PAD, cardH));
 
   const left = band.cx - band.w / 2;
-  const deck: RoundedRect = { cx: left + slotW / 2, cy: band.cy, w: slotW, h: slotH, r: band.r };
-  const play: RoundedRect = { cx: left + slotW + gap + playW / 2, cy: band.cy, w: playW, h: band.h, r: band.r };
+  const deck: RoundedRect = { cx: left + deckW / 2, cy: band.cy, w: deckW, h: deckH, r: band.r };
+  const play: RoundedRect = { cx: left + deckW + gap + playW / 2, cy: band.cy, w: playW, h: band.h, r: band.r };
   const discard: RoundedRect = {
-    cx: left + slotW + gap + playW + gap + slotW / 2,
+    cx: left + deckW + gap + playW + gap + discardW / 2,
     cy: band.cy,
-    w: slotW,
-    h: slotH,
+    w: discardW,
+    h: band.h, // во всю высоту стола
     r: band.r,
   };
   return { deck, play, discard };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fanShadowIndices, liftOf } from "./shadowPass";
+import { fanShadowIndices, liftOf, shadowSilhouette } from "./shadowPass";
 
 const cardW = 60;
 /** Веер: карты идут слева направо с заданным шагом. */
@@ -50,5 +50,46 @@ describe("liftOf", () => {
 
   it("чем крупнее карта, тем выше она над столом", () => {
     expect(liftOf(1.45)).toBeGreaterThan(liftOf(1.2));
+  });
+});
+
+describe("shadowSilhouette", () => {
+  const box = { x: 100, y: 200, w: 40, h: 60, rot: 0 };
+
+  it("восьмиугольник: прямоугольник со срезанными углами", () => {
+    const pts = shadowSilhouette(box);
+    expect(pts).toHaveLength(16); // 8 точек по две координаты
+  });
+
+  it("силуэт не вылезает за габарит карты", () => {
+    const pts = shadowSilhouette(box);
+    for (let i = 0; i < pts.length; i += 2) {
+      expect(Math.abs(pts[i]! - box.x)).toBeLessThanOrEqual(box.w / 2 + 1e-9);
+      expect(Math.abs(pts[i + 1]! - box.y)).toBeLessThanOrEqual(box.h / 2 + 1e-9);
+    }
+  });
+
+  it("углы действительно срезаны — иначе это просто прямоугольник", () => {
+    const pts = shadowSilhouette(box);
+    const corners = [];
+    for (let i = 0; i < pts.length; i += 2) {
+      const dx = Math.abs(pts[i]! - box.x);
+      const dy = Math.abs(pts[i + 1]! - box.y);
+      if (dx > box.w / 2 - 1e-9 && dy > box.h / 2 - 1e-9) corners.push(i);
+    }
+    expect(corners).toHaveLength(0);
+  });
+
+  it("поворот вращает силуэт вокруг центра карты", () => {
+    const straight = shadowSilhouette(box);
+    const turned = shadowSilhouette({ ...box, rot: Math.PI / 2 });
+    expect(turned).not.toEqual(straight);
+    // Центр на месте: сумма координат вокруг него симметрична.
+    const cx = turned.filter((_, i) => i % 2 === 0).reduce((a, b) => a + b, 0) / 8;
+    expect(cx).toBeCloseTo(box.x, 6);
+  });
+
+  it("вырожденная карта не ломает силуэт", () => {
+    expect(shadowSilhouette({ x: 0, y: 0, w: 0, h: 0, rot: 0 })).toHaveLength(16);
   });
 });
