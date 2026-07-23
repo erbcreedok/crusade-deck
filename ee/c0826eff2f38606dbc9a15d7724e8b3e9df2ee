@@ -1,0 +1,45 @@
+server/src/handRules.ts
+  s_b16a7b1f1196ad::t_2bd873e86eecfc 38-50
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_8c1d87eafcb409 43-65
+  s_b16a7b1f1196ad::t_0f7bf2ff0bba40 102,104
+  s_b16a7b1f1196ad::t_720d18331a9771 2
+  s_b16a7b1f1196ad::t_64116c13e408ec 115-116
+  s_b16a7b1f1196ad::t_2ea08258b5e69b 18-21,23-24
+  s_b16a7b1f1196ad::t_99d273ecfa78d1 22
+client/src/game/rejections.test.ts
+  s_b16a7b1f1196ad::t_4da09f07030cc2 24-38
+  s_b16a7b1f1196ad::t_24dadf2a65459b 2,6
+server/src/rejections.ts
+  s_b16a7b1f1196ad::t_7fca3863cb8223 5-13
+server/src/roomHarness.ts
+  s_b16a7b1f1196ad::t_9b7e395b02e903 29
+server/src/handRules.test.ts
+  s_b16a7b1f1196ad::t_1de72989524a70 2
+  s_b16a7b1f1196ad::t_224132dfabd3da 71-97
+server/src/GameState.ts
+  s_b16a7b1f1196ad::t_17a3d8492ddaf5 71-75
+client/src/game/rejections.ts
+  s_b16a7b1f1196ad::t_57cab985804753 5-12,21,24-33
+  s_b16a7b1f1196ad::t_91b4fe86d3f201 34
+server/src/CardRoom.free.test.ts
+  s_b16a7b1f1196ad::t_1451dada4bec3d 1-212
+server/src/messages/roomMessages.ts
+  s_b16a7b1f1196ad::t_1446b9a92568f3 32-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "eec0826eff2f38606dbc9a15d7724e8b3e9df2ee",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
