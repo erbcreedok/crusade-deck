@@ -42,6 +42,7 @@ import {
   fanBandContains,
   fanInsertIndex,
   visibleSliver,
+  pickTopFanCard,
   fanSpreadShift,
   fanSpreadPinned,
 } from "./fan";
@@ -98,6 +99,7 @@ import {
   FAN_SHADOW_LIFT,
   FINGER_TOUCH_PX,
   GRAB_SLIVER_CAP,
+  TOUCH_GRAB_WIDEN,
   HAND_SHADOW_LIFT,
   SHADOW_ALPHA,
   SHADOW_COLOR,
@@ -1659,7 +1661,8 @@ export class RoomEngine {
     // card — рука в фокусе: жест относится к КАРТЕ. Зажатый веер не таскаем, пока карта
     //        не показала достаточную полоску (canGrabAt) — но палец не игнорируем:
     //        ведение раскрывает веер под пальцем, и в открытый зазор карту уже можно взять.
-    const nearest = this.nearestFanIndex(e.global.x);
+    // Захват берёт ВЕРХНЮЮ карту под пальцем (на стыке — правую), а не ближайшую по центру.
+    const nearest = this.pickFanGrab(this.fanCards, e);
     // В свободе любой драг с колоды — это взятие карты себе: со стопки уходит верхняя,
     // из веера — та, что под пальцем (mode === "card").
     this.dealDrag = mode === "topCard" || (this.freeMode && mode === "card");
@@ -2831,8 +2834,9 @@ export class RoomEngine {
     // (canGrabHandAt). Иначе жест уходит в глиссандо — веер раздвигается под пальцем, и на
     // следующее касание, когда зазор подрос, карта уже тянется. Сложенная шеренга отдаёт
     // верхнюю всегда (одна видимая карта, целиться не в кого).
+    // Верх шеренги — правая карта; в вееере захват берёт верхнюю карту под пальцем.
     const focused = this.handFocused;
-    const nearest = focused ? this.nearestHandFanIndex(e.global.x) : this.hand.length - 1;
+    const nearest = focused ? this.pickFanGrab(this.hand, e) : this.hand.length - 1;
     this.cardPress = {
       id: e.pointerId,
       ...this.pressPoint(e),
@@ -2869,6 +2873,16 @@ export class RoomEngine {
     this.poke = { index: pi, target: pi, t: 0 };
     this.reKickWaveAt(pi, this.hand.length);
     this.wake();
+  }
+
+  /**
+   * Какую карту веера ЗАХВАТИТ палец. В отличие от nearest*FanIndex (ближайший центр —
+   * для раскрытия/ховера) берём верхнюю карту под точкой (pickTopFanCard): на стыке двух
+   * карт видна правая, её и тянем. На тач хитбокс шире карты — крючок для толстых пальцев.
+   */
+  private pickFanGrab(cards: readonly CardVisual[], e: FederatedPointerEvent): number {
+    const widen = e.pointerType === "mouse" ? 1 : TOUCH_GRAB_WIDEN;
+    return pickTopFanCard(cards.map((c) => c.sprite.x), e.global.x, (this.layout.cardW / 2) * widen);
   }
 
   private nearestHandFanIndex(x: number): number {

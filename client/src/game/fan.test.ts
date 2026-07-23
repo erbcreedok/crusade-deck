@@ -12,6 +12,7 @@ import {
   fanBandContains,
   fanInsertIndex,
   visibleSliver,
+  pickTopFanCard,
   fanSpreadShift,
   fanSpreadPinned,
 } from "./fan";
@@ -295,6 +296,42 @@ describe("visibleSliver", () => {
     const tight = [0, 6, 12, 18, 24];
     const poked = [0, 6, 30, 54, 60]; // вокруг индекса 2 раскрыто
     expect(visibleSliver(poked, 2)).toBeGreaterThan(visibleSliver(tight, 2));
+  });
+});
+
+describe("pickTopFanCard", () => {
+  const HALF = 20; // карта шириной 40 (полуширина 20)
+
+  // Стык двух карт: раньше ближе центр нижней, палец поднимал не ту. Теперь — верхняя.
+  it("на перекрытии выбирает ВЕРХНЮЮ (правую, с большим индексом)", () => {
+    const xs = [0, 10, 20]; // тесный веер, шаг 10 < полуширины
+    // точка у центра средней карты попадает и в правую (её левый край 20-20=0 ≤ x)
+    expect(pickTopFanCard(xs, 10, HALF)).toBe(2);
+  });
+
+  it("в чистой полоске левой карты выбирает её, а не соседей справа", () => {
+    const xs = [0, 40, 80]; // просторно: карты почти не перекрываются
+    expect(pickTopFanCard(xs, 0, HALF)).toBe(0); // центр левой, правая (лев.край 20) не достаёт
+  });
+
+  it("палец правее всех — самая правая карта", () => {
+    expect(pickTopFanCard([0, 40, 80], 200, HALF)).toBe(2);
+  });
+
+  it("палец левее всех — самая левая карта", () => {
+    expect(pickTopFanCard([0, 40, 80], -200, HALF)).toBe(0);
+  });
+
+  // Крючок для толстых пальцев: расширенный хитбокс сдвигает границу влево к верхней карте.
+  it("шире хитбокс — раньше срабатывает верхняя карта", () => {
+    const xs = [0, 30]; // граница между картами
+    // при узком хитбоксе точка 8 ещё у левой; при широком уже ловится правой
+    expect(pickTopFanCard(xs, 8, 20)).toBe(0);
+    expect(pickTopFanCard(xs, 8, 25)).toBe(1);
+  });
+
+  it("одна карта — всегда она", () => {
+    expect(pickTopFanCard([100], 0, HALF)).toBe(0);
   });
 });
 
