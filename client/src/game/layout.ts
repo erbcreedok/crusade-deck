@@ -82,6 +82,28 @@ export function boardSlotWidth(w: number, h: number, bottomInset = 0): number {
   return cardHeight(w, h, freeBottom) * CARD_RATIO * SLOT_PAD;
 }
 
+/**
+ * Ширина от КРАЯ ЭКРАНА до внешнего края слота колоды — то есть слот плюс поле, на
+ * котором стол заканчивается. Столько занимает место бокового соседа: он стоит над
+ * слотом, и оставлять справа от него полоску голого сукна незачем — соседа и слот видно
+ * как одну колонку, приклеенную к краю.
+ */
+export function boardEdgeWidth(w: number, h: number, bottomInset = 0): number {
+  const freeBottom = Math.min(Math.max(0, bottomInset), h * 0.5);
+  const cardW = cardHeight(w, h, freeBottom) * CARD_RATIO;
+  return bandPadFor(cardW) + cardW * SLOT_PAD;
+}
+
+/** Зазор между верхом стола и тем, что над ним. Общий для стола и посадки соседей. */
+export const BOARD_TOP_GAP = 8;
+
+// Поля по краям — от КАРТЫ, а не константа: стопка колоды рисуется со сдвигом влево-вниз
+// (нижняя карта выглядывает из-под верхней, см. deckStack.ts), и при поле в пару пикселей
+// этот «хвост» свисал за край экрана.
+function bandPadFor(cardW: number): number {
+  return Math.max(8, cardW * 0.35);
+}
+
 // Сколько по краям занято чужими местами (посадка «П», см. seatLayout.ts). Центр стола
 // ужимается ровно на это: боковые колонки сужают его по ширине, верхняя полоса опускает
 // его крышу. Моя рука внизу — не трогается, она всегда моя.
@@ -146,7 +168,7 @@ export function computeLayout(
   // В раздаче под боковых уходит вся крыша: колода лежит по центру, и делить ей нечего —
   // проще опустить стол целиком. В игре так нельзя (игровая зона в середине, соседи по
   // краям, они не пересекаются) — там уступают только крайние боксы, см. splitGameTable.
-  const centerTop = freeTop + 8 + (gameMode ? 0 : sideH);
+  const centerTop = freeTop + BOARD_TOP_GAP + (gameMode ? 0 : sideH);
   const centerBottom = bandCy - bandH / 2 - 8;
   const centerH = Math.max(cardH * 1.2, Math.min(centerBottom - centerTop, h * 0.42));
   const centerCy = centerTop + Math.max(centerH / 2, (centerBottom - centerTop) / 2);
@@ -172,10 +194,7 @@ export function computeLayout(
 
   // Игровой стол шире «центра»: боксы колоды и сброса уезжают к самым краям свободной
   // области, освобождая середину под веер. Центр же остаётся зоной игры.
-  // Поля по краям — от КАРТЫ, а не константа: стопка колоды рисуется со сдвигом влево-вниз
-  // (нижняя карта выглядывает из-под верхней, см. deckStack.ts), и при поле в пару пикселей
-  // этот «хвост» свисал за край экрана.
-  const bandPad = Math.max(8, cardW * 0.35);
+  const bandPad = bandPadFor(cardW);
   const gameBand: RoundedRect = {
     cx: (freeLeft + (w - freeRight)) / 2,
     cy: centerZone.cy,

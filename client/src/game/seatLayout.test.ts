@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { layoutSeats, SEAT_MIN_W, SEAT_TIGHT_W } from "./seatLayout";
+import { layoutSeats, SEAT_MAX_W, SEAT_MIN_W, SEAT_TIGHT_W } from "./seatLayout";
+import { BOARD_TOP_GAP } from "./layout";
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `p${i}`);
 const W = 900;
@@ -7,6 +8,8 @@ const H = 700;
 
 /** Сколько человек влезает в ряд по комфортной ширине. */
 const rowCap = (w: number) => Math.floor(w / SEAT_MIN_W);
+/** Зазор между рамками мест: на него бокс отходит от края. */
+const GAP_SLACK = 6;
 
 describe("layoutSeats — пока влезают, «П» вырождается в ряд", () => {
   it("все сидят в верхней полосе, боковых нет", () => {
@@ -99,7 +102,23 @@ describe("layoutSeats — боковые места это СОСЕДИ, и их
   it("абсурдная ширина снаружи не съедает экран целиком", () => {
     const { seats } = layoutSeats(many, W, H, { sideW: 10_000 });
     const side = seats.find((s) => s.side === "left")!;
-    expect(side.rect.w).toBeLessThanOrEqual(W / 3);
+    expect(side.rect.w).toBeLessThanOrEqual(Math.min(SEAT_MAX_W, W / 3));
+  });
+
+  it("боковые прижаты к самым краям экрана — вместе со слотом под ними это одна колонка", () => {
+    const { seats } = layoutSeats(many, W, H, { sideW: 60 });
+    const left = seats.find((s) => s.side === "left")!;
+    const right = seats.find((s) => s.side === "right")!;
+    expect(left.rect.cx - left.rect.w / 2).toBeLessThanOrEqual(GAP_SLACK);
+    expect(right.rect.cx + right.rect.w / 2).toBeGreaterThanOrEqual(W - GAP_SLACK);
+  });
+
+  it("боковые стоят на уровне верха стола, а не впритык под полосой", () => {
+    const { seats, insets } = layoutSeats(many, W, H, { sideW: 60 });
+    for (const s of seats.filter((x) => x.side !== "top")) {
+      // Рамка стоит по центру своей ячейки, поэтому от верха ячейки её отделяет ползазора.
+      expect(s.rect.cy - s.rect.h / 2).toBeCloseTo(insets.top + BOARD_TOP_GAP + GAP_SLACK / 2);
+    }
   });
 
   it("двоих в бока не сажаем: полоса не должна опустеть", () => {
@@ -190,5 +209,34 @@ describe("layoutSeats — отступ под топбар", () => {
   it("абсурдный отступ не съедает места целиком", () => {
     const { seats } = layoutSeats(ids(4), W, H, { topOffset: H });
     expect(seats.every((s) => s.rect.h > 0 && s.rect.cy + s.rect.h / 2 <= H)).toBe(true);
+  });
+});
+
+// Место не должно раздуваться там, где ему это ни к чему: втроём на десктопе полоса
+// делила экран на три плиты во всю треть ширины.
+describe("layoutSeats — потолок ширины общий для всех мест", () => {
+  it("на широком экране места не растягиваются на всю ширину", () => {
+    const { seats } = layoutSeats(ids(3), 1600, 900);
+    expect(Math.max(...seats.map((s) => s.rect.w))).toBeLessThanOrEqual(SEAT_MAX_W);
+  });
+
+  it("упёршись в потолок, ряд встаёт по центру, а не жмётся к левому краю", () => {
+    const w = 1600;
+    const { seats } = layoutSeats(ids(3), w, 900);
+    const left = Math.min(...seats.map((s) => s.rect.cx - s.rect.w / 2));
+    const right = Math.max(...seats.map((s) => s.rect.cx + s.rect.w / 2));
+    expect(left).toBeCloseTo(w - right, 0);
+    expect(left).toBeGreaterThan(0);
+  });
+
+  it("потолок один и для боковых: сосед не шире места из полосы", () => {
+    const { seats } = layoutSeats(ids(rowCap(1600) + 1), 1600, 900, { sideW: 400 });
+    const widest = Math.max(...seats.map((s) => s.rect.w));
+    expect(widest).toBeLessThanOrEqual(SEAT_MAX_W);
+  });
+
+  it("на телефоне потолок не мешает: там ширину диктует теснота", () => {
+    const { seats } = layoutSeats(ids(4), 375, 667);
+    expect(Math.max(...seats.map((s) => s.rect.w))).toBeLessThan(SEAT_MAX_W);
   });
 });

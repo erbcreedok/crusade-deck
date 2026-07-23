@@ -1,4 +1,4 @@
-import type { RoundedRect } from "./layout";
+import { BOARD_TOP_GAP, type RoundedRect } from "./layout";
 
 // Посадка чужих игроков буквой «П».
 //
@@ -47,6 +47,13 @@ export interface SeatsLayout {
 export const SEAT_MIN_W = 72;
 /** До этой ширины полоса ужимается молча. Уже — включается прокрутка. */
 export const SEAT_TIGHT_W = 56;
+/**
+ * Потолок ширины места — один для ВСЕХ, и для полосы, и для боковых. Без него место
+ * раздувается там, где ему это ни к чему: втроём на десктопе полоса делила экран на три
+ * плиты во всю треть ширины, а боковой сосед на широком столе становился шире колоды,
+ * над которой стоит. Не влезло — ужимаемся; влезло с запасом — запас остаётся столу.
+ */
+export const SEAT_MAX_W = 150;
 
 const SEAT_R = 12;
 const GAP = 6; // зазор между местами, чтобы рамки не сливались
@@ -58,9 +65,10 @@ export interface SeatLayoutOptions {
   /** Текущее смещение прокрутки верхней полосы, px. Клампится здесь же. */
   scrollX?: number;
   /**
-   * Ширина бокового места. Приходит снаружи (layout.boardSlotWidth), а не считается
-   * здесь: сосед стоит одной колонкой со слотами колоды и сброса, и ширина у всех троих
-   * обязана быть одна — разнобой читается как случайность, а не как разметка.
+   * Ширина бокового места. Приходит снаружи (layout.boardEdgeWidth), а не считается
+   * здесь: сосед стоит над слотом колоды/сброса и занимает всю полосу от края экрана до
+   * внешнего края слота — они читаются как одна колонка. Считать это можно только там,
+   * где известен размер карты, то есть в раскладке стола.
    */
   sideW?: number;
 }
@@ -81,7 +89,7 @@ export function layoutSeats(
 
   const seatH = clamp(h * 0.13, 52, 104);
   // По умолчанию — прикидка от экрана: ею пользуются тесты и вызовы без стола под рукой.
-  const colW = clamp(opts.sideW ?? w * 0.22, 40, w / 3);
+  const colW = clamp(opts.sideW ?? w * 0.22, 40, Math.min(SEAT_MAX_W, w / 3));
   const sideH = clamp(h * 0.17, 64, 130);
   // Топбар не должен «съесть» всю посадку: на очень низком экране ограничиваем его вклад.
   const top0 = clamp(opts.topOffset ?? 0, 0, h * 0.3);
@@ -101,16 +109,20 @@ export function layoutSeats(
   // Верхняя полоса идёт во ВСЮ ширину экрана: боковые сидят под ней, а не рядом с ней,
   // и потому её не поджимают. Ячейка ужимается до тесной ширины, дальше — прокрутка.
   const rawCellW = topIds.length > 0 ? w / topIds.length : 0;
-  const cellW = topIds.length > 0 ? Math.max(SEAT_TIGHT_W, rawCellW) : 0;
-  const topScrollMax = Math.max(0, cellW * topIds.length - w);
+  const cellW = topIds.length > 0 ? clamp(rawCellW, SEAT_TIGHT_W, SEAT_MAX_W) : 0;
+  const rowW = cellW * topIds.length;
+  const topScrollMax = Math.max(0, rowW - w);
   const scrollX = clamp(opts.scrollX ?? 0, 0, topScrollMax);
+  // Упёрлись в потолок — ряд короче экрана, и тогда он центруется: прижатый к левому
+  // краю ряд читается как обрезанный, будто кого-то не показали.
+  const rowLeft = Math.max(0, (w - rowW) / 2);
 
   topIds.forEach((id, i) => {
     seats.push({
       id,
       side: "top",
       rect: {
-        cx: cellW * (i + 0.5) - scrollX,
+        cx: rowLeft + cellW * (i + 0.5) - scrollX,
         cy: top0 + seatH / 2,
         w: Math.max(1, cellW - GAP),
         h: Math.max(1, seatH - GAP),
@@ -124,10 +136,11 @@ export function layoutSeats(
     side: useSides ? sideH : 0,
   };
 
-  // Боковые: по одному в верхних углах, сразу под полосой. Стол они НЕ сужают — вместо
-  // этого им уступают по вертикали колода и сброс (см. computeLayout), иначе на узком
-  // экране игровая зона схлопывалась бы в щель.
-  const sideTop = topIds.length > 0 ? insets.top : top0;
+  // Боковые: по одному в верхних углах, на уровне ВЕРХА СТОЛА — они стоят над слотами
+  // колоды и сброса и составляют с ними одну колонку, приклеенную к краю экрана.
+  // Стол они при этом НЕ сужают: вместо этого им уступают по вертикали сами слоты
+  // (см. computeLayout), иначе на узком экране игровая зона схлопывалась бы в щель.
+  const sideTop = (topIds.length > 0 ? insets.top : top0) + BOARD_TOP_GAP;
   const sideRect = (cx: number): RoundedRect => ({
     cx,
     cy: sideTop + sideH / 2,
