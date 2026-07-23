@@ -1,0 +1,44 @@
+server/src/messages/handMessages.ts
+  s_6b17180413249b::t_30cb07b9bc44df 42-43
+  s_6b17180413249b::t_2d8136ca794455 2
+CLAUDE_RU.md
+  s_6b17180413249b::t_655f7e9ebc66cf 35-36
+  s_6b17180413249b::t_275c6906af5211 69-70
+  s_6b17180413249b::t_4df7a38526528f 53
+  s_6b17180413249b::t_98ecf20255be68 299,304-305
+refactor-progress.md
+  s_6b17180413249b::t_8401900a167c18 22-26
+  s_6b17180413249b::t_6c96ecb0bfc6c8 1-21,27-105
+client/src/game/engine/moveAnchor.ts
+  s_6b17180413249b::t_4ef656128d8606 1-35
+CLAUDE.md
+  s_6b17180413249b::t_655f7e9ebc66cf 37-38
+  s_6b17180413249b::t_275c6906af5211 71-72
+  s_6b17180413249b::t_4df7a38526528f 55
+  s_6b17180413249b::t_ef0566d2250b01 315,320-321
+client/src/game/engine/moveAnchor.test.ts
+  s_6b17180413249b::t_351f686ac6a1a9 1-6,8-41
+  s_6b17180413249b::t_ae14bc93793560 7
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_47a0c978ed0ac6 32
+  s_6b17180413249b::t_eed244dff71b9f 2591-2599
+  s_6b17180413249b::t_dc9b21788f0a2b 2183
+  s_6b17180413249b::t_37a274040084cc 2622
+  s_6b17180413249b::t_e3cdf7385b2686 2653,2661
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4eb79374787a27f9349a53ca3327458caddcbeec",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
