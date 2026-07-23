@@ -3167,7 +3167,9 @@ export class RoomEngine {
   // улетал на «вышку» при открытии.
   private deckFanGeom(): FanGeom {
     return layoutDeckFan({
-      stackAnchor: this.layout.deckAnchor,
+      // Веер доски всегда раскрывается по центру игровой зоны — одно место для всех
+      // стопок стола, где бы сами стопки ни лежали (см. layout.boardFanAnchor).
+      stackAnchor: this.layout.boardFanAnchor,
       zone: this.layout.centerZone,
       count: this.deckCount,
       cardW: this.layout.cardW,

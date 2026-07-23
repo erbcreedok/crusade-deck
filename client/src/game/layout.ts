@@ -19,11 +19,15 @@ export interface RoomLayout {
   // Слоты игрового стола. null в раздаче: пока дилер раздаёт, стол не размечен, колода
   // лежит по центру и с неё раздают.
   deckSlot: RoundedRect | null; // слева: там лежит колода, оттуда её тянут
-  discardSlot: RoundedRect | null; // справа: сброс, пока просто пустое место
+  discardSlot: RoundedRect | null; // справа: сброс
   // Низ экрана — полоса руки во всю ширину. Это единственное место, где колода
   // раскрывается веером.
   handZone: RoundedRect;
-  deckAnchor: { x: number; y: number }; // покой колоды в центре = центр centerZone
+  deckAnchor: { x: number; y: number }; // покой колоды: центр стола в раздаче, свой слот в игре
+  // Единое место, где раскрывается ЛЮБОЙ веер доски (колода, сброс, будущие стопки) —
+  // центр игровой зоны. Стопки лежат по своим слотам, но раскрываются всегда здесь: так
+  // раскрытый веер не свисает с края стола и всегда там, где его ждёт глаз.
+  boardFanAnchor: { x: number; y: number };
   handAnchor: { x: number; y: number }; // покой колоды в руке = центр handZone
   cardW: number;
   cardH: number;
@@ -119,6 +123,8 @@ export function computeLayout(
 
   const handAnchor = { x: handZone.cx, y: handZone.cy };
 
+  const boardFanAnchor = { x: centerZone.cx, y: centerZone.cy };
+
   if (!gameMode) {
     return {
       centerZone,
@@ -126,6 +132,7 @@ export function computeLayout(
       discardSlot: null,
       handZone,
       deckAnchor: { x: centerZone.cx, y: centerZone.cy },
+      boardFanAnchor,
       handAnchor,
       cardW,
       cardH,
@@ -139,6 +146,9 @@ export function computeLayout(
     discardSlot: table.discard,
     handZone,
     deckAnchor: { x: table.deck.cx, y: table.deck.cy },
+    // Веер доски раскрывается в игровой зоне — не над слотом колоды, где он свисал бы
+    // за левый край стола.
+    boardFanAnchor: { x: table.play.cx, y: table.play.cy },
     handAnchor,
     cardW,
     cardH,

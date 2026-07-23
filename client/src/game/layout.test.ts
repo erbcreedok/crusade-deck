@@ -232,6 +232,20 @@ describe("computeLayout — игровой стол", () => {
     }
   });
 
+  it("веер доски раскрывается в игровой зоне, а не над слотом колоды", () => {
+    for (const [w, h] of sizes) {
+      const l = computeLayout(w, h, undefined, true);
+      expect(l.boardFanAnchor.x).toBeCloseTo(l.centerZone.cx, 5);
+      expect(l.boardFanAnchor.y).toBeCloseTo(l.centerZone.cy, 5);
+      expect(l.boardFanAnchor.x).not.toBeCloseTo(l.deckAnchor.x, 1);
+    }
+  });
+
+  it("в раздаче место веера то же самое — центр стола", () => {
+    const l = computeLayout(390, 800);
+    expect(l.boardFanAnchor).toEqual(l.deckAnchor);
+  });
+
   it("на узком экране игровая зона не вырождается", () => {
     const l = computeLayout(320, 640, undefined, true);
     expect(l.centerZone.w).toBeGreaterThan(l.cardW);
