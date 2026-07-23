@@ -384,6 +384,32 @@ describe("RoomEngine: веер колоды в игре", () => {
     expect(asked).toEqual([true, false]);
   });
 
+  // Стрелка «сложить» под веером доски — только в РАЗДАЧЕ (дилер сворачивает слепой веер
+  // колоды). В игре веер личный, закрывается тапом по нему, а стрелка поверх него всё равно
+  // не работала.
+  it("стрелка веера доски есть в раздаче и пропадает в игре", async () => {
+    const { engine, app } = await mountEngine();
+    const arrow = () => findByZ(app.stage, 10_500 /* Z.collapseBtn */);
+    const deckArrowVisible = () =>
+      findAllByZ(app.stage, 10_500).some((n: any) => n.label === "deckCollapse" && n.visible);
+    expect(arrow()).toBeTruthy();
+
+    // Раздача: дилер раскрыл веер колоды — стрелка появляется.
+    engine.setSelfId("me");
+    engine.setSelfDealState(true, true);
+    engine.setCanDeal(true);
+    engine.setDeck(DECK_36);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 120; i++) app.ticker.__advance(16);
+    expect(deckArrowVisible()).toBe(true);
+
+    // Игра: тот же раскрытый веер, но стрелки под ним нет.
+    engine.setCanDeal(false);
+    engine.setFreeMode(true);
+    for (let i = 0; i < 120; i++) app.ticker.__advance(16);
+    expect(deckArrowVisible()).toBe(false);
+  });
+
   it("раскрытие веера будит цикл и отпускает его, когда карты доехали", async () => {
     const { engine, app } = await mountEngine();
     engine.setFreeMode(true);

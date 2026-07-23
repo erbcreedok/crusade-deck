@@ -723,10 +723,11 @@ export class RoomEngine {
 
     // Стрелки «сложить»: рука — любому; колода на столе — только дилеру (syncCollapseButton).
     this.collapseBtn = this.makeCollapseButton(() => this.onFanCollapse?.());
-    this.deckCollapseBtn = this.makeCollapseButton(() => {
-      if (this.freeMode) this.onBoardFanChange?.(null);
-      else this.onDeckFanChange?.(false);
-    });
+    this.collapseBtn.label = "handCollapse";
+    // Стрелка живёт только в раздаче (см. syncCollapseButton), поэтому сворачивает именно
+    // дилерский веер колоды. В игре её нет — там веер закрывается тапом.
+    this.deckCollapseBtn = this.makeCollapseButton(() => this.onDeckFanChange?.(false));
+    this.deckCollapseBtn.label = "deckCollapse";
 
     this.handCounter = this.makeCounterText();
     this.deckCounter = this.makeCounterText();
@@ -3941,8 +3942,10 @@ export class RoomEngine {
   private syncCollapseButton(): void {
     const cardH = this.layout.cardH;
     const handFan = this.fanOpen();
-    // Стрелка колоды: только дилер, независимо от фокуса руки.
-    const deckFanBtn = (this.canDeal || this.freeMode) && !!this.boardFan && this.fanCount > 0;
+    // Стрелка веера доски — ТОЛЬКО в раздаче (дилер сворачивает слепой веер колоды). В
+    // игре её нет: веер там личный и закрывается повторным тапом по нему (handleDeckTap),
+    // а стрелка поверх личного веера всё равно не работала — «невидимка».
+    const deckFanBtn = this.canDeal && !!this.boardFan && this.fanCount > 0;
     this.collapseWantShow = handFan;
     this.deckCollapseWantShow = deckFanBtn;
 
