@@ -1,0 +1,58 @@
+server/src/version.ts
+  s_6b17180413249b::t_47f734e194c259 1-61
+client/package.json
+  s_6b17180413249b::t_deaf8fcba0eb7e 3
+server/Dockerfile
+  s_6b17180413249b::t_69114128859d9c 20-26
+server/src/index.ts
+  s_6b17180413249b::t_7bc1dd922a0fd4 13,41-43
+  s_6b17180413249b::t_f83b142bc597e6 93
+client/src/Lobby.test.tsx
+  s_6b17180413249b::t_1e2d57da87a1b1 15,76-86
+  s_6b17180413249b::t_5040203ec38d1a 87-88
+client/vite.config.ts
+  s_6b17180413249b::t_070877e324bb50 8-12,14,16,20-25,31-32
+client/src/AppMenu.tsx
+  s_6b17180413249b::t_cdf42944ec9ffd 11
+  s_6b17180413249b::t_9daa45d583fa7e 169-173
+client/src/version.test.ts
+  s_6b17180413249b::t_7f4f0718fd3bce 2-11,17-23,26-27,30-32,37,43,47-57
+client/src/AppMenu.test.tsx
+  s_6b17180413249b::t_7a2196133b3681 6,98-112
+  s_6b17180413249b::t_916c43a81eb81f 113
+scripts/deploy.sh
+  s_6b17180413249b::t_7e175cf48d6185 1-46
+client/src/theme.css
+  s_6b17180413249b::t_36a78997771b61 264-276
+client/Dockerfile
+  s_6b17180413249b::t_69114128859d9c 18-25
+server/src/version.test.ts
+  s_6b17180413249b::t_9496b921bd1cd2 1-20
+client/src/Lobby.tsx
+  s_6b17180413249b::t_cdf42944ec9ffd 13
+  s_6b17180413249b::t_9daa45d583fa7e 185-187
+server/package.json
+  s_6b17180413249b::t_deaf8fcba0eb7e 3
+client/src/version.ts
+  s_6b17180413249b::t_729c5f28ed36f9 4-15,19,21-22,29,39,43-48,50,53,55
+DEPLOY.md
+  s_6b17180413249b::t_a507e0531c59f7 209-234
+DEPLOY_RU.md
+  s_6b17180413249b::t_b1b1f3b03732dd 205-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2ab46c22db64ea33fc55aaca670928856d606963",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
