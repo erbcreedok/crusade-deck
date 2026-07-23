@@ -368,6 +368,24 @@ describe("RoomEngine: веер колоды в игре", () => {
     });
   }
 
+  // Веер доски и веер руки должны быть ОДНОГО размера: одна формула (handFanGeom), одна
+  // ширина и угол при равном числе карт. Раньше веер доски жался в узкую полосу до сброса.
+  it("веер доски того же размера, что веер руки", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    const faces = Array.from({ length: 10 }, (_, i) => `${(i % 9) + 2}♦z${i}`);
+    engine.setHand(faces);
+    engine.setDeck(faces.map((f) => f + "D"));
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const hand = (engine as any).handFanGeom();
+    const deck = (engine as any).deckFanGeom();
+    expect(deck.width).toBeCloseTo(hand.width, 3);
+    expect(deck.angleDeg).toBeCloseTo(hand.angleDeg, 3);
+  });
+
   it("тап по колоде раскрывает веер и складывает обратно", async () => {
     const { engine, app } = await mountEngine();
     engine.setSelfId("me");

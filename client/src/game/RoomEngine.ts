@@ -19,7 +19,7 @@ import { activeDropZones, type DragSource } from "./dropZoneActivity";
 import { dealSourceIndex } from "./topCard";
 import type { SeatView } from "./seats";
 import { layoutSeatHand, seatCardFaceUp, type SeatHandLayout } from "./seatHand";
-import { fanCardScale, layoutDeckFan } from "./deckFan";
+import { fanCardScale } from "./deckFan";
 import { forbidDeckOpenTap } from "./forbidDeckOpen";
 import {
   dealHandAccent,
@@ -4206,44 +4206,37 @@ export class RoomEngine {
     return this.handFanGeomFor(true, this.handCount);
   }
 
-  // Веер колоды в центре: якорь = якорь стопки (рядом со счётчиком).
-  // НЕ fanGeomFor(centerZone) — та формула для руки (якорь у верха полосы), от неё веер
-  // улетал на «вышку» при открытии.
-  /**
-   * Полоса, отведённая раскрытому вееру доски. Веер — главное на столе, пока он открыт,
-   * поэтому он НЕ жмётся в игровую зону: занимает всё вплоть до слота сброса (сброс
-   * оставляем свободным — туда бросают карты). В раздаче полоса = центр стола.
-   */
-  private boardFanArea(): { cx: number; w: number } {
-    const cx = this.layout.boardFanAnchor.x;
-    const slot = this.layout.discardSlot;
-    if (!slot) return { cx, w: this.layout.centerZone.w };
-    // Полоса СИММЕТРИЧНА относительно центра доски: веер должен стоять ровно посередине,
-    // а не съезжать влево только потому, что слева места больше. Ширину берём по тесной
-    // стороне — до слота сброса; сам слот высокий во весь стол, поэтому подходить к нему
-    // вплотную не страшно: даже накрыв его край, веер оставит зону сброса видимой.
-    const gap = this.layout.cardW * 0.08;
-    const half = Math.min(cx - Math.max(4, this.layout.cardW * 0.1), slot.cx - slot.w / 2 - gap - cx);
-    return { cx, w: Math.max(this.layout.cardW, half * 2) };
-  }
-
   /** Карты раскрытого веера доски: чуть крупнее эталона, тесный веер ужимается. */
   private boardFanScale(): number {
     return fanCardScale(this.fanCount);
   }
 
+  /**
+   * Веер доски раскрывается по центру игровой зоны (boardFanAnchor) — одно место для всех
+   * стопок стола, где бы сами стопки ни лежали.
+   *
+   * Размер — РОВНО как у веера руки: та же формула (handFanGeom) с зоной той же ширины и
+   * высоты, только якорь дуги ставим на месте доски. Раньше веер доски считал своя формула
+   * (layoutDeckFan) в узкой полосе до слота сброса и выходил заметно мельче руки. Пусть
+   * теперь краями заходит на боксы колоды/сброса: пока веер открыт, он главный на столе, а
+   * сброс всё равно виден снизу.
+   */
   private deckFanGeom(): FanGeom {
-    const area = this.boardFanArea();
-    return layoutDeckFan({
-      // Веер доски раскрывается в отведённой полосе — одно место для всех стопок стола,
-      // где бы сами стопки ни лежали (см. layout.boardFanAnchor).
-      stackAnchor: { x: area.cx, y: this.layout.boardFanAnchor.y },
-      zone: { cx: area.cx, cy: this.layout.boardFanAnchor.y, w: area.w, h: this.layout.centerZone.h },
-      count: this.fanCount,
-      cardW: this.layout.cardW * this.boardFanScale(),
+    const g = handFanGeom({
+      zone: {
+        cx: this.layout.boardFanAnchor.x,
+        cy: this.layout.boardFanAnchor.y,
+        w: this.layout.handZone.w,
+        h: this.layout.handZone.h,
+      },
+      cardW: this.layout.cardW,
       cardH: this.layout.cardH,
-      reservedBelow: this.rowCounterSpace() + this.layout.cardH * 2 * anim.fan.collapse.hitRatio,
+      count: this.fanCount,
+      focused: true,
+      dragging: !!this.cardDrag && !this.cardDrag.fromHand,
     });
+    // Якорь дуги — у стопки на доске, а не у верха полосы руки.
+    return { ...g, anchor: { x: this.layout.boardFanAnchor.x, y: this.layout.boardFanAnchor.y } };
   }
 
   // Веер-дуга в руке (чистая математика — см. fan.ts). i может быть дробным
