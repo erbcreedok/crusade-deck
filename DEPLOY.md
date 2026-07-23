@@ -232,3 +232,19 @@ player and not another.
 Machines sleep between visits (`min_machines_running = 0`), so the first request after a
 pause takes a few seconds to wake the server. That's expected — rooms live in memory only,
 and a restart already kicks everyone out anyway.
+
+### CI
+
+`.github/workflows/ci.yml` runs the tests of both packages on every push, and on `main`
+deploys via the same `scripts/deploy.sh` — the deploy order and the build number live in
+one place rather than in two that drift apart.
+
+Two things the workflow has to get right, and both are easy to miss:
+
+- `fetch-depth: 0` on checkout. The build number is the commit count; the default shallow
+  clone would make it a permanent "1".
+- `cancel-in-progress: false`. A flyctl cancelled halfway leaves the app in a partial
+  state, so runs queue instead of superseding each other.
+
+The deploy needs a `FLY_API_TOKEN` secret in the repository (Settings → Secrets and
+variables → Actions). Create one with `fly tokens create deploy`.

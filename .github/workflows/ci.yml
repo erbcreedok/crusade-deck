@@ -1,0 +1,81 @@
+# Тесты на каждый пуш, выкатка на Fly.io — только с main и только после зелёных тестов.
+#
+# Почему один файл, а не два: гейт «деплой после тестов» выражается только внутри ОДНОГО
+# workflow (`needs:`), между разными workflow такой связи нет — второй просто стартует
+# параллельно, и на прод уехало бы то, что ещё не проверено.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Деплой прерывать нельзя: отменённый на середине flyctl оставит аппу в промежуточном
+# состоянии. Поэтому очередь, а не отмена предыдущего запуска (cancel-in-progress: false).
+# Ценой этого пуши в одну ветку ждут друг друга — на таком объёме это секунды.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  server:
+    name: Сервер — тесты и типы
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # тот же, что в Dockerfile: расхождение ловилось бы только на проде
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+
+  client:
+    name: Клиент — тесты, типы и сборка
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      # Сборка тоже проверка: она падает на том, что не ловят ни тесты, ни tsc
+      # (например, импорт, который есть только в dev-режиме).
+      - run: npx vite build
+
+  deploy:
+    name: Выкатка на Fly.io
+    needs: [server, client]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ВСЯ история: номер сборки — это число коммитов (git rev-list --count HEAD).
+          # По умолчанию checkout берёт один коммит, и номер сборки был бы вечной единицей.
+          fetch-depth: 0
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Тот же скрипт, что и с ноутбука: порядок выкатки (сервер первым — клиент вшивает
+      # его адрес в бандл) и номер сборки живут в одном месте, а не в двух расходящихся.
+      - run: scripts/deploy.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Проверить, что прод отвечает и версии сошлись
+        run: |
+          echo "Ожидаем сборку $(git rev-list --count HEAD) ($(git rev-parse --short HEAD))"
+          curl -sS --max-time 60 --retry 3 --retry-delay 5 \
+            https://crusade-deck-server.fly.dev/health
+          echo
+          curl -sS -o /dev/null -w "клиент: %{http_code}\n" --max-time 60 --retry 3 --retry-delay 5 \
+            https://crusade-deck-client.fly.dev/

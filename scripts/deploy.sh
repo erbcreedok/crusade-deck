@@ -38,8 +38,17 @@ deploy_one() {
 }
 
 # Сервер всегда первым: см. пункт 1 выше.
-[[ "$target" == "all" || "$target" == "server" ]] && deploy_one server
-[[ "$target" == "all" || "$target" == "client" ]] && deploy_one client
+#
+# Именно if, а не `[[ ... ]] && deploy_one`: у такой связки с ложным условием код возврата
+# ненулевой, и если она стоит ПОСЛЕДНЕЙ, его наследует весь скрипт. `deploy.sh server`
+# честно выкатывал сервер и завершался с кодом 1 — на ноутбуке это незаметно, а в CI
+# означает красный шаг после успешной выкатки.
+if [[ "$target" == "all" || "$target" == "server" ]]; then
+  deploy_one server
+fi
+if [[ "$target" == "all" || "$target" == "client" ]]; then
+  deploy_one client
+fi
 
 echo "==> Готово. Проверка:"
 echo "    curl -s https://crusade-deck-server.fly.dev/health"
