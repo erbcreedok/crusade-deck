@@ -25,8 +25,8 @@ rules can later be layered as configuration.
 ## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 197 tests
-cd client && npm test && npx tsc --noEmit   # 754 tests
+cd server && npm test && npx tsc --noEmit   # 222 tests
+cd client && npm test && npx tsc --noEmit   # 793 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -147,6 +147,29 @@ zero-sized rect — so hit-testing and painting both drop it without a special c
   edge, and a mismatch there reads as an accident rather than as layout. The reference is
   the deck — the only one whose size is dictated by its contents. The discard keeps that
   width while empty too: the box marks the table out, it doesn't report how full it is.
+- **The play zone** (`GameState.play`) is the middle box in game: a LIST OF STACKS, each
+  from one card to as many as you like, everything in it face up. The server stores only
+  what's in which stack — no geometry: where a stack lands on screen is `playGrid.ts`,
+  from its index. Rules for it are in `server/src/playRules.ts` (`play_card`, `take_play`,
+  `clear_play`); the zone is COMMON — any player may put into and take from any stack,
+  including someone else's card. Turn order (a queue lock) is a later layer on top.
+  - An emptied stack disappears from the list, on both sides. A grid cell with nothing in
+    it takes up room and has nothing to show.
+  - A stale stack index doesn't drop the action — the card just lands as a new stack. It
+    already left the hand visually, and bouncing it back with no explanation is worse than
+    landing it one cell over.
+  - In the engine the zone is the FOURTH `CardPile`, not N of them: the stacks flatten to
+    one order (`playFlat.ts`) and the layout turns a flat index back into "stack k, j-th
+    from the bottom". That's what keeps sprites bound to card identity, so a card moving
+    between stacks flies instead of teleporting.
+  - Stacks of the zone are ordinary board piles named `play:N` (`engine/boardPile.ts`), so
+    the whole board-fan mechanism came for free: a tap opens a stack at `boardFanAnchor`,
+    exactly where the deck and the discard open.
+  - The grid picks the column count that makes the card biggest. When space runs out the
+    order of concessions is fixed: shrink the card down to `PLAY_MIN_SCALE`, and only then
+    scroll. The other way round, a player would be scrolling the table at ten stacks while
+    everything fits a little smaller. Room for the NEXT stack is always reserved — on a
+    grid filled to the edge there would otherwise be nowhere to start one.
 - Seating is a «П» (`seatLayout.ts`): at most one neighbour per side (and always either
   two of them or none), everyone else goes into the scrolling top strip. Side neighbours
   do NOT narrow the table — on a phone that would squeeze the play area into a slit;
