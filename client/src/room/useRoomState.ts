@@ -23,6 +23,8 @@ export interface RoomStateView {
   deck: string[];
   setDeck: (deck: string[]) => void;
   discard: string[];
+  /** Игральная зона: список кучек (см. GameState.play). */
+  play: string[][];
   facing: Record<string, boolean>;
   myHand: string[];
   /** Применить свой порядок руки локально и запомнить его до подтверждения эхом. */
@@ -45,6 +47,7 @@ export function useRoomState(room: Room): RoomStateView {
   const [proposal, setProposal] = useState<ActiveProposal | null>(null);
   const [deck, setDeck] = useState<string[]>([]);
   const [discard, setDiscard] = useState<string[]>([]);
+  const [play, setPlay] = useState<string[][]>([]);
   const [myHand, setMyHand] = useState<string[]>([]);
   const [freeMode, setFreeMode] = useState(false);
   const [deckFanned, setDeckFanned] = useState(false);
@@ -76,6 +79,7 @@ export function useRoomState(room: Room): RoomStateView {
       setProposal(s.proposal);
       setDeckLocation(s.deckLocation);
       setDiscard(s.discard);
+      setPlay(s.play);
       setFreeMode(s.freeMode);
       setDeckFanned(s.deckFanned);
 
@@ -113,6 +117,7 @@ export function useRoomState(room: Room): RoomStateView {
     deck,
     setDeck,
     discard,
+    play,
     facing,
     myHand,
     applyMyHandOrder,

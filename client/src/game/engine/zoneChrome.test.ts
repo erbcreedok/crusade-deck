@@ -10,6 +10,7 @@ const IDLE = {
   active: false,
   dragged: "card" as const,
   myReady: false,
+  inGame: false,
 };
 
 describe("zoneChrome", () => {

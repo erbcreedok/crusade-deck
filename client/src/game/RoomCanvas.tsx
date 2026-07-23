@@ -49,6 +49,9 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setDeck(props.deck), [props.deck.join(",")]);
   useEngineEffect(e, (en) => en.setHand(props.hand), [props.hand.join(",")]);
   useEngineEffect(e, (en) => en.setDiscard(props.discard), [props.discard.join(",")]);
+  // Ключ по составу зоны целиком: кучек может стать больше или меньше, и сравнение по
+  // длине списка пропустило бы переезд карты из кучки в кучку.
+  useEngineEffect(e, (en) => en.setPlay(props.play), [props.play.map((s) => s.join(",")).join("|")]);
   useEngineEffect(e, (en) => en.setSeats(props.seats), [seatsSignature(props.seats)]);
   useEngineEffect(e, (en) => en.setSelectedDecks(props.selectedDecks), [props.selectedDecks.join(",")]);
   useEngineEffect(e, (en) => en.setFreeMode(props.freeMode), [props.freeMode]);
@@ -79,6 +82,9 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setOnDealCard(props.onDealCard), [props.onDealCard]);
   useEngineEffect(e, (en) => en.setOnDiscardCard(props.onDiscardCard), [props.onDiscardCard]);
   useEngineEffect(e, (en) => en.setOnTakeDiscard(props.onTakeDiscard), [props.onTakeDiscard]);
+  useEngineEffect(e, (en) => en.setOnPlayCard(props.onPlayCard), [props.onPlayCard]);
+  useEngineEffect(e, (en) => en.setOnTakePlay(props.onTakePlay), [props.onTakePlay]);
+  useEngineEffect(e, (en) => en.setOnClearPlay(props.onClearPlay), [props.onClearPlay]);
   useEngineEffect(e, (en) => en.setOnBoardFanChange(props.onBoardFanChange), [props.onBoardFanChange]);
   useEngineEffect(e, (en) => en.setOnDeckFanChange(props.onDeckFanChange), [props.onDeckFanChange]);
   useEngineEffect(e, (en) => en.setOnCardReorder(props.onCardReorder), [props.onCardReorder]);

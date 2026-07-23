@@ -15,6 +15,8 @@ export interface EngineState {
   deck: string[];
   hand: string[]; // моя рука (Player.hand)
   discard: string[]; // сброс: сыгранные карты, лицом вверх
+  /** Игральная зона: список кучек, каждая снизу вверх. Всё в ней лицом вверх. */
+  play: string[][];
   seats: SeatView[];
   selectedDecks: readonly string[];
   topInset: number;
@@ -42,6 +44,12 @@ export interface EngineCallbacks {
   onDiscardCard: (card: string) => void;
   /** Карту забрали из сброса себе в руку. */
   onTakeDiscard: (card: string) => void;
+  /** Карту из руки выложили в зону; stack === null — новой кучкой. */
+  onPlayCard: (card: string, stack: number | null) => void;
+  /** Карту забрали из зоны себе в руку. */
+  onTakePlay: (card: string) => void;
+  /** Кнопка «В СБРОС» в боксе зоны. */
+  onClearPlay: () => void;
   /** Игрок раскрыл/свернул веер доски. */
   onBoardFanChange: (pile: BoardPile | null) => void;
   onDeckFanChange: (open: boolean) => void;
@@ -96,6 +104,7 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setDeck(p.deck);
   engine.setHand(p.hand);
   engine.setDiscard(p.discard);
+  engine.setPlay(p.play);
   engine.setCardFacing(p.facing);
   engine.setSelectedDecks(p.selectedDecks);
 
@@ -104,6 +113,9 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setOnDealCard(p.onDealCard);
   engine.setOnDiscardCard(p.onDiscardCard);
   engine.setOnTakeDiscard(p.onTakeDiscard);
+  engine.setOnPlayCard(p.onPlayCard);
+  engine.setOnTakePlay(p.onTakePlay);
+  engine.setOnClearPlay(p.onClearPlay);
   engine.setOnBoardFanChange(p.onBoardFanChange);
   engine.setOnDeckFanChange(p.onDeckFanChange);
   engine.setOnCardReorder(p.onCardReorder);

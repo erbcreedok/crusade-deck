@@ -31,10 +31,19 @@ const ACTIONS: Record<DraggedKind, Record<DropZone, string>> = {
   },
 };
 
-export function zoneTitle(zone: DropZone): string {
+// Центр стола — единственная зона, которая в игре означает СОВСЕМ другое: в раздаче там
+// лежит колода и брошенная карта возвращается в неё, а в игре там игральная зона и карта
+// на столе остаётся. Подпись обязана говорить именно то, что случится.
+const GAME_ACTIONS: Partial<Record<DraggedKind, Partial<Record<DropZone, string>>>> = {
+  card: { center: "выложить на стол" },
+  take: { center: "оставить на столе" },
+};
+
+export function zoneTitle(zone: DropZone, inGame = false): string {
+  if (inGame && zone === "center") return "игра";
   return TITLES[zone];
 }
 
-export function zoneAction(zone: DropZone, dragged: DraggedKind): string {
-  return ACTIONS[dragged][zone];
+export function zoneAction(zone: DropZone, dragged: DraggedKind, inGame = false): string {
+  return (inGame ? GAME_ACTIONS[dragged]?.[zone] : undefined) ?? ACTIONS[dragged][zone];
 }

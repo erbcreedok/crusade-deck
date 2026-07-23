@@ -119,6 +119,14 @@ describe("RoomEngine.setHand", () => {
   });
 });
 
+/** ВСЕ узлы с данным zIndex: хит-зон на Z.deckHit несколько (колода, сброс, зона). */
+function findAllByZ(node: any, z: number): any[] {
+  const out: any[] = [];
+  if (node.zIndex === z) out.push(node);
+  for (const kid of node.children ?? []) out.push(...findAllByZ(kid, z));
+  return out;
+}
+
 /** Найти на сцене узел по zIndex (хит-зоны движка отличаются именно им). */
 function findByZ(node: any, z: number): any {
   if (node.zIndex === z) return node;
@@ -564,6 +572,136 @@ describe("RoomEngine: сброс", () => {
       .children.filter((c: any) => live.has(c) && c.visible && c.label !== "shadow");
     const atSlot = onScene.filter((sp: any) => Math.abs(sp.x - slot.cx) < 60 && Math.abs(sp.y - slot.cy) < 60);
     expect(atSlot.length).toBeGreaterThan(0);
+  });
+});
+
+describe("RoomEngine: игральная зона", () => {
+  /** Утащить карту из раскрытой руки в точку (x,y). */
+  function dragHandCardTo(app: any, x: number, y: number): void {
+    const handHit = findByZ(app.stage, 10_100); // Z.handHit
+    const start = { x: 195, y: 700 };
+    handHit.__emit("pointerdown", { pointerId: 2, global: start, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 2, global: { x: start.x + 20, y: start.y - 20 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 2, global: { x, y } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 2, global: { x, y } });
+  }
+
+  async function inGame() {
+    const r = await mountEngine();
+    r.engine.setSelfId("me");
+    r.engine.setFreeMode(true);
+    return r;
+  }
+
+  it("на каждую карту зоны ровно один спрайт, дубликатов нет", async () => {
+    const { engine, app } = await inGame();
+    const cardCount = () => pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length;
+    const before = cardCount();
+    engine.setPlay([["2♦", "3♦"], ["4♦"]]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    expect(cardCount() - before).toBe(3);
+  });
+
+  // Спрайты привязаны к идентичности карты: переезд карты между кучками обязан
+  // переиспользовать её спрайт, иначе перелёт превратился бы в исчезновение и появление.
+  it("переезд карты между кучками не плодит спрайтов", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦"], ["3♦"]]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+    const before = pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length;
+
+    engine.setPlay([["2♦", "3♦"]]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    expect(pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length).toBe(before);
+  });
+
+  it("опустевшая зона забирает свои спрайты со сцены", async () => {
+    const { engine, app } = await inGame();
+    const cardCount = () => pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length;
+    const before = cardCount();
+    engine.setPlay([["2♦", "3♦"]]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+    engine.setPlay([]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    expect(cardCount()).toBe(before);
+  });
+
+  it("карта из руки, брошенная в центр стола, выкладывается в зону", async () => {
+    const { engine, app } = await inGame();
+    engine.setHand(["2♦", "3♦", "4♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const played: { card: string; stack: number | null }[] = [];
+    engine.setOnPlayCard((card: string, stack: number | null) => played.push({ card, stack }));
+    const zone = (await import("./layout")).computeLayout(390, 800, undefined, true).centerZone;
+    dragHandCardTo(app, zone.cx, zone.cy);
+
+    expect(played).toHaveLength(1);
+    // Зона пуста — попасть не во что, значит это заявка на НОВУЮ кучку.
+    expect(played[0]!.stack).toBeNull();
+  });
+
+  it("брошенная на лежащую кучку карта доливается именно в неё", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦"], ["3♦"]]);
+    engine.setHand(["4♦", "5♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const played: (number | null)[] = [];
+    engine.setOnPlayCard((_card: string, stack: number | null) => played.push(stack));
+    const { computeLayout } = await import("./layout");
+    const { playGrid } = await import("./playGrid");
+    const layout = computeLayout(390, 800, undefined, true);
+    const grid = playGrid(layout.centerZone, layout.cardW, layout.cardH, 2);
+    dragHandCardTo(app, grid.cells[1]!.cx, grid.cells[1]!.cy);
+
+    expect(played).toEqual([1]);
+  });
+
+  it("тап по кучке раскрывает именно её веер", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦"], ["3♦"]]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    const opened: (string | null)[] = [];
+    engine.setOnBoardFanChange((pile: string | null) => opened.push(pile));
+    const { computeLayout } = await import("./layout");
+    const { playGrid } = await import("./playGrid");
+    const layout = computeLayout(390, 800, undefined, true);
+    const grid = playGrid(layout.centerZone, layout.cardW, layout.cardH, 2);
+    const cell = grid.cells[1]!;
+    // Хит-зон на Z.deckHit несколько (колода, сброс, зона) — тапаем все: сработает та,
+    // чья хит-область накрывает точку.
+    for (const node of findAllByZ(app.stage, 10_000)) {
+      node.__emit("pointertap", { global: { x: cell.cx, y: cell.cy }, stopPropagation() {} });
+    }
+
+    expect(opened).toContain("play:1");
+  });
+
+  it("кнопка «В СБРОС» уносит зону целиком", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦"], ["3♦"]]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    let cleared = 0;
+    engine.setOnClearPlay(() => (cleared += 1));
+    const { computeLayout } = await import("./layout");
+    const { clearPlayButton } = await import("./engine/clearPlayButton");
+    const layout = computeLayout(390, 800, undefined, true);
+    const btn = clearPlayButton(layout.centerZone, layout.cardH);
+    for (const node of findAllByZ(app.stage, 10_000)) {
+      node.__emit("pointertap", { global: { x: btn.cx, y: btn.cy }, stopPropagation() {} });
+    }
+
+    expect(cleared).toBe(1);
   });
 });
 

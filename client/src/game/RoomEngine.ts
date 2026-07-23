@@ -114,6 +114,10 @@ import {
   ZERO_SHAKE,
 } from "./engine/constants";
 import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShadowLayer, ShufflePose } from "./engine/types";
+import { playPile, playPileIndex } from "./engine/boardPile";
+import { CLEAR_PLAY_LABEL, clearPlayButton, hitsClearPlay } from "./engine/clearPlayButton";
+import { flattenPlay, type PlaySlot } from "./playFlat";
+import { pickPlayCell, playGrid, type PlayGrid } from "./playGrid";
 import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./engine/cardTextures";
 import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
@@ -213,6 +217,22 @@ export class RoomEngine {
     restTarget: (i) => this.discardRestTarget(i),
     place: (v, i) => (v.sprite.zIndex = i),
   });
+  // ИГРАЛЬНАЯ ЗОНА — средний бокс стола. Стопка ОДНА на всю зону, хотя кучек в ней много:
+  // карты развёрнуты в плоский порядок (playFlat), а раскладка переводит номер обратно в
+  // «кучка k, j-я снизу» (playGrid). Так зона получает то же, что колода и рука, — спрайты
+  // по идентичности карты, а значит переезд карты между кучками играется перелётом.
+  private playPile = new CardPile({
+    create: (card) => this.createCardVisual(card),
+    restTarget: (i) => this.playRestTarget(i),
+    place: (v, i) => (v.sprite.zIndex = i),
+  });
+  /** Состав зоны как его прислал сервер: кучка → карты снизу вверх. */
+  private playStacks: string[][] = [];
+  /** Место каждой карты зоны, тем же индексом, что и в playPile (см. playFlat). */
+  private playSlots: PlaySlot[] = [];
+  // Прокрутка зоны. Появляется, только когда кучки перестали влезать даже сжатыми в пол
+  // (см. playGrid): сначала мельчаем, и лишь потом листаем.
+  private playScroll = 0;
   private layout: RoomLayout = computeLayout(1, 1);
   private w = 1;
   private h = 1;
@@ -234,6 +254,11 @@ export class RoomEngine {
   private onDealCard: ((card: string, to: string) => void) | null = null;
   private onDiscardCard: ((card: string) => void) | null = null;
   private onTakeDiscard: ((card: string) => void) | null = null;
+  // Игральная зона. stack === null означает «новой кучкой» — ровно то, что видит игрок,
+  // когда роняет карту мимо уже лежащих.
+  private onPlayCard: ((card: string, stack: number | null) => void) | null = null;
+  private onTakePlay: ((card: string) => void) | null = null;
+  private onClearPlay: (() => void) | null = null;
   private onPutToDeck: ((card: string) => void) | null = null;
   private onDeckFanChange: ((open: boolean) => void) | null = null;
   private onBoardFanChange: ((pile: BoardPile | null) => void) | null = null; // тап открывает / стрелка сворачивает
@@ -286,6 +311,8 @@ export class RoomEngine {
   private deckCounter: Text | null = null; // счётчик карт под колодой в центре (стопка и веер)
   private deckHit: Container | null = null;
   private discardHit: Container | null = null; // тап по сбросу раскрывает его веером
+  private playHit: Container | null = null; // тап по кучке зоны раскрывает её веером
+  private playClearBtn: Container | null = null; // кнопка «В СБРОС», вшитая в бокс зоны
 
   // Драг колоды дилером: press — палец/мышь прижаты у колоды (ещё не факт что драг),
   // dragging — порог смещения пройден, колода реально едет за курсором.
@@ -660,6 +687,28 @@ export class RoomEngine {
     this.world!.addChild(discardHit);
     this.discardHit = discardHit;
 
+    // Хит-зона ИГРАЛЬНОЙ ЗОНЫ. Одна на весь бокс, а не по хит-зоне на кучку: кучки
+    // появляются и исчезают на ходу, и заводить им контейнеры значило бы вести второй
+    // список того же самого. Какая кучка под пальцем — спрашивается у сетки в момент тапа.
+    const playHit = new Container();
+    playHit.eventMode = "none";
+    playHit.cursor = "pointer";
+    playHit.zIndex = Z.deckHit;
+    playHit.on("pointertap", (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      if (this.dragHappened) return;
+      const { x, y } = e.global;
+      // Кнопка «В СБРОС» лежит внутри бокса и перехватывает тап первой.
+      if (this.playClearVisible() && hitsClearPlay(clearPlayButton(this.layout.centerZone, this.layout.cardH), x, y)) {
+        this.onClearPlay?.();
+        return;
+      }
+      const stack = pickPlayCell(this.playGridNow(), x, y);
+      if (stack !== null) this.onBoardFanChange?.(playPile(stack));
+    });
+    this.world!.addChild(playHit);
+    this.playHit = playHit;
+
     this.positionDeckHit();
 
     // Стрелки «сложить»: рука — любому; колода на столе — только дилеру (syncCollapseButton).
@@ -672,6 +721,7 @@ export class RoomEngine {
     this.handCounter = this.makeCounterText();
     this.deckCounter = this.makeCounterText();
     this.discardCounter = this.makeCounterText();
+    this.playClearBtn = this.makePlayClearButton();
     this.syncCollapseButton();
     this.syncDeckCounter();
     this.syncDiscardCounter();
@@ -793,16 +843,19 @@ export class RoomEngine {
 
   /** Карты стопки доски по её имени. */
   private pileCards(pile: BoardPile): CardVisual[] {
+    const play = playPileIndex(pile);
+    if (play !== null) return this.playCards.filter((_, i) => this.playSlots[i]?.stack === play);
     return pile === "discard" ? this.discardCards : this.cards;
   }
 
   /** Карты той стопки, что сейчас лежит веером на доске. По умолчанию — колода. */
   private get fanCards(): CardVisual[] {
-    return this.boardFan === "discard" ? this.discardCards : this.cards;
+    return this.boardFan ? this.pileCards(this.boardFan) : this.cards;
   }
 
   private get fanCount(): number {
-    return this.boardFan === "discard" ? this.discardPile.count : this.deckCount;
+    if (!this.boardFan || this.boardFan === "deck") return this.deckCount;
+    return this.pileCards(this.boardFan).length;
   }
 
   /** Масштаб собранных стопок доски: в игре они обычного размера, в раздаче — крупнее. */
@@ -840,6 +893,45 @@ export class RoomEngine {
   }
 
   // Счётчик карт под стопкой (их два — под рукой и под колодой, различие только в позиции).
+  /**
+   * Кнопка «В СБРОС» в боксе зоны: подложка + надпись. Своей хит-зоны у неё нет — палец
+   * ловит хит-зона всего бокса и первым делом спрашивает у кнопки, не в неё ли попали
+   * (см. playHit). Иначе кнопка перекрывала бы сетку и тап «мимо кучек» рядом с ней
+   * переставал бы создавать новую кучку.
+   */
+  private makePlayClearButton(): Container {
+    const box = new Container();
+    box.zIndex = Z.counters;
+    box.eventMode = "none";
+    box.visible = false;
+    box.addChild(new Graphics());
+    const t = new Text({
+      text: CLEAR_PLAY_LABEL,
+      style: { fontFamily: PIXEL_FONT, fontSize: 16, fill: COLORS.ink, letterSpacing: 1 },
+    });
+    t.anchor.set(0.5);
+    t.eventMode = "none";
+    box.addChild(t);
+    this.world!.addChild(box);
+    return box;
+  }
+
+  private syncPlayClearButton(): void {
+    const box = this.playClearBtn;
+    if (!box) return;
+    const show = this.playClearVisible();
+    box.visible = show;
+    if (!show) return;
+    const b = clearPlayButton(this.layout.centerZone, this.layout.cardH);
+    const g = box.children[0] as Graphics;
+    const t = box.children[1] as Text;
+    g.clear();
+    g.roundRect(b.cx - b.w / 2, b.cy - b.h / 2, b.w, b.h, b.r).fill({ color: COLORS.gold, alpha: 0.85 });
+    t.style.fontSize = b.fontSize;
+    t.x = b.cx;
+    t.y = b.cy;
+  }
+
   private makeCounterText(): Text {
     const t = new Text({
       text: "",
@@ -970,6 +1062,83 @@ export class RoomEngine {
     this.wake();
   }
 
+  /**
+   * Игральная зона с сервера: список кучек. Приезжает целиком на каждое изменение —
+   * зона короткая, а diff по кучкам стоил бы ровно тех багов с индексами, ради которых
+   * на сервере зона тоже переписывается целиком.
+   */
+  setPlay(stacks: string[][]): void {
+    this.playStacks = stacks.map((s) => [...s]);
+    const flat = flattenPlay(this.playStacks);
+    this.playSlots = flat.slots;
+    if (!this.cardLayer || !this.backTex) {
+      this.playPile.remember(flat.order);
+      return;
+    }
+    // Веер мог остаться раскрытым на кучке, которую только что смахнули в сброс или
+    // разобрали по рукам. Раскрытой «пустоты» не бывает — сворачиваем сами, не дожидаясь
+    // React: тот узнает об этом тем же колбэком, что и при тапе по стрелке.
+    const fanned = playPileIndex(this.boardFan);
+    if (fanned !== null && !this.playStacks[fanned]?.length) {
+      this.boardFan = null;
+      this.onBoardFanChange?.(null);
+    }
+    this.playPile.reconcile(flat.order);
+    this.playCards.forEach((c, i) => {
+      c.body.snapTo(this.playRestTarget(i));
+      c.sprite.texture = this.faceTexture(c.card); // выложенную карту видят все
+      c.sprite.alpha = 1;
+    });
+    this.syncPlayVisibility();
+    this.drawZones();
+    this.wake();
+  }
+
+  private get playCards(): CardVisual[] {
+    return this.playPile.cards;
+  }
+
+  /** Сетка зоны на текущую раскладку. Дёшево и без состояния — считается по месту. */
+  private playGridNow(): PlayGrid {
+    return playGrid(
+      this.layout.centerZone,
+      this.layout.cardW,
+      this.layout.cardH,
+      this.playStacks.length,
+      this.playScroll,
+    );
+  }
+
+  /**
+   * Где лежит карта зоны с плоским номером i: своя кучка в сетке, внутри кучки — обычная
+   * стопка (та же geometry, что у колоды и сброса). Раскрытая кучка уезжает в общий веер
+   * доски, как это делают колода и сброс.
+   */
+  private playRestTarget(i: number): CardTargets {
+    const slot = this.playSlots[i];
+    const grid = this.playGridNow();
+    if (!slot || !grid.cells[slot.stack]) return { x: -9999, y: -9999, rot: 0, scale: this.pileScale() };
+    if (this.boardFan === playPile(slot.stack)) return this.deckFanTarget(slot.within);
+    const cell = grid.cells[slot.stack]!;
+    // Масштаб карты в зоне задаёт сетка: чем больше кучек, тем мельче карта (см. playGrid).
+    const zs = grid.cardW / this.layout.cardW;
+    const so = stackOffset(slot.within, Math.max(1, slot.of), true);
+    return { x: cell.cx + so.dx * zs, y: cell.cy + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
+  }
+
+  // Кучка показывает только верхушку — как колода и сброс. Раскрытая веером показывает всё.
+  private syncPlayVisibility(): void {
+    const held = this.cardDrag?.v ?? this.rejectCard;
+    const fanned = playPileIndex(this.boardFan);
+    this.playCards.forEach((c, i) => {
+      const slot = this.playSlots[i];
+      if (!slot) return;
+      const open = slot.stack === fanned;
+      c.sprite.visible = open || slot.within >= slot.of - 2 || c === held;
+      if (c !== held) c.sprite.zIndex = this.pileZBase(playPile(slot.stack)) + slot.within;
+    });
+  }
+
   /** Какую стопку доски держать раскрытой: "deck", "discard" или ничего. */
   setBoardFan(pile: BoardPile | null): void {
     if (pile === this.boardFan) return;
@@ -978,6 +1147,12 @@ export class RoomEngine {
     // Прежний веер собирается обратно в свой слот, новый — разъезжается по центру.
     if (was === "discard" || pile === "discard") {
       this.discardCards.forEach((c, i) => c.body.setTarget(this.discardRestTarget(i)));
+    }
+    // Кучки зоны пересчитываем всегда: разъезжается одна, но собраться обратно должна
+    // ровно та, что была раскрыта до этого.
+    if (playPileIndex(was) !== null || playPileIndex(pile) !== null) {
+      this.playCards.forEach((c, i) => c.body.setTarget(this.playRestTarget(i)));
+      this.syncPlayVisibility();
     }
     this.syncDiscardCounter();
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
@@ -1051,6 +1226,32 @@ export class RoomEngine {
   /** Карту забрали ИЗ сброса себе в руку (React шлёт take_discard). */
   setOnTakeDiscard(fn: ((card: string) => void) | null): void {
     this.onTakeDiscard = fn;
+  }
+
+  /** Карту из руки выложили в игральную зону; stack === null — новой кучкой. */
+  setOnPlayCard(fn: ((card: string, stack: number | null) => void) | null): void {
+    this.onPlayCard = fn;
+  }
+
+  /** Карту забрали ИЗ игральной зоны себе в руку. */
+  setOnTakePlay(fn: ((card: string) => void) | null): void {
+    this.onTakePlay = fn;
+  }
+
+  /** Кнопка «В СБРОС» в боксе зоны: вся зона уезжает в сброс. */
+  setOnClearPlay(fn: (() => void) | null): void {
+    this.onClearPlay = fn;
+  }
+
+  /**
+   * Куда визуально летит карта, брошенная в зону: в ячейку своей кучки, а не в центр
+   * бокса. Полёт с пальца начинается ДО ответа сервера, и промах мимо будущего места
+   * читался бы как рывок, когда приедет настоящее состояние.
+   */
+  private playDropRect(stack: number | null): { cx: number; cy: number } {
+    const grid = this.playGridNow();
+    const cell = stack === null ? grid.addCell : (grid.cells[stack] ?? grid.addCell);
+    return { cx: cell.cx, cy: cell.cy };
   }
 
   /** Карту из руки вернули в колоду — так можно только в раздаче (put_card_to_deck). */
@@ -1786,6 +1987,18 @@ export class RoomEngine {
     this.setDiscard(withoutCard(this.discardPile.order, card));
   }
 
+  /**
+   * Карта уходит ИЗ ИГРАЛЬНОЙ ЗОНЫ в руку. Кучку правим локально, не дожидаясь эха: иначе
+   * раскрытый веер кучки продолжал бы держать место карты, которая уже улетела с пальца.
+   * Опустевшая кучка исчезает здесь так же, как на сервере, — иначе сетка на мгновение
+   * показала бы пустую ячейку и все остальные кучки дёрнулись бы на место.
+   */
+  flyPlayCardOff(card: string, from: FlightPoint, toId: string): void {
+    if (this.destroyed) return;
+    this.playDealFlight(card, from, toId);
+    this.setPlay(this.playStacks.map((s) => s.filter((c) => c !== card)).filter((s) => s.length > 0));
+  }
+
   /** Старт полёта с текущей позы (дроп раздачи с пальца). */
   playDealFlight(card: string, from: FlightPoint, toId: string): void {
     const to = this.cardMoveAnchor(toId);
@@ -2154,7 +2367,10 @@ export class RoomEngine {
         const card = d.v.card;
         // Плавный полёт с пальца к месту; эхо card_moved этот же card пропустит.
         const from = { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation };
-        if (d.pile === "discard") {
+        if (playPileIndex(d.pile) !== null) {
+          this.flyPlayCardOff(card, from, seat);
+          this.onTakePlay?.(card);
+        } else if (d.pile === "discard") {
           this.flyDiscardCardOff(card, from, seat);
           this.onTakeDiscard?.(card);
         } else {
@@ -2211,6 +2427,15 @@ export class RoomEngine {
       // объяснением, а не молчаливый возврат.
       if (zone === "deck") {
         this.startCardReject(d.v, x, y, DECK_DROP_REJECT_TEXT);
+        finish();
+        return;
+      }
+      // В ИГРЕ центр стола — ИГРАЛЬНАЯ ЗОНА. Куда именно легла карта, решает сетка:
+      // попала на кучку — доливается в неё, мимо всех — начинает новую.
+      if (this.freeMode && zone === "center") {
+        const stack = pickPlayCell(this.playGridNow(), x, y);
+        this.flyHandCardOff(card, from, this.playDropRect(stack));
+        this.onPlayCard?.(card, stack);
         finish();
         return;
       }
@@ -2295,6 +2520,8 @@ export class RoomEngine {
     if (hi >= 0) return this.handFanTarget(hi);
     const di = this.discardCards.indexOf(v);
     if (di >= 0) return this.discardRestTarget(di);
+    const pi = this.playCards.indexOf(v);
+    if (pi >= 0) return this.playRestTarget(pi);
     return this.restTarget(Math.max(0, this.cards.indexOf(v)));
   }
 
@@ -2314,6 +2541,14 @@ export class RoomEngine {
       v.sprite.zIndex = di;
       this.homingCard = v;
       this.discardCards.forEach((c, j) => c.body.setTarget(this.discardRestTarget(j)));
+      this.updateVisibility();
+      return;
+    }
+    const pi = this.playCards.indexOf(v);
+    if (pi >= 0) {
+      this.homingCard = v;
+      this.playCards.forEach((c, j) => c.body.setTarget(this.playRestTarget(j)));
+      this.syncPlayVisibility();
       this.updateVisibility();
       return;
     }
@@ -2383,6 +2618,7 @@ export class RoomEngine {
   // заливаются оверлеем, а подпись меняется на ДЕЙСТВИЕ — что будет, если бросить сюда.
   // Сами правила — в engine/zoneChrome.ts, рисование — в engine/zonePaint.ts.
   private drawZones(): void {
+    this.syncPlayClearButton();
     if (!this.zoneLayer) return;
     paintZones({
       g: this.zoneLayer,
@@ -2396,6 +2632,7 @@ export class RoomEngine {
       // а не «оставить в руке», как при перестановке своей же карты.
       dragged: (this.freeMode && this.dealDrag ? "take" : "card") as DraggedKind,
       myReady: this.selfDealReady(),
+      inGame: this.freeMode,
     });
   }
 
@@ -2516,6 +2753,7 @@ export class RoomEngine {
 
   private positionDeckHit(): void {
     this.positionDiscardHit();
+    this.positionPlayHit();
     if (!this.deckHit) return;
     // Раскрытый веер доски — любой стопки: он лежит по центру, и палец работает с ним.
     if (this.boardFan) {
@@ -2536,6 +2774,22 @@ export class RoomEngine {
     const w = (this.layout.cardW * 1.3 + ext.w) * zs;
     const h = (this.layout.cardH * 1.3 + ext.h) * zs;
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
+  }
+
+  /** Видна ли кнопка «В СБРОС»: в игре, при непустой зоне и пока не раскрыт никакой веер. */
+  private playClearVisible(): boolean {
+    return this.freeMode && this.playStacks.length > 0 && !this.boardFan;
+  }
+
+  // Хит-зона игральной зоны: сам бокс, и только пока не раскрыт веер — раскрытая стопка
+  // живёт по центру, и там за палец отвечает хит-зона доски (та же логика, что у сброса).
+  private positionPlayHit(): void {
+    const hit = this.playHit;
+    if (!hit) return;
+    const z = this.layout.centerZone;
+    const idle = this.freeMode && !this.boardFan && z.w > 0 && z.h > 0;
+    hit.eventMode = idle ? "static" : "none";
+    hit.hitArea = idle ? new Rectangle(z.cx - z.w / 2, z.cy - z.h / 2, z.w, z.h) : new Rectangle(0, 0, 0, 0);
   }
 
   // Хит-зона сброса — только его слот и только пока никакой веер не раскрыт: раскрытая
@@ -2871,6 +3125,8 @@ export class RoomEngine {
     this.faces.clear(); // снимает прогрев и освобождает лицевые текстуры
     this.deckHit = null;
     this.discardHit = null;
+    this.playHit = null;
+    this.playClearBtn = null;
     this.handHit = null;
     this.onDealCard = null;
     this.onDiscardCard = null;
@@ -2883,6 +3139,7 @@ export class RoomEngine {
     this.deckPile.clear();
     this.handPile.clear();
     this.discardPile.clear();
+    this.playPile.clear();
   }
 
   // ——— внутреннее ———
@@ -2922,6 +3179,7 @@ export class RoomEngine {
       for (const c of this.cards) c.body.step(dt);
       for (const c of this.hand) c.body.step(dt);
       for (const c of this.discardCards) c.body.step(dt);
+      for (const c of this.playCards) c.body.step(dt);
     } while (remaining > 0);
 
     // Карта долетела домой — стопка снова целая (см. topDetached).
@@ -3122,6 +3380,7 @@ export class RoomEngine {
     for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
     for (const c of this.hand) if (c.sprite.visible) this.syncVisual(c);
     for (const c of this.discardCards) if (c.sprite.visible) this.syncVisual(c);
+    for (const c of this.playCards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
     this.syncShadows();
     this.syncRejectText();
@@ -3204,7 +3463,10 @@ export class RoomEngine {
         idle: this.idleRunning(),
         fanWiggle: this.fanWiggling,
         cardsResting: this.cards.every((c) => c.body.isResting()),
-        handResting: this.hand.every((c) => c.body.isResting()) && this.discardCards.every((c) => c.body.isResting()),
+        handResting:
+          this.hand.every((c) => c.body.isResting()) &&
+          this.discardCards.every((c) => c.body.isResting()) &&
+          this.playCards.every((c) => c.body.isResting()),
       })
     ) {
       this.sleep();
@@ -3296,6 +3558,13 @@ export class RoomEngine {
       if (this.boardFan !== "discard") {
         this.pushPileShadow(specs, this.discardCards, this.pileZBase("discard"));
       }
+      // Каждая кучка зоны — своя стопка, значит своя тень. Раскрытую пропускаем: её
+      // карты уже в вееере, и тень им кладёт общая ветка веера ниже.
+      this.playStacks.forEach((_, k) => {
+        const pile = playPile(k);
+        if (this.boardFan === pile) return;
+        this.pushPileShadow(specs, this.pileCards(pile), this.pileZBase(pile));
+      });
 
       // Раскрытый веер: тени через одну-две, чтобы не сложиться в полосу.
       if (this.boardFan) {

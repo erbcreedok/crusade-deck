@@ -26,6 +26,8 @@ export interface ZonePaintDeps {
   hoverZone: DropTarget | null;
   dragged: DraggedKind;
   myReady: boolean;
+  /** Комната в игре: центр стола — игральная зона, а не место колоды. */
+  inGame: boolean;
 }
 
 export function paintZones(d: ZonePaintDeps): void {
@@ -47,6 +49,7 @@ export function paintZones(d: ZonePaintDeps): void {
       dragged: d.dragged,
       myReady: d.myReady,
       live,
+      inGame: d.inGame,
     });
     const x = rect.cx - rect.w / 2;
     const y = rect.cy - rect.h / 2;

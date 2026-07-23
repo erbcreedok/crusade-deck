@@ -16,6 +16,7 @@ import { seatsForViewer } from "./game/seatOrder";
 import { tallyVotes } from "./game/voteWeight";
 import type { AnimationSettings } from "./game/anim/animationSettings";
 import type { BoardPile } from "./game/engine/types";
+import { playPileIndex } from "./game/engine/boardPile";
 import type { RoomPlayer } from "./room/readState";
 import { useRoomState } from "./room/useRoomState";
 import { useRoomSignals } from "./room/useRoomSignals";
@@ -52,6 +53,7 @@ export function RoomScreen({
     deck,
     setDeck,
     discard,
+    play,
     facing,
     myHand,
     applyMyHandOrder,
@@ -118,10 +120,19 @@ export function RoomScreen({
   // Личный веер живёт, только пока есть что держать веером: смена режима стола, пустая
   // стопка или унесённая со стола колода — и он сворачивается сам.
   const deckOnTable = deckLocation === "center";
-  const fannedCount = myBoardFan === "discard" ? discard.length : deck.length;
+  const fannedPlay = playPileIndex(myBoardFan);
+  const fannedCount =
+    fannedPlay !== null
+      ? (play[fannedPlay]?.length ?? 0)
+      : myBoardFan === "discard"
+        ? discard.length
+        : deck.length;
+  // «Колода на столе» — условие только для веера КОЛОДЫ: кучки зоны и сброс живут своей
+  // жизнью, и унесённая колода не повод сворачивать их.
+  const fanNeedsDeck = myBoardFan === "deck";
   useEffect(() => {
-    if (!freeMode || fannedCount === 0 || !deckOnTable) setMyBoardFan(null);
-  }, [freeMode, fannedCount, deckOnTable]);
+    if (!freeMode || fannedCount === 0 || (fanNeedsDeck && !deckOnTable)) setMyBoardFan(null);
+  }, [freeMode, fannedCount, deckOnTable, fanNeedsDeck]);
 
   // В свободе дилер перестаёт быть раздающим: вместе с раздачей у него пропадают тасовка,
   // веер колоды и всё остальное, что завязано на canDeal.
@@ -211,6 +222,31 @@ export function RoomScreen({
     },
     [freeMode, canDeal, room, setDeckFanned],
   );
+
+  // Выложить свою карту в игральную зону. stack === null — новой кучкой (карту уронили
+  // мимо лежащих). Только в игре: в раздаче зоны на столе нет.
+  const onPlayCard = useCallback(
+    (card: string, stack: number | null) => {
+      if (!freeMode) return;
+      room.send("play_card", stack === null ? { card } : { card, stack });
+    },
+    [freeMode, room],
+  );
+
+  // Забрать карту из зоны себе в руку. По имени карты: зона открыта, игрок берёт то, что видит.
+  const onTakePlay = useCallback(
+    (card: string) => {
+      if (!freeMode) return;
+      room.send("take_play", { card });
+    },
+    [freeMode, room],
+  );
+
+  // «В СБРОС»: вся зона уезжает в сброс. Кнопка вшита в бокс зоны и доступна каждому.
+  const onClearPlay = useCallback(() => {
+    if (!freeMode) return;
+    room.send("clear_play");
+  }, [freeMode, room]);
 
   // Раскрыть/свернуть свою стопку на доске. Наружу ничего не шлём: веер личный.
   const onBoardFanChange = useCallback((pile: BoardPile | null) => setMyBoardFan(pile), []);
@@ -353,6 +389,7 @@ export function RoomScreen({
         deck={deck}
         hand={myHand}
         discard={discard}
+        play={play}
         seats={seats}
         selectedDecks={selectedDecks}
         onDeckTap={onDeckTap}
@@ -379,6 +416,9 @@ export function RoomScreen({
         onDealCard={onDealCard}
         onDiscardCard={onDiscardCard}
         onTakeDiscard={onTakeDiscard}
+        onPlayCard={onPlayCard}
+        onTakePlay={onTakePlay}
+        onClearPlay={onClearPlay}
         onBoardFanChange={onBoardFanChange}
         onDeckFanChange={onDeckFanChange}
         collectSignal={collectSignal}

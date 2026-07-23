@@ -35,6 +35,8 @@ export interface RoomSnapshot {
   deck: string[];
   /** Сброс: сыгранные карты, лежат лицом вверх. */
   discard: string[];
+  /** Игральная зона: список кучек, в каждой карты снизу вверх. Всё лицом вверх. */
+  play: string[][];
   facing: Record<string, boolean>;
   deckLocation: string;
   /** Режим свободы: карты со стола игроки берут сами (см. GameState.freeMode). */
@@ -82,6 +84,15 @@ export function readProposal(state: any): ActiveProposal | null {
   return { kind: ap.kind, proposerId: ap.proposerId, targetId: ap.targetId, deadline: ap.deadline, votes };
 }
 
+/**
+ * Игральная зона. Вложенный массив схемы (ArraySchema<PlayStack>) — единственное место,
+ * где приходится разворачивать схему на двух уровнях, поэтому он тут, а не инлайном.
+ */
+export function readPlay(state: any): string[][] {
+  if (!state.play) return [];
+  return Array.from(state.play as Iterable<any>).map((s: any) => (s?.cards ? [...s.cards] : []));
+}
+
 export function readFacing(state: any): Record<string, boolean> {
   const facing: Record<string, boolean> = {};
   state.faceUp?.forEach((up: boolean, card: string) => {
@@ -103,6 +114,7 @@ export function readRoomState(state: any, sessionId: string): RoomSnapshot {
     deckRev: state.deckRev ?? 0,
     deck: state.deck ? [...state.deck] : [],
     discard: state.discard ? [...state.discard] : [],
+    play: readPlay(state),
     facing: readFacing(state),
     deckLocation: state.deckLocation ?? "center",
     freeMode: !!state.freeMode,

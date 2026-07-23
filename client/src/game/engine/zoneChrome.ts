@@ -19,6 +19,8 @@ export interface ZoneChromeInput {
   myReady: boolean;
   /** Зона сейчас принимает карты. Погашенная — только бледный контур, без подписи. */
   live: boolean;
+  /** Комната в ИГРЕ: центр стола перестаёт быть местом колоды и становится игральной зоной. */
+  inGame: boolean;
 }
 
 export interface ZoneChrome {
@@ -35,7 +37,7 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
     return {
       fill: null,
       stroke: { width: 1.5, color: COLORS.gold, alpha: 0.08 },
-      label: { text: zoneTitle(o.zone), tint: COLORS.gold, alpha: 0.12 },
+      label: { text: zoneTitle(o.zone, o.inGame), tint: COLORS.gold, alpha: 0.12 },
     };
   }
   // Полоса руки: готов → жёлтая, не готов → серая (дилер всегда жёлтый).
@@ -57,8 +59,8 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
     o.active && dealHand
       ? dealSeatHoverLabel(true) // себе раздать можно всегда
       : o.dragging
-        ? zoneAction(o.zone, o.dragged)
-        : zoneTitle(o.zone);
+        ? zoneAction(o.zone, o.dragged, o.inGame)
+        : zoneTitle(o.zone, o.inGame);
 
   const label = {
     text,
@@ -114,7 +116,15 @@ export function slotLabelFontSize(slotWidth: number, cardH: number): number {
  */
 export function zoneLabelFontSize(zone: DropZone, zoneWidth: number, cardH: number): number {
   const base = Math.min(44, Math.max(14, cardH * 0.5));
-  const longest = Math.max(zoneTitle(zone).length, zoneAction(zone, "card").length, zoneAction(zone, "take").length);
+  // По максимуму из ВСЕХ вариантов подписи, включая игровые: иначе кегль прыгал бы при
+  // смене названия на действие и при переходе стола из раздачи в игру.
+  const longest = Math.max(
+    ...[false, true].flatMap((g) => [
+      zoneTitle(zone, g).length,
+      zoneAction(zone, "card", g).length,
+      zoneAction(zone, "take", g).length,
+    ]),
+  );
   const fit = (zoneWidth * 0.9) / Math.max(1, longest * 0.62);
   return Math.max(9, Math.min(base, fit));
 }
