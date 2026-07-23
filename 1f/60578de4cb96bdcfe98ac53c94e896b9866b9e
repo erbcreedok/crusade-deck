@@ -1,0 +1,35 @@
+client/src/game/engine/constants.ts
+  s_b16a7b1f1196ad::t_59d3074e2b4ce5 59-61
+client/src/game/engine/shadowPass.test.ts
+  s_b16a7b1f1196ad::t_f69c122b34f0a7 1-54
+client/src/game/engine/shadowPass.ts
+  s_b16a7b1f1196ad::t_ab41b348a2f8b5 1-64
+client/src/game/engine/cardTextures.ts
+  s_b16a7b1f1196ad::t_e7e00dab5d26bd 98-103,107
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_2fec520140a89e 878-887,892,894,896-898,900-937
+  s_b16a7b1f1196ad::t_1c5b80c6639196 554-556,560,563-564
+  s_b16a7b1f1196ad::t_dcdfcb00012b95 888-891,893,895,899
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_b8070802c58915 587-588
+  s_b16a7b1f1196ad::t_e7e00dab5d26bd 3439,3441-3444,3446-3447
+  s_b16a7b1f1196ad::t_59d3074e2b4ce5 98,123
+  s_b16a7b1f1196ad::t_485083b992fbd4 306,2730,2985
+  s_b16a7b1f1196ad::t_5cf6d8b0f42897 3108-3161,3163-3178,3180-3186,3189-3190,3192-3194,3198-3204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1f60578de4cb96bdcfe98ac53c94e896b9866b9e",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
