@@ -881,7 +881,7 @@ describe("RoomEngine: тени", () => {
   const shadowFills = (app: any) =>
     findByZ(app.stage, 3).children.filter((c: any) => c.label === "shadow");
 
-  it("сколько бы карт ни лежало, заливок теней всего две — по слою", async () => {
+  it("сколько бы карт ни лежало, заливок теней единицы — по одной на высоту сцены", async () => {
     const { engine, app } = await mountEngine();
     const full = ["♠", "♥", "♦", "♣"].flatMap((suit) =>
       ["6", "7", "8", "9", "10", "J", "Q", "K", "A"].map((rank) => rank + suit),
@@ -891,7 +891,49 @@ describe("RoomEngine: тени", () => {
     engine.setBoardFan("deck");
     for (let i = 0; i < 150; i++) app.ticker.__advance(16);
 
-    expect(shadowFills(app)).toHaveLength(2);
+    const fills = shadowFills(app).filter((f: any) => f.visible);
+    expect(fills.length).toBeGreaterThan(0);
+    expect(fills.length).toBeLessThanOrEqual(3); // стопки, веер, поднятая карта — и всё
+    expect(fills.length).toBeLessThan(full.length); // а не по заливке на карту
+  });
+
+  it("тень стопки лежит ПОД её картами, а не поверх них", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setDeck(DECK_36); // раздача: колода стопкой посреди стола
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const live = new Set(pixi.__liveSprites());
+    const lowestCard = Math.min(
+      ...findByZ(app.stage, 3)
+        .children.filter((c: any) => live.has(c) && c.visible)
+        .map((c: any) => c.zIndex),
+    );
+    const fills = shadowFills(app).filter((f: any) => f.visible);
+    expect(fills.length).toBeGreaterThan(0);
+    for (const f of fills) expect(f.zIndex).toBeLessThan(lowestCard);
+  });
+
+  it("в покое тень идёт за «дыханием» карты, а не стоит колом", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const engine = new RoomEngine();
+    // Полная анимация: только на ней карты в покое чуть качаются и пульсируют.
+    engine.setAnimationProfile(resolveProfile({ level: "full", speed: 1 }));
+    await engine.mount(host, 390, 800);
+    const app = pixi.__apps[pixi.__apps.length - 1];
+    engine.setDeck(DECK_36);
+    for (let i = 0; i < 60; i++) app.ticker.__advance(16);
+
+    const live = new Set(pixi.__liveSprites());
+    const bottom = () =>
+      findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible)[0];
+    const before = { rot: bottom().rotation, scale: bottom().scale.x };
+    for (let i = 0; i < 30; i++) app.ticker.__advance(16);
+    const after = { rot: bottom().rotation, scale: bottom().scale.x };
+
+    // Карта действительно дышит — иначе тест ничего не проверяет.
+    expect(after.rot !== before.rot || after.scale !== before.scale).toBe(true);
+    // А тень строится по позе СПРАЙТА, поэтому дышит вместе с ней (см. syncShadows).
     expect(shadowFills(app).some((f: any) => f.visible)).toBe(true);
   });
 

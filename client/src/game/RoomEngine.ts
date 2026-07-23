@@ -306,10 +306,9 @@ export class RoomEngine {
     loose: boolean;
     samples: SwipeSample[]; // история движения — по ней ловим бросок вниз
   } | null = null;
-  // Два слоя теней: стол (стопки и веер) и поднятая карта. В каждом — маска из силуэтов
-  // и одна заливка сквозь неё, поэтому тени слоя сливаются, а не темнеют друг о друга.
-  private tableShadows: ShadowLayer | null = null;
-  private raisedShadows: ShadowLayer | null = null;
+  // Слои теней — по одному на высоту сцены (стопки, веер, поднятая карта). В каждом маска
+  // из силуэтов и одна заливка сквозь неё, поэтому тени слоя сливаются, а не темнеют.
+  private shadowLayers: ShadowLayer[] = [];
   // «Выплеск» по свайпу вверх: несколько карт вылетают из веера и возвращаются, пока
   // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
   // если новый порядок придёт в полёте, карта просто вернётся уже в новый слот.
@@ -592,8 +591,6 @@ export class RoomEngine {
 
   // «Кирпич» колоды и два слоя теней (см. paintShadows).
   private buildShadows(): void {
-    this.tableShadows = this.makeShadowLayer();
-    this.raisedShadows = this.makeShadowLayer();
 
     // «Кирпич» колоды живёт в слое карт под ними: верхняя карта — настоящий спрайт,
     // всё, что под ней, рисуется одной Graphics (см. drawDeckBody).
@@ -2747,8 +2744,7 @@ export class RoomEngine {
     this.shoutFires = [];
     this.shout = null;
     this.shadowLayer = null;
-    this.tableShadows = null;
-    this.raisedShadows = null;
+    this.shadowLayers = [];
     this.deckBody = null;
     this.cardLayer = null;
     this.backTex = null;
@@ -3163,7 +3159,7 @@ export class RoomEngine {
             x: c.sprite.x,
             y: c.sprite.y,
             rot: c.sprite.rotation,
-            scale: c.body.scaleVal,
+            scale: c.sprite.scale.x,
             lift: FAN_SHADOW_LIFT,
             z: Z.boardFan - 1,
           });
@@ -3176,7 +3172,7 @@ export class RoomEngine {
           x: lifted.sprite.x,
           y: lifted.sprite.y,
           rot: lifted.sprite.rotation,
-          scale: lifted.body.scaleVal,
+          scale: lifted.sprite.scale.x,
           lift: liftOf(lifted.body.scaleVal) * DRAG_SHADOW_LIFT,
           z: Z.draggedCard - 1,
         });
@@ -3190,13 +3186,14 @@ export class RoomEngine {
   private pushPileShadow(out: ShadowCaster[], cards: CardVisual[], z: number): void {
     const base = cards[0];
     if (!base || this.shuffleAnim || this.scrambleAnim) return; // разлетелись — общей тени нет
+    // Именно спрайт: он уже включает и тряску отбоя, и idle-«дыхалку».
     out.push({
-      x: base.body.px + this.shake.dx,
-      y: base.body.py + this.shake.dy,
-      rot: base.body.rotation + this.shake.rot,
-      scale: base.body.scaleVal,
+      x: base.sprite.x,
+      y: base.sprite.y,
+      rot: base.sprite.rotation,
+      scale: base.sprite.scale.x,
       lift: liftOf(base.body.scaleVal / this.pileScale()),
-      z,
+      z: z - 1, // строго ПОД своей стопкой, иначе тень накроет собственные карты
     });
   }
 
@@ -3208,21 +3205,34 @@ export class RoomEngine {
    * две тени или двадцать — заливка ложится ровно один раз, плотность везде одна.
    * Спрайт-на-тень так не умеет в принципе: каждый кладёт свою альфу поверх предыдущей.
    *
-   * Слоёв два, потому что тени должны лежать на разной высоте сцены: тени стола и веера —
-   * под веером, тень поднятой карты — над ним. Внутри слоя наложений нет по построению;
-   * между слоями пересечение возможно, но это тени РАЗНОЙ высоты (стол и рука игрока), и
-   * лёгкое сгущение там читается правильно.
+   * Слой — на каждую ВЫСОТУ сцены, и это принципиально: тень стопки обязана лежать ПОД
+   * своими картами, тень веера — под веером, но над столом, тень поднятой карты — над
+   * всем. Свалить их в один слой нельзя: тогда тень колоды легла бы поверх самой колоды.
+   * Внутри слоя наложений нет по построению; между слоями пересечься могут только тени
+   * РАЗНОЙ высоты, и лёгкое сгущение там читается правильно.
    */
   private paintShadows(specs: ShadowCaster[]): void {
-    const table = specs.filter((s) => s.z < Z.draggedCard - 1);
-    const raised = specs.filter((s) => s.z >= Z.draggedCard - 1);
-    this.paintShadowLayer(this.tableShadows, table, Z.boardFan - 1);
-    this.paintShadowLayer(this.raisedShadows, raised, Z.draggedCard - 1);
+    const byHeight = new Map<number, ShadowCaster[]>();
+    for (const spec of specs) {
+      const at = byHeight.get(spec.z);
+      if (at) at.push(spec);
+      else byHeight.set(spec.z, [spec]);
+    }
+    const heights = [...byHeight.keys()].sort((a, b) => a - b);
+    heights.forEach((z, i) => this.paintShadowLayer(this.shadowLayerAt(i), byHeight.get(z)!, z));
+    for (let i = heights.length; i < this.shadowLayers.length; i++) {
+      this.paintShadowLayer(this.shadowLayers[i]!, [], 0);
+    }
+  }
+
+  /** Слой теней по номеру; недостающие создаются на лету. */
+  private shadowLayerAt(i: number): ShadowLayer {
+    while (this.shadowLayers.length <= i) this.shadowLayers.push(this.makeShadowLayer());
+    return this.shadowLayers[i]!;
   }
 
   /** Один слой теней: маска из силуэтов + единственная заливка сквозь неё. */
-  private paintShadowLayer(layer: ShadowLayer | null, specs: ShadowCaster[], z: number): void {
-    if (!layer) return;
+  private paintShadowLayer(layer: ShadowLayer, specs: ShadowCaster[], z: number): void {
     const { mask, fill } = layer;
     mask.clear();
     if (specs.length === 0) {
@@ -3231,7 +3241,7 @@ export class RoomEngine {
     }
     for (const spec of specs) {
       const off = lightShadowOffset(this.layout.cardH, spec.lift);
-      const scale = this.baseScale * spec.scale * 1.04;
+      const scale = spec.scale * 1.04;
       mask
         .poly(
           shadowSilhouette({
