@@ -10,6 +10,7 @@ import {
   PublicRoomInfo,
   LastRoomInfo,
 } from "./colyseus";
+import { formatVersion } from "./version";
 
 export function Lobby({
   accountId,
@@ -181,6 +182,9 @@ export function Lobby({
         )}
 
         {error && <p className="pixel-error">{error}</p>}
+
+        {/* Версия внизу главного экрана: по скриншоту сразу видно, залился ли деплой. */}
+        <p className="pixel-version">{formatVersion()}</p>
       </div>
     </div>
   );

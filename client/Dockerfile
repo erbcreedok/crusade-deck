@@ -15,6 +15,14 @@ ARG VITE_SERVER_URL=ws://localhost:2567
 ARG VITE_HTTP_URL=http://localhost:2567
 ENV VITE_SERVER_URL=${VITE_SERVER_URL}
 ENV VITE_HTTP_URL=${VITE_HTTP_URL}
+
+# Номер сборки и коммит. В контекст образа .git не попадает, спросить их изнутри неоткуда —
+# поэтому передаём снаружи (scripts/deploy.sh делает это сам). Без них подпись версии
+# покажет "dev": сборка не упадёт, но по ней нельзя будет понять, что именно залилось.
+ARG APP_BUILD=dev
+ARG APP_COMMIT=dev
+ENV APP_BUILD=${APP_BUILD}
+ENV APP_COMMIT=${APP_COMMIT}
 RUN npm run build
 
 FROM nginx:alpine AS runtime

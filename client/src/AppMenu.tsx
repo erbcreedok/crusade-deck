@@ -8,6 +8,7 @@ import {
   type AnimationSettings,
   type AnimationSpeed,
 } from "./game/anim/animationSettings";
+import { formatBuild } from "./version";
 
 const LEVEL_OPTIONS: { value: AnimationLevel; label: string }[] = [
   { value: "full", label: "Полная" },
@@ -165,6 +166,11 @@ export function AppMenu({
             </button>
           </>
         )}
+
+        {/* В меню — ПОЛНАЯ подпись: версия со сборкой, коммит и время. Её диктуют в
+            поддержку, поэтому здесь всё, а на главном экране только версия. */}
+        <hr className="pixel-divider" />
+        <p className="pixel-version">{formatBuild()}</p>
       </>
     );
   }

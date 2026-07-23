@@ -206,3 +206,29 @@ client will most likely need a hard reload.
 - The recovery code is copied via `navigator.clipboard` — works only in a secure
   context, i.e. over HTTPS. That's automatic through the tunnel, but the copy button
   will break over a "bare" IP.
+
+## Fly.io (current production)
+
+Two apps, configs live in the packages themselves (`server/fly.toml`, `client/fly.toml`):
+`crusade-deck-server` and `crusade-deck-client`, region `fra`.
+
+Deploy with the script, not with a bare `fly deploy`:
+
+```bash
+scripts/deploy.sh          # both apps
+scripts/deploy.sh server   # one of them
+```
+
+It does two things a bare `fly deploy` can't. It keeps the ORDER (the server goes first —
+the client bakes the server's address into its bundle at build time), and it passes the
+BUILD NUMBER in as a build arg. `.git` isn't part of the image context, so a bare deploy
+produces a build labelled "dev" and you can't tell what's actually running in production.
+
+The version shows up in three places: at the bottom of the lobby screen, in the settings
+menu (full form, with commit and build time), and in the server's `/health`. If the client
+and the server disagree, that's the first thing to check when something works for one
+player and not another.
+
+Machines sleep between visits (`min_machines_running = 0`), so the first request after a
+pause takes a few seconds to wake the server. That's expected — rooms live in memory only,
+and a restart already kicks everyone out anyway.

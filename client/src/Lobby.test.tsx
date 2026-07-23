@@ -12,6 +12,7 @@ vi.mock("./colyseus", () => ({
 }));
 
 import { fetchLastRoom, joinRoomById, createTestRoom } from "./colyseus";
+import { BUILD_INFO, formatVersion } from "./version";
 
 afterEach(() => {
   cleanup();
@@ -70,5 +71,18 @@ describe("Lobby — тестовая комната с ботами", () => {
     fireEvent.click(screen.getByText(/Тестовая комната/));
 
     expect(await screen.findByText(/сервер недоступен/)).toBeTruthy();
+  });
+});
+
+// На главном экране — короткая подпись: по скриншоту видно, залился ли деплой. Полная
+// (с коммитом и временем) живёт в меню настроек, тут она была бы шумом.
+describe("Lobby — версия сборки", () => {
+  it("на главном экране видна версия с номером сборки", async () => {
+    vi.mocked(fetchLastRoom).mockResolvedValue(null);
+    const { container } = render(<Lobby accountId="acc-1" onRename={vi.fn()} onJoined={vi.fn()} />);
+
+    const label = container.querySelector(".pixel-version");
+    expect(label?.textContent).toBe(formatVersion());
+    expect(label?.textContent).toContain(BUILD_INFO.build);
   });
 });

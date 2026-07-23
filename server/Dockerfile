@@ -17,5 +17,12 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 
+# Номер сборки и коммит: в образе .git нет, спросить git неоткуда (см. src/version.ts).
+# Сервер отдаёт их в /health — по ним видно, той же ли сборки клиент.
+ARG APP_BUILD=dev
+ARG APP_COMMIT=dev
+ENV APP_BUILD=${APP_BUILD}
+ENV APP_COMMIT=${APP_COMMIT}
+
 EXPOSE 2567
 CMD ["node", "dist/index.js"]

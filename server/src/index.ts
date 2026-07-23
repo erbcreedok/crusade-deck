@@ -10,6 +10,7 @@ import { resolveInviteCode } from "./inviteCodes.js";
 import { createAccount, findAccountByRecoveryHash, renameAccount, regenerateRecoveryHash } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
 import { getLastRoom } from "./lastRooms.js";
+import { BUILD_INFO, formatVersion } from "./version.js";
 
 const { Server } = colyseusPkg;
 
@@ -37,7 +38,9 @@ app.get("/rooms/by-code/:code", (req, res) => {
   res.json({ roomId });
 });
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+// /health отдаёт и версию: по ней видно, что на проде крутится, и совпадает ли она с той,
+// что показывает клиент (у них общий формат — см. version.ts обоих пакетов).
+app.get("/health", (_req, res) => res.json({ status: "ok", ...BUILD_INFO }));
 
 // Свои аккаунты (без Firebase): сервер выдаёт accountId + recoveryHash,
 // клиент хранит их локально. recoveryHash позволяет восстановить того же
@@ -87,5 +90,5 @@ app.get("/accounts/:id/last-room", (req, res) => {
 
 const PORT = Number(process.env.PORT) || 2567;
 httpServer.listen(PORT, () => {
-  console.log(`Crusade Deck server listening on :${PORT}`);
+  console.log(`Crusade Deck ${formatVersion()} server listening on :${PORT}`);
 });

@@ -3,6 +3,7 @@ import { render, fireEvent, cleanup } from "@testing-library/react";
 import { AppMenu } from "./AppMenu";
 import { DEFAULT_ANIMATION_SETTINGS } from "./game/anim/animationSettings";
 import type { Account } from "./account";
+import { BUILD_INFO } from "./version";
 
 afterEach(cleanup);
 
@@ -92,6 +93,22 @@ describe("AppMenu overlay", () => {
     fireEvent.click(byText(container, "Графика"));
     fireEvent.click(container.querySelector('[aria-label="Назад"]')!);
     expect(container.querySelector(".pixel-title")?.textContent).toContain("Меню");
+  });
+
+  // Версию диктуют в поддержку и сверяют по скриншоту — в меню она должна быть полной
+  // (версия со сборкой, коммит, время), а не только номером.
+  it("в меню настроек видна подпись сборки", () => {
+    const { container } = renderMenu();
+    open(container);
+    const label = container.querySelector(".pixel-version");
+    expect(label?.textContent).toContain(BUILD_INFO.version);
+    expect(label?.textContent).toContain(BUILD_INFO.build);
+    expect(label?.textContent).toContain(BUILD_INFO.commit);
+  });
+
+  it("подпись сборки не появляется, пока меню закрыто", () => {
+    const { container } = renderMenu();
+    expect(container.querySelector(".pixel-version")).toBeNull();
   });
 
   it("НЕ закрывается по клику внутри панели", () => {

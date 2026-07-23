@@ -5,14 +5,22 @@ import react from "@vitejs/plugin-react";
 
 const pkg = createRequire(import.meta.url)("./package.json") as { version?: string };
 
-// Короткий хеш текущего коммита. В сборочном контейнере git может отсутствовать —
-// тогда просто "dev": подпись версии не должна ронять сборку (см. src/version.ts).
-function gitHash(): string {
+// Данные о сборке из git. В сборочном контейнере .git отсутствует (в контекст образа
+// попадает только исходник), поэтому у каждой команды есть запасной вариант, а номер
+// сборки вдобавок можно передать снаружи через APP_BUILD — так его пробрасывает
+// Dockerfile из build-аргумента. Подпись версии не должна ронять сборку (см. src/version.ts).
+function git(command: string, fallback: string): string {
   try {
-    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    return execSync(command, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim() || fallback;
   } catch {
-    return "dev";
+    return fallback;
   }
+}
+
+// Номер сборки — число коммитов в истории. Растёт сам, одинаков у клиента и сервера,
+// собранных с одного коммита, и не требует ручного учёта в отличие от счётчика в файле.
+function buildNumber(): string {
+  return process.env.APP_BUILD || git("git rev-list --count HEAD", "dev");
 }
 
 export default defineConfig({
@@ -20,7 +28,8 @@ export default defineConfig({
   server: { port: 5173, host: true },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version ?? "0.0.0"),
-    __APP_BUILD__: JSON.stringify(gitHash()),
+    __APP_BUILD__: JSON.stringify(buildNumber()),
+    __APP_COMMIT__: JSON.stringify(process.env.APP_COMMIT || git("git rev-parse --short HEAD", "dev")),
     __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
   },
 });

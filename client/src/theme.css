@@ -261,6 +261,19 @@ textarea {
   margin: 20px 0;
 }
 
+/* Подпись версии: служебная строка, читается только когда её ищут глазами. Поэтому
+   мелкая и приглушённая — спорить с содержимым экрана она не должна. */
+.pixel-version {
+  font-family: "VT323", monospace;
+  font-size: 15px;
+  text-align: center;
+  color: var(--panel-border);
+  opacity: 0.75;
+  margin: 12px 0 0;
+  letter-spacing: 1px;
+  user-select: text;
+}
+
 .pixel-error {
   font-family: "VT323", monospace;
   color: var(--accent-red);
