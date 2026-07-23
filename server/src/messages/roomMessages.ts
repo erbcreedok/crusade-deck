@@ -1,8 +1,8 @@
 import { removePublicRoom, setPublicRoom } from "../publicRooms.js";
 import type { MessageRoom } from "./host.js";
 
-// Сообщения про КОМНАТУ и её людей: готовность, режим раздачи, старт игры,
-// паблик/приват и голосования (сменить дилера, выгнать игрока).
+// Сообщения про КОМНАТУ и её людей: готовность, старт игры, паблик/приват
+// и голосования (сменить дилера, выгнать игрока).
 
 export function registerRoomMessages(room: MessageRoom): void {
   const state = room.state;
@@ -14,29 +14,14 @@ export function registerRoomMessages(room: MessageRoom): void {
     player.isReady = !player.isReady;
   });
 
-  // Режим раздачи (дилер). Выключение раскрывает колоду (бывший revealMode) и делает
-  // руки приватными; включение прячет колоду обратно.
-  room.onMessage("toggle_deal_mode", (client) => {
-    const player = state.players.get(client.sessionId);
-    if (!player?.isDealer) return;
-    state.dealMode = !state.dealMode;
-    state.deck.forEach((card) => state.faceUp.set(card, !state.dealMode));
-    if (!state.dealMode) {
-      state.players.forEach((p) => {
-        p.handOpen = false;
-        p.handFanned = false;
-      });
-    }
-  });
-
   // «ГОУ!» — дилер объявляет начало: стол переходит в режим свободы, где карты со стола
   // игроки берут сами (см. take_card). Колоду при этом НЕ раздаём — в отличие от
-  // start_game, она остаётся лежать в центре; и dealMode не трогаем: номиналов
-  // по-прежнему не видит никто, карты тянут вслепую.
+  // start_game, она остаётся лежать в центре, и номиналов по-прежнему не видит никто:
+  // карты тянут вслепую.
   //
-  // Смена фазы на "playing" заодно снимает с дилера власть над колодой: тасовка,
-  // перевороты, move_deck и reset_deck закрыты условием phase === "lobby" (deckMessages).
-  // Это и есть нужное поведение — игра началась, колоду больше не крутят.
+  // Смена фазы на "playing" заодно снимает с дилера власть над колодой: тасовка и
+  // reset_deck закрыты условием phase === "lobby" (deckMessages). Это и есть нужное
+  // поведение — игра началась, колоду больше не крутят.
   room.onMessage("go", (client) => {
     const player = state.players.get(client.sessionId);
     if (!player?.isDealer) return;

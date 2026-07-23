@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { leaveDealMode, TEST_PORTS, useTestServer } from "./roomHarness.js";
+import { TEST_PORTS, useTestServer } from "./roomHarness.js";
 
 // Любой непустой accountId в тестах считаем валидным аккаунтом, чтобы onAuth вернул
 // uid = accountId (в реале это findAccountById из accounts.json). Без мока onAuth
@@ -18,127 +18,6 @@ describe("CardRoom: колода", () => {
     expect(room.state.deckLocation).toBe("center");
   });
 
-  it("move_deck 'hand' — колода уходит в мою руку (там она и раскрывается веером)", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    const dealer = await server().connectTo(room, { name: "Alice" });
-
-    // Переносить колоду можно только ВНЕ режима раздачи — там она живёт в центре.
-    let waiter = room.waitForMessage("toggle_deal_mode");
-    dealer.send("toggle_deal_mode");
-    await waiter;
-
-    waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "hand" });
-    await waiter;
-
-    expect(room.state.deckLocation).toBe(dealer.sessionId);
-    expect(room.state.deck.length).toBe(36); // карты не раздаются, только меняют место
-  });
-
-  it("move_deck 'center' возвращает колоду на стол и забывает слот", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    const dealer = await server().connectTo(room, { name: "Alice" });
-    await (async () => {
-      const w = room.waitForMessage("toggle_deal_mode");
-      dealer.send("toggle_deal_mode");
-      await w;
-    })();
-
-    let waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "hand" });
-    await waiter;
-
-    waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "center" });
-    await waiter;
-
-    expect(room.state.deckLocation).toBe("center");
-  });
-
-  it("ignores move_deck from a non-dealer", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    await server().connectTo(room, { name: "Alice" });
-    const second = await server().connectTo(room, { name: "Bob" });
-
-    const waiter = room.waitForMessage("move_deck");
-    second.send("move_deck", { zone: "hand" });
-    await waiter;
-
-    expect(room.state.deckLocation).toBe("center");
-  });
-
-  it("ignores move_deck once the game has started (not in lobby)", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    const dealer = await server().connectTo(room, { name: "Alice" });
-    await server().connectTo(room, { name: "Bob" });
-
-    let waiter = room.waitForMessage("start_game");
-    dealer.send("start_game");
-    await waiter;
-    expect(room.state.phase).toBe("playing");
-
-    waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "hand" });
-    await waiter;
-
-    expect(room.state.deckLocation).toBe("center");
-  });
-
-  // Драг отдельной карты в раскрытом веере: дилер меняет её место в колоде, порядок
-  // сохраняется на сервере (эхом расходится всем).
-  it("reorder_deck moves one card to a new position, keeping the same cards", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    const dealer = await server().connectTo(room, { name: "Alice" });
-    const before = [...room.state.deck];
-    const card = before[0];
-
-    const waiter = room.waitForMessage("reorder_deck");
-    dealer.send("reorder_deck", { card, to: 5 });
-    await waiter;
-
-    const after = [...room.state.deck];
-    expect([...after].sort()).toEqual([...before].sort()); // тот же набор
-    expect(after.indexOf(card)).toBe(5);
-    expect(after.filter((c) => c === card).length).toBe(1); // не задвоилась
-  });
-
-  it("ignores reorder_deck from a non-dealer and for an unknown card", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    await server().connectTo(room, { name: "Alice" });
-    const second = await server().connectTo(room, { name: "Bob" });
-    const before = [...room.state.deck];
-
-    let waiter = room.waitForMessage("reorder_deck");
-    second.send("reorder_deck", { card: before[0], to: 7 });
-    await waiter;
-    expect([...room.state.deck]).toEqual(before);
-
-    const dealerClient = await server().connectTo(room, { name: "Carol" });
-    waiter = room.waitForMessage("reorder_deck");
-    dealerClient.send("reorder_deck", { card: "нет такой", to: 3 });
-    await waiter;
-    expect([...room.state.deck]).toEqual(before);
-  });
-
-  it("ignores reorder_deck after the game started (only in lobby)", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    const dealer = await server().connectTo(room, { name: "Alice" });
-    const card = room.state.deck[0];
-
-    let waiter = room.waitForMessage("start_game");
-    dealer.send("start_game");
-    await waiter;
-
-    waiter = room.waitForMessage("reorder_deck");
-    dealer.send("reorder_deck", { card, to: 4 });
-    await waiter;
-
-    expect(room.state.phase).toBe("playing");
-    expect(room.state.deck.length).toBe(0); // колода роздана — двигать нечего
-  });
-
-  // Свайп по вееру тасует НА КЛИЕНТЕ и присылает готовый порядок — сервер его принимает,
-  // но только если это перестановка текущей колоды.
   it("set_deck_order accepts a client-computed permutation", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });
@@ -220,25 +99,6 @@ describe("CardRoom: колода", () => {
 
     await dealer.leave();
     expect(room.state.shufflingBy).toBe("");
-  });
-
-  it("move_deck в режиме раздачи не двигает колоду; после выхода из режима — двигает", async () => {
-    const room = await server().createRoom("card_room", { deckType: "36" });
-    const dealer = await server().connectTo(room, { name: "Alice" });
-
-    let waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "hand" });
-    await waiter;
-    expect(room.state.deckLocation).toBe("center"); // dealMode включён по умолчанию
-
-    waiter = room.waitForMessage("toggle_deal_mode");
-    dealer.send("toggle_deal_mode");
-    await waiter;
-
-    waiter = room.waitForMessage("move_deck");
-    dealer.send("move_deck", { zone: "hand" });
-    await waiter;
-    expect(room.state.deckLocation).toBe(dealer.sessionId);
   });
 
   it("set_deck_fanned: дилер раскрывает веер на столе, все это видят", async () => {

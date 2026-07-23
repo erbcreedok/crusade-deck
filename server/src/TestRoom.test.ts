@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { leaveDealMode, TEST_PORTS, useTestServer } from "./roomHarness.js";
+import { TEST_PORTS, useTestServer } from "./roomHarness.js";
 import { BOT_COUNT } from "./bots.js";
 import { getLastRoom } from "./lastRooms.js";
 

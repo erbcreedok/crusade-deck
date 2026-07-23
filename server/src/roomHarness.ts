@@ -66,13 +66,3 @@ export function useTestServer(port: number): () => ColyseusTestServer {
 
   return () => colyseus;
 }
-
-/**
- * Переворот колоды живёт ВНЕ режима раздачи: пока идёт раздача, номиналов не видит никто.
- * Почти каждый тест про стороны карт начинается с выхода из режима.
- */
-export async function leaveDealMode(room: any, dealer: any): Promise<void> {
-  const w = room.waitForMessage("toggle_deal_mode");
-  dealer.send("toggle_deal_mode");
-  await w;
-}

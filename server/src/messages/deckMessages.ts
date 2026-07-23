@@ -1,14 +1,18 @@
 import { buildDeck } from "../deckBuild.js";
-import { flippedFacing, flipWholeDeck } from "../deckFacing.js";
 import { sanitizeDeckFx } from "../deckFx.js";
-import { isPermutationOf, moveCard } from "../deckOrder.js";
+import { isPermutationOf } from "../deckOrder.js";
 import { collectOrder } from "../handRules.js";
-import { flipRejectReason } from "../rejections.js";
-import { clearAllHands, facingRecord, handsSnapshot, writeDeck, writeFacing, writeFreshDeck } from "../stateWrite.js";
+import { clearAllHands, handsSnapshot, writeDeck, writeFreshDeck } from "../stateWrite.js";
 import type { MessageRoom } from "./host.js";
 
-// Сообщения про КОЛОДУ: тасовка, порядок, перевороты, эффекты, перенос, веер, сброс.
-// Все они, кроме сброса, доступны только дилеру и только в лобби.
+// Сообщения про КОЛОДУ: тасовка, порядок, эффекты, веер, сброс. Все они, кроме сброса,
+// доступны только дилеру и только в лобби.
+//
+// Переворотов колоды здесь больше НЕТ: номиналы карт на столе не видит никто, включая
+// дилера, — карту узнают, только взяв её в руку. Раньше это включалось тумблером «режим
+// раздачи», и вместе с ним существовала вторая механика стола (колода как один предмет,
+// который таскают по зонам, с переворотами и веером в руке). Тумблер убран, вторая
+// механика вместе с ним — см. историю коммитов, если она когда-нибудь понадобится.
 
 export function registerDeckMessages(room: MessageRoom): void {
   const state = room.state;
@@ -22,50 +26,6 @@ export function registerDeckMessages(room: MessageRoom): void {
     if (!player?.isDealer || state.phase !== "lobby") return;
     state.shufflingBy = client.sessionId;
     room.armShuffleLock();
-  });
-
-  // Дилер перетащил одну карту в раскрытом веере на новое место — порядок колоды
-  // меняется и СОХРАНЯЕТСЯ (эхо разойдётся всем). Только дилер и только в лобби.
-  room.onMessage("reorder_deck", (client, message: { card?: string; to?: number }) => {
-    const player = state.players.get(client.sessionId);
-    if (!player?.isDealer || state.phase !== "lobby") return;
-    const card = message?.card;
-    const to = message?.to;
-    if (typeof card !== "string" || typeof to !== "number" || !Number.isFinite(to)) return;
-    writeDeck(state, moveCard(state.deck.toArray(), card, to));
-  });
-
-  // Переворот колоды целиком: кнопкой (когда колода НЕ в вее­ре) или свайпом по стопке.
-  // Порядок реверсится, каждая карта меняет сторону — как у настоящей стопки в руке.
-  room.onMessage("flip_deck", (client, message: { rev?: number }) => {
-    const player = state.players.get(client.sessionId);
-    const reason = flipRejectReason(player, state.phase, state.deck.toArray(), [], state.dealMode);
-    if (reason) {
-      // Клиент уже показал карты другой стороной — молчать нельзя, иначе он останется
-      // с неверной картинкой. Отвечаем отказом, он вернёт колоду и объяснит почему.
-      client.send("action_rejected", { action: "flip_deck", reason, cards: [] });
-      return;
-    }
-    if (!room.acceptRev(message?.rev)) return; // устаревшее/повторное — молча пропускаем
-    const out = flipWholeDeck(state.deck.toArray(), facingRecord(state));
-    writeDeck(state, out.order);
-    writeFacing(state, out.facing);
-  });
-
-  // Переворот отдельных карт на месте (жесты по вееру: свайп вниз по карте, случайные
-  // перевороты при сильной тасовке). Порядок колоды не трогается.
-  room.onMessage("flip_cards", (client, message: { cards?: string[]; rev?: number }) => {
-    const player = state.players.get(client.sessionId);
-    const raw = message?.cards;
-    const cards = Array.isArray(raw) ? raw.filter((c): c is string => typeof c === "string") : [];
-    if (cards.length === 0) return; // пустой запрос — нечего ни делать, ни откатывать
-    const reason = flipRejectReason(player, state.phase, state.deck.toArray(), cards, state.dealMode);
-    if (reason) {
-      client.send("action_rejected", { action: "flip_cards", reason, cards });
-      return;
-    }
-    if (!room.acceptRev(message?.rev)) return;
-    writeFacing(state, flippedFacing(facingRecord(state), cards));
   });
 
   // Эффекты колоды (перевороты/тянучка/рассыпание) — чистое украшение: сервер их не
@@ -99,28 +59,6 @@ export function registerDeckMessages(room: MessageRoom): void {
     else room.armShuffleLock(); // промежуточный прогресс продлевает сессию
   });
 
-  // Дилер притягивает колоду в свою руку (zone "hand") или возвращает в центр
-  // (zone "center"). Карты не раздаются — колода целиком меняет зону, рубашкой вверх.
-  room.onMessage("move_deck", (client, message: { zone?: "center" | "hand" | "player"; targetId?: string }) => {
-    const player = state.players.get(client.sessionId);
-    if (!player?.isDealer || state.phase !== "lobby") return;
-    // В режиме раздачи колода живёт только в центре: раздают рогаткой и веером,
-    // а не переносом колоды.
-    if (state.dealMode) return;
-    const zone = message?.zone;
-    if (zone === "center") {
-      state.deckLocation = "center";
-    } else if (zone === "hand") {
-      // Рука — единственная личная зона: там колода лежит веером.
-      state.deckLocation = client.sessionId;
-    } else if (zone === "player") {
-      // Колоду бросили на место другого игрока — она переходит к нему.
-      const targetId = message?.targetId;
-      if (typeof targetId !== "string" || !state.players.has(targetId)) return;
-      state.deckLocation = targetId;
-    }
-  });
-
   // Веер колоды на столе: раскрыть/собрать может только дилер и только пока колода
   // в центре. Состояние комнатное — веер видят все.
   room.onMessage("set_deck_fanned", (client, message: { open?: boolean }) => {
@@ -139,7 +77,6 @@ export function registerDeckMessages(room: MessageRoom): void {
     clearAllHands(state);
     state.deckFanned = false;
     state.deckLocation = "center";
-    state.dealMode = true;
     state.deckRev += 1;
     room.clearShuffleLock();
     // Анимация «карты с мест в центр», как при сборе (новая колода уже в схеме).

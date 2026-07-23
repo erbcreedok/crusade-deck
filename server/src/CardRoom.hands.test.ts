@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { leaveDealMode, TEST_PORTS, useTestServer } from "./roomHarness.js";
+import { TEST_PORTS, useTestServer } from "./roomHarness.js";
 
 // Любой непустой accountId в тестах считаем валидным аккаунтом, чтобы onAuth вернул
 // uid = accountId (в реале это findAccountById из accounts.json). Без мока onAuth
@@ -97,7 +97,6 @@ describe("CardRoom: руки игроков", () => {
     expect(room.state.players.get(second.sessionId)!.handOpen).toBe(false);
     expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
     expect(room.state.deckLocation).toBe("center"); // в режиме раздачи колода в центре
-    expect(room.state.dealMode).toBe(true);
     expect(fx.order[0]).toBe(dealer.sessionId);
     expect(fx.counts[dealer.sessionId]! + fx.counts[second.sessionId]!).toBe(36);
   });

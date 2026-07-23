@@ -22,7 +22,6 @@ describe("CardRoom: режим свободы", () => {
     expect(room.state.freeMode).toBe(true);
     expect(room.state.phase).toBe("playing");
     expect(room.state.deck.length).toBe(36); // в отличие от start_game — карты остались на столе
-    expect(room.state.dealMode).toBe(true); // номиналов по-прежнему не видно: тянут вслепую
   });
 
   it("клич go_shout уходит ВСЕМ за столом, включая нажавшего", async () => {
@@ -205,7 +204,6 @@ describe("CardRoom: режим свободы", () => {
 
     expect(room.state.freeMode).toBe(false);
     expect(room.state.phase).toBe("lobby");
-    expect(room.state.dealMode).toBe(true);
     expect(room.state.deck.length).toBe(36);
     expect(room.state.players.get(player.sessionId)!.hand.length).toBe(0);
   });

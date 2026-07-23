@@ -99,9 +99,9 @@ export function registerHandMessages(room: MessageRoom): void {
     else player.handHidden.set(card, true);
   });
 
-  // «Перераздача»: дилер забирает карты из всех рук в колоду, руки закрывает. В режиме
-  // раздачи колода остаётся в центре; клиентам — порядок для анимации сбора.
-  // Он же — единственный выход из режима свободы: стол возвращается в лобби, к раздаче.
+  // «Перераздача»: дилер забирает карты из всех рук в колоду, руки закрывает; колода
+  // остаётся в центре, клиентам уходит порядок для анимации сбора. Он же — единственный
+  // выход из режима свободы: стол возвращается в лобби, к раздаче.
   room.onMessage("collect_hands", (client) => {
     const player = state.players.get(client.sessionId);
     if (!player?.isDealer) return;
@@ -111,8 +111,7 @@ export function registerHandMessages(room: MessageRoom): void {
     writeDeck(state, out.deck);
     writeFacing(state, out.faceUp);
     clearAllHands(state);
-    state.dealMode = true; // сбор возвращает комнату в раздачу
-    state.freeMode = false; // …и выводит из свободы: колода снова дилерская
+    state.freeMode = false; // сбор выводит из свободы: колода снова дилерская
     state.phase = "lobby";
     state.deckFanned = false;
     state.deckLocation = "center";
