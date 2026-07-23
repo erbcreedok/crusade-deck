@@ -556,7 +556,60 @@ describe("RoomEngine: сброс", () => {
     expect(["2♦", "3♦", "4♦"]).toContain(discarded[0]);
   });
 
-  it("сброс с сервера лежит стопкой в своём слоте", async () => {
+  // Сброс — это «сюда бросили»: горочка внахлёст под разными углами. Ровная стопка
+  // читалась бы как колода, то есть как то, откуда берут.
+  it("в покое сброс лежит горочкой: карты под разными углами и вокруг центра слота", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    const faces = ["2♦", "3♦", "4♦", "5♦"];
+    engine.setDiscard(faces);
+    for (let i = 0; i < 30; i++) app.ticker.__advance(16);
+
+    const sprites = faces.map((f) => pixi.__liveSprites().find((sp: any) => sp.label === f)!);
+    const angles = new Set(sprites.map((sp: any) => Math.round(sp.rotation * 1000)));
+    expect(angles.size).toBe(faces.length); // каждая под своим углом
+    expect(sprites.some((sp: any) => sp.rotation > 0)).toBe(true);
+    expect(sprites.some((sp: any) => sp.rotation < 0)).toBe(true);
+
+    const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).discardSlot!;
+    expect(sprites.some((sp: any) => sp.x > slot.cx)).toBe(true);
+    expect(sprites.some((sp: any) => sp.x < slot.cx)).toBe(true);
+  });
+
+  it("в горке видно семь карт, остальные считаются лежащими под ними", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    const faces = Array.from({ length: 12 }, (_, i) => `${i + 2}♦`);
+    engine.setDiscard(faces);
+    for (let i = 0; i < 30; i++) app.ticker.__advance(16);
+
+    const shown = faces.filter((f) => pixi.__liveSprites().find((sp: any) => sp.label === f)?.visible);
+    expect(shown).toHaveLength(7);
+    // На виду именно ВЕРХНИЕ семь: последние в массиве.
+    expect(shown).toEqual(faces.slice(-7));
+  });
+
+  // Горка — «уже сыграно и убрано с глаз». Лица показывает раскрытый веер, за тем его и
+  // открывают; по-настоящему карты не прячутся — они лежат лицом вверх в состоянии.
+  it("в покое сброс лежит рубашкой вверх, раскрытый веер показывает лица", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    engine.setDiscard(["2♦", "3♦"]);
+    for (let i = 0; i < 30; i++) app.ticker.__advance(16);
+    const top = () => pixi.__liveSprites().find((sp: any) => sp.label === "3♦")!;
+    const back = top().texture;
+
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 40; i++) app.ticker.__advance(16);
+    const face = top().texture;
+    expect(face).not.toBe(back);
+
+    engine.setBoardFan(null);
+    for (let i = 0; i < 40; i++) app.ticker.__advance(16);
+    expect(top().texture).toBe(back); // свернули — снова рубашка
+  });
+
+  it("сброс с сервера ложится в свой слот, а не куда-нибудь на стол", async () => {
     const { engine, app } = await mountEngine();
     engine.setFreeMode(true);
     const cardCount = () =>

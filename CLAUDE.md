@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 816 tests
+cd client && npm test && npx tsc --noEmit   # 828 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -136,6 +136,16 @@ zero-sized rect — so hit-testing and painting both drop it without a special c
   played, there's nothing left to hide), the last element is the top card.
   `discard_card` puts one there from a hand, `take_discard` pulls one back out.
   `collect_hands` («Перераздача») returns both the discard and everyone's hands to the deck.
+- **The discard rests as a HEAP, not a stack** (`discardHeap.ts`): cards overlapping at
+  different angles, the freshly discarded one landing in the middle. A neat stack reads as
+  a deck — as something you TAKE from — and in the discard's resting state you don't; you
+  open the fan first. The pattern is FIXED, not random: a random one would have to be
+  stored (or the heap would re-shuffle itself on every repaint) and synchronised between
+  players so everyone sees the same pile. Seven cards are drawn and no more — the silhouette
+  stops changing after that; the rest count as lying underneath (the counter under the slot
+  shows the real number). At rest the heap lies FACE DOWN — it's "played and put away", not
+  a display case. That's a display rule, not state: on the server discard cards are face up
+  and there's nothing to really hide, since anyone can open the fan and look.
 - **A board pile fans out on tap.** `BoardPile` (`engine/types.ts`) is which pile THIS
   viewer has open; it's local, unlike `GameState.deckFanned` (the dealer's blind-shuffle
   fan, which appears and vanishes for everyone at once). Any board fan opens at

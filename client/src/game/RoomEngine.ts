@@ -115,6 +115,7 @@ import {
 import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShadowLayer, ShufflePose } from "./engine/types";
 import { playPile, playPileIndex } from "./engine/boardPile";
 import { playStackOffset } from "./playStack";
+import { discardHeapExtent, discardHeapPose, discardHeapVisible } from "./discardHeap";
 import { CLEAR_PLAY_LABEL, clearPlayButton, hitsClearPlay } from "./engine/clearPlayButton";
 import { flattenPlay, type PlaySlot } from "./playFlat";
 import { pickPlayCell, playGrid, type PlayGrid } from "./playGrid";
@@ -1063,10 +1064,9 @@ export class RoomEngine {
     this.discardPile.reconcile(order);
     this.discardCards.forEach((c, i) => {
       c.body.snapTo(this.discardRestTarget(i));
-      c.sprite.texture = this.faceTexture(c.card); // сыгранную карту видно всем
-      c.sprite.visible = i >= this.discardCards.length - 2; // видна только верхушка стопки
       c.sprite.alpha = 1;
     });
+    this.syncDiscardVisibility(); // она же расставит стороны: в покое горка лежит рубашкой
     this.syncDiscardCounter();
     this.wake();
   }
@@ -1195,6 +1195,8 @@ export class RoomEngine {
     // Прежний веер собирается обратно в свой слот, новый — разъезжается по центру.
     if (was === "discard" || pile === "discard") {
       this.discardCards.forEach((c, i) => c.body.setTarget(this.discardRestTarget(i)));
+      // Сторона сброса зависит от веера: горка лежит рубашкой, раскрытый веер — лицами.
+      this.syncDiscardVisibility();
     }
     // Кучки зоны пересчитываем всегда: разъезжается одна, но собраться обратно должна
     // ровно та, что была раскрыта до этого.
@@ -3057,16 +3059,33 @@ export class RoomEngine {
     if (this.deckBody) this.deckBody.visible = !detailed && n > 2;
   }
 
-  // Сброс: раскрытый веер показывает все карты, собранная стопка — только верхушку.
+  // Сброс: раскрытый веер показывает все карты, горочка в покое — только верхние семь.
   private syncDiscardVisibility(): void {
     const cards = this.discardCards;
     const fanned = this.boardFan === "discard";
     const z = this.pileZBase("discard");
     const held = this.cardDrag?.v ?? this.rejectCard;
     cards.forEach((c, i) => {
-      c.sprite.visible = fanned || i >= cards.length - 2 || c === held;
+      c.sprite.visible = fanned || discardHeapVisible(this.discardDepth(i)) || c === held;
       if (c !== held) c.sprite.zIndex = z + i; // поднятая карта остаётся наверху сцены
     });
+    this.syncDiscardTextures();
+  }
+
+  /**
+   * Чем сброс повёрнут к столу. В ПОКОЕ — рубашкой вверх: горка это «уже сыграно и убрано
+   * с глаз», а не витрина. Раскрытый веер показывает лица — за тем его и открывают.
+   *
+   * Это правило ПОКАЗА, а не состояние: на сервере карты сброса лежат лицом вверх
+   * (GameState.discard), и прятать их по-настоящему незачем — любой может раскрыть веер и
+   * посмотреть. Поэтому сторона решается здесь, а не через facing.
+   */
+  private syncDiscardTextures(): void {
+    if (!this.backTex) return;
+    const fanned = this.boardFan === "discard";
+    for (const c of this.discardCards) {
+      c.sprite.texture = fanned ? this.faceTexture(c.card) : this.backTex;
+    }
   }
 
   // Геометрия «кирпича»: торцы карт, лежащих ПОД верхней. Перерисовывается только когда
@@ -3659,7 +3678,11 @@ export class RoomEngine {
       // Собранные стопки: одна тень на стопку, под её нижней картой.
       if (!this.deckFanned) this.pushPileShadow(specs, this.cards, this.pileZBase("deck"));
       if (this.boardFan !== "discard") {
-        this.pushPileShadow(specs, this.discardCards, this.pileZBase("discard"));
+        // Тень под КАЖДОЙ видимой картой горки, а не одна на всю стопку: карты лежат
+        // внахлёст под разными углами, и один силуэт оставил бы половину кучки висеть.
+        // Силуэты сливаются маской, поэтому в перекрытии не темнеет (shadowPass).
+        const heap = this.discardCards.filter((_, i) => discardHeapVisible(this.discardDepth(i)));
+        for (const c of heap) this.pushPileShadow(specs, [c], this.pileZBase("discard"));
       }
       // Каждая кучка зоны — своя стопка, значит своя тень. Раскрытую пропускаем: её
       // карты уже в вееере, и тень им кладёт общая ветка веера ниже.
@@ -3944,9 +3967,21 @@ export class RoomEngine {
     const slot = this.layout.discardSlot;
     if (!slot) return { x: -9999, y: -9999, rot: 0, scale: this.pileScale() };
     const zs = this.pileScale();
-    const n = Math.max(1, this.discardPile.count);
-    const so = stackOffset(i, n, true);
-    return { x: slot.cx + so.dx * zs, y: slot.cy + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
+    // Сброс лежит ГОРОЧКОЙ, а не стопкой: «сюда бросили» — это кучка внахлёст, каждая
+    // карта под своим углом. Ровная стопка читалась бы как колода, то есть как то,
+    // откуда берут, — а из сброса в покое не берут, его сначала раскрывают тапом.
+    const pose = discardHeapPose(this.discardDepth(i));
+    return {
+      x: slot.cx + pose.dx * this.layout.cardW * zs,
+      y: slot.cy + pose.dy * this.layout.cardH * zs,
+      rot: (pose.deg * Math.PI) / 180,
+      scale: zs,
+    };
+  }
+
+  /** Насколько глубоко лежит карта сброса: 0 — верхняя (последняя в массиве). */
+  private discardDepth(i: number): number {
+    return this.discardPile.count - 1 - i;
   }
 
   private handRestTarget(i: number): CardTargets {
@@ -4004,9 +4039,15 @@ export class RoomEngine {
     t.text = String(n);
     t.style.fontSize = Math.max(11, Math.min(28, this.rowCounterSpace() * 0.85));
     const zs = this.pileScale();
-    const ext = stackExtent(n);
+    // Габарит ГОРКИ, а не стопки: её силуэт замирает на седьмой карте, и счётчик не
+    // должен уползать вниз до тридцать шестой.
+    const ext = discardHeapExtent();
     t.x = slot.cx;
-    t.y = slot.cy + (this.layout.cardH / 2) * zs + ext.h * zs + this.rowCounterSpace() * 0.45;
+    t.y =
+      slot.cy +
+      (this.layout.cardH / 2) * zs +
+      (ext.h / 2) * this.layout.cardH * zs +
+      this.rowCounterSpace() * 0.45;
   }
 
   private syncDeckCounter(): void {
