@@ -34,8 +34,8 @@ rules can later be layered as configuration.
 ## Commands
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 225 tests
-cd client && npm test && npx tsc --noEmit   # 838 tests
+cd server && npm test && npx tsc --noEmit   # 243 tests
+cd client && npm test && npx tsc --noEmit   # 868 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -52,7 +52,7 @@ into `client/` or `server/` explicitly before `tsc`/`vitest`/`vite`.
 
 ## Table architecture (client)
 
-`client/src/game/RoomEngine.ts` (~4400 lines, ~237 methods averaging 19 lines) is an
+`client/src/game/RoomEngine.ts` (~4700 lines, ~236 methods averaging 19 lines) is an
 imperative engine: it owns a single
 Pixi `Application`, the ticker, and all visual objects (`CardVisual` — plain mutable
 structs, not React nodes). `RoomCanvas.tsx` is a thin React host: mounts the engine
@@ -68,7 +68,8 @@ in batches), `fanGeometry.ts`, `seatChrome.ts`/`seatPaint.ts` (rules vs. drawing
 other players' seats), `zoneChrome.ts`/`zonePaint.ts` (same split for drop zones),
 `collapseArrow.ts`, `scramble.ts`, `idleGate.ts`, `shadowPass.ts` (ONE shadow pass for
 every layer — there used to be three competing mechanisms), `shufflePose.ts`, `shout.ts`
-(the taunt bubbles «соснуть»/«сосать»).
+(the taunt bubbles «соснуть»/«сосать»), `moveAnchor.ts` (where a card flies to/from by
+`card_moved` label — pure), `boardPile.ts`, `clearPlayButton.ts`.
 
 Why not `@pixi/react`: an earlier attempt on it crashed under React StrictMode (double
 mount on a canvas whose WebGL context was already destroyed → "context lost"). The
@@ -311,12 +312,13 @@ A hard split that must not blur when adding new deck-related mechanics:
 
 ## Known trade-offs (deliberate, not forgotten)
 
-- `RoomEngine.ts` is still ~4400 lines, but no longer a wall: ~237 methods averaging 19
+- `RoomEngine.ts` is still ~4700 lines, but no longer a wall: ~236 methods averaging 19
   lines, the longest being `dropCard` (~150 — it now routes drops for the deck, discard
   and every play stack) and `beginCardDrag` (76). What keeps it big is
   ~120 private fields shared across gestures and animations — cutting it further means
   moving state out of the class (separate gesture and animation owners), which is a
-  bigger change than anything done so far and needs a real reason to start.
+  bigger change than anything done so far and needs a real reason to start. A staged split
+  plan (through composition, not method-moving) lives in `refactor-progress.md`.
 - Server message handlers are split by theme (`server/src/messages/*`) and get what they
   need from the room through the `RoomHost` interface; every write to the schema goes
   through `stateWrite.ts` (that's where the `clear()+push()` rule is enforced once).

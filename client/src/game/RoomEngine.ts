@@ -29,6 +29,7 @@ import {
   FREE_DROP_REJECT_TEXT,
 } from "./dealReadyTint";
 import { cardFlightPose, type CardMove, type FlightPoint } from "./cardFlight";
+import { cardMoveAnchor } from "./engine/moveAnchor";
 import {
   fanCard,
   fanCrowd,
@@ -2179,33 +2180,7 @@ export class RoomEngine {
   }
 
   private cardMoveAnchor(pile: string): FlightPoint {
-    if (pile === "deck") {
-      const a = this.layout.deckAnchor;
-      return { x: a.x, y: a.y, rot: 0 };
-    }
-    // Сброс и игральная зона — свои якоря. Раньше их тут НЕ БЫЛО, и любой card_moved с
-    // from/to = "discard"/"play" сваливался в дефолт (якорь колоды): карта из стека зоны
-    // летела «от колоды», а «В СБРОС» (play→discard) давал колода→колода и дёргал стопку.
-    if (pile === "discard") {
-      const slot = this.layout.discardSlot;
-      if (slot) return { x: slot.cx, y: slot.cy, rot: 0 };
-      const z = this.layout.centerZone;
-      return { x: z.cx, y: z.cy, rot: 0 };
-    }
-    if (pile === "play" || pile.startsWith("play:")) {
-      const a = this.layout.boardFanAnchor;
-      return { x: a.x, y: a.y, rot: 0 };
-    }
-    if (pile === this.selfId) {
-      const a = this.layout.handAnchor;
-      return { x: a.x, y: a.y, rot: 0 };
-    }
-    const box = this.seatBoxes.find((b) => b.id === pile);
-    if (box) return { x: box.rect.cx, y: box.rect.cy, rot: 0 };
-    // Неизвестное место — центр стола, а НЕ колода: карта из ниоткуда пусть летит из
-    // центра, а не тревожит колоду.
-    const z = this.layout.centerZone;
-    return { x: z.cx, y: z.cy, rot: 0 };
+    return cardMoveAnchor(pile, { layout: this.layout, selfId: this.selfId, seats: this.seatBoxes });
   }
 
   private enqueueCardFlight(opts: {
@@ -2613,6 +2588,15 @@ export class RoomEngine {
     this.onMoveCard?.(card, source, to, dest.pile === "play" ? dest.stack ?? undefined : undefined);
   }
 
+  /** Общий хвост завершения дропа: снять флаг драга и перерисовать стол. */
+  private finishDrop(withSeats = true): void {
+    this.onDragChange?.(false);
+    if (withSeats) this.drawSeats();
+    this.drawZones();
+    this.positionDeckHit();
+    this.wake();
+  }
+
   private dropCard(x: number, y: number): void {
     const d = this.cardDrag;
     if (!d) return;
@@ -2635,11 +2619,7 @@ export class RoomEngine {
       const foreignSeat = !!seatHit && seatHit !== this.selfId;
       if (foreignSeat && (this.freeMode || !readyIds.has(seatHit!))) {
         this.startCardReject(d.v, x, y, this.freeMode ? FREE_DROP_REJECT_TEXT : DEAL_DROP_REJECT_TEXT);
-        this.onDragChange?.(false);
-        this.drawSeats();
-        this.drawZones();
-        this.positionDeckHit();
-        this.wake();
+        this.finishDrop();
         return;
       }
       const seat = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, readyIds, this.freeMode);
@@ -2670,11 +2650,7 @@ export class RoomEngine {
       } else {
         this.returnCardHome(d.v);
       }
-      this.onDragChange?.(false);
-      this.drawSeats();
-      this.drawZones();
-      this.positionDeckHit();
-      this.wake();
+      this.finishDrop();
       return;
     }
 
@@ -2682,12 +2658,7 @@ export class RoomEngine {
       const zone = pickDropTarget(x, y, this.layout)?.zone;
       const card = d.v.card;
       const from = { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation };
-      const finish = () => {
-        this.onDragChange?.(false);
-        this.drawZones();
-        this.positionDeckHit();
-        this.wake();
-      };
+      const finish = () => this.finishDrop(false);
 
       // Сброс принимает карту всегда — и собранный, и раскрытый веером: слот на месте
       // в обоих случаях. Зона есть только в игре (см. layout.discardSlot).

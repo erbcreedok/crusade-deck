@@ -1,4 +1,5 @@
 import { isPermutationOf } from "../deckOrder.js";
+import type { RejectReason } from "../rejections.js";
 import {
   collectHands,
   collectOrder,
@@ -38,7 +39,8 @@ export function registerHandMessages(room: MessageRoom): void {
     // дилера. Отвечаем отказом, а не молчанием: карта уже летит с пальца, и игрок должен
     // увидеть, ПОЧЕМУ она отскочила.
     if (state.freeMode) {
-      client.send("action_rejected", { action: "deal_card", reason: "free_mode", cards: [] });
+      const reason: RejectReason = "free_mode"; // тип держит список причин в узде
+      client.send("action_rejected", { action: "deal_card", reason, cards: [] });
       return;
     }
     const card = message?.card;
