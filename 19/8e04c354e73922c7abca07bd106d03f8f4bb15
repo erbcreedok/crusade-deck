@@ -1,0 +1,23 @@
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_cfc96e3b86e2cf 731-735,2409
+  s_b16a7b1f1196ad::t_1b17241f7d2850 327-329,1928-1931,2264-2265,2490-2496
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_32c1f21999fa4d 132-137,144,146
+  s_b16a7b1f1196ad::t_3da3c4792e64b4 221-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "198e04c354e73922c7abca07bd106d03f8f4bb15",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
