@@ -1,0 +1,45 @@
+client/src/game/deckFan.ts
+  s_b16a7b1f1196ad::t_a6175707ec8d97 27-45
+client/src/game/engine/cardTextures.ts
+  s_b16a7b1f1196ad::t_2d96e6672ae351 4
+  s_b16a7b1f1196ad::t_3eda9838a54dfd 102-106,109,111-114
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_a76a1ac1532300 397-415
+  s_b16a7b1f1196ad::t_3095bb6305c2a8 513-515
+  s_b16a7b1f1196ad::t_0c2a8b3c1a3e93 456-458
+  s_b16a7b1f1196ad::t_adea0da63d4e6f 451-453,459-462
+client/src/game/deckStack.ts
+  s_b16a7b1f1196ad::t_43d29f379cdc79 26-35
+client/src/game/deckStack.test.ts
+  s_b16a7b1f1196ad::t_43d29f379cdc79 136,139-141
+  s_b16a7b1f1196ad::t_72f959d2a422f4 142
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_3a27f17ddaccd1 22,3426-3444,3446,3448-3451,3453,3472
+  s_b16a7b1f1196ad::t_43d29f379cdc79 754-758,1124,2240,2421,3173,3192,3311,3321-3322,3382,3397
+  s_b16a7b1f1196ad::t_613e177481863e 304,759-769,841,856,920,2600,2603,2754,3010,3134-3161
+  s_b16a7b1f1196ad::t_3eda9838a54dfd 3179,3198
+client/src/game/layout.ts
+  s_b16a7b1f1196ad::t_5b05e009752c81 158-159,177,182
+client/src/game/deckFan.test.ts
+  s_b16a7b1f1196ad::t_f7d4c4f63d6e34 2,51-74
+  s_b16a7b1f1196ad::t_ca6faeee6b0de0 75
+client/src/game/engine/constants.ts
+  s_b16a7b1f1196ad::t_3eda9838a54dfd 36-41
+  s_b16a7b1f1196ad::t_613e177481863e 92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b87d3db328ec80aad622ae75f52ce9838570aaab",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
