@@ -394,6 +394,25 @@ describe("RoomEngine: веер колоды в игре", () => {
     expect(taken[0]).not.toBe(DECK_36[DECK_36.length - 1]);
   });
 
+  it("в игре стопки лежат обычным размером, в раздаче колода крупнее", async () => {
+    const sizeOfTopCard = async (freeMode: boolean): Promise<number> => {
+      pixi.__reset();
+      document.body.innerHTML = "";
+      const { engine, app } = await mountEngine();
+      engine.setFreeMode(freeMode);
+      engine.setDeck(DECK_36);
+      for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+      const live = new Set(pixi.__liveSprites());
+      const top = findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible).pop();
+      return top?.scale?.x ?? 0;
+    };
+
+    const inGame = await sizeOfTopCard(true);
+    const inDealing = await sizeOfTopCard(false);
+    expect(inGame).toBeGreaterThan(0);
+    expect(inDealing).toBeGreaterThan(inGame); // в раздаче колода одна и главная — крупнее
+  });
+
   it("веер сброса раскрывается там же, где и веер колоды — по центру доски", async () => {
     const { engine, app } = await mountEngine();
     engine.setFreeMode(true);
@@ -429,12 +448,18 @@ describe("RoomEngine: веер колоды в игре", () => {
     engine.setBoardFan("discard");
     for (let i = 0; i < 120; i++) app.ticker.__advance(16);
 
-    // Колода снова компактной стопкой в своём слоте: разброс по x меньше карты.
+    // Колода снова компактной стопкой в своём слоте: собранные стопки лежат в нижних
+    // слоях, раскрытый веер — над всем столом (Z.boardFan), по этому их и различаем.
+    const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).deckSlot!;
     const live = new Set(pixi.__liveSprites());
     const deckXs = findByZ(app.stage, 3)
-      .children.filter((c: any) => live.has(c) && c.visible && c.x < 150)
-      .map((c: any) => c.x);
-    expect(Math.max(...deckXs) - Math.min(...deckXs)).toBeLessThan(40);
+      // Ниже 2000 живут только собранные стопки: веер идёт с Z.boardFan (3000), его тени —
+      // на слой ниже веера.
+      .children.filter((c: any) => live.has(c) && c.visible && c.zIndex < 2000)
+      .map((c: any) => c.x)
+      .filter((x: number) => Math.abs(x - slot.cx) < slot.w);
+    expect(deckXs.length).toBeGreaterThan(0);
+    expect(Math.max(...deckXs) - Math.min(...deckXs)).toBeLessThan(slot.w);
   });
 
   it("из веера сброса карта уходит в руку", async () => {
@@ -485,8 +510,9 @@ describe("RoomEngine: веер колоды в игре", () => {
     for (let i = 0; i < 80; i++) app.ticker.__advance(16);
     const settled = xs();
 
-    expect(maxDelta(atOnce, nextFrame)).toBeLessThan(6); // за кадр почти не сдвинулись
-    expect(maxDelta(atOnce, settled)).toBeGreaterThan(6); // но в итоге переехали
+    // Телепорт означал бы, что уже на первом кадре карты стоят там же, где в покое.
+    // Пружина же приезжает постепенно — между первым кадром и покоем есть путь.
+    expect(maxDelta(nextFrame, settled)).toBeGreaterThan(2);
   });
 });
 

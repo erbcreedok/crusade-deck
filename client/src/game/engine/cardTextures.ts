@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor } from "../card";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
-import { CARD_EDGE, COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
+import { CARD_EDGE, COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
 
 // Фабрики текстур карт: лицо, рубашка, тень. Каждая рисует во временный Graphics/Container
 // и один раз запекается в текстуру — дальше это просто спрайты, рисовать заново незачем.
@@ -99,14 +99,19 @@ export function makeCardBackTexture(app: Application, backId: CardBackId): Textu
  * размытый край (дёшево, без blur-фильтра). Рисуется в текстуру ОДИН раз и живёт как
  * единственный спрайт под колодой, поэтому перекрытий/накопления альфы нет.
  */
+/**
+ * Тень карты. Пиксельному столу идёт ТВЁРДАЯ тень: почти без растушёвки и не чёрная, а
+ * тёмная в цвет стола. Раньше слоёв было восемь по пять пикселей — край расплывался
+ * настолько, что тень читалась как грязное пятно под картой.
+ */
 export function makeShadowTexture(app: Application): Texture {
   const g = new Graphics();
-  const layers = 8; // больше слоёв — мягче градиент края
+  const layers = 3; // ровно столько, чтобы край не был «лесенкой», но остался резким
   for (let i = layers; i >= 1; i--) {
-    const grow = i * 5;
-    g.roundRect(2 - grow, 2 - grow, TEX_W - 4 + grow * 2, TEX_H - 4 + grow * 2, 16 + grow).fill({
-      color: 0x000000,
-      alpha: 0.1,
+    const grow = i * 1.5;
+    g.roundRect(2 - grow, 2 - grow, TEX_W - 4 + grow * 2, TEX_H - 4 + grow * 2, 14 + grow).fill({
+      color: SHADOW_COLOR,
+      alpha: 0.2,
     });
   }
   const tex = app.renderer.generateTexture({ target: g, resolution: 2 });

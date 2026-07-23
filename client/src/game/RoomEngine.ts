@@ -19,7 +19,7 @@ import { activeDropZones, type DragSource } from "./dropZoneActivity";
 import { dealSourceIndex } from "./topCard";
 import type { SeatView } from "./seats";
 import { layoutSeatHand, seatCardFaceUp, type SeatHandLayout } from "./seatHand";
-import { layoutDeckFan } from "./deckFan";
+import { boardFanCardScale, layoutDeckFan } from "./deckFan";
 import { forbidDeckOpenTap } from "./forbidDeckOpen";
 import {
   dealHandAccent,
@@ -301,6 +301,7 @@ export class RoomEngine {
     samples: SwipeSample[]; // история движения — по ней ловим бросок вниз
   } | null = null;
   private cardShadow: Sprite | null = null;
+  private fanShadows: Sprite[] = []; // по тени на карту раскрытого веера доски
   // «Выплеск» по свайпу вверх: несколько карт вылетают из веера и возвращаются, пока
   // сервер тасует. Базовая точка каждой карты берётся из restTarget КАЖДЫЙ кадр, поэтому
   // если новый порядок придёт в полёте, карта просто вернётся уже в новый слот.
@@ -750,6 +751,22 @@ export class RoomEngine {
     return this.boardFan === "discard" ? this.discardPile.count : this.deckCount;
   }
 
+  /** Масштаб собранных стопок доски: в игре они обычного размера, в раздаче — крупнее. */
+  private pileScale(): number {
+    return deckScale(this.freeMode);
+  }
+
+  /** База z-порядка стопки доски: раскрытый веер поднимается над всем столом. */
+  private pileZBase(pile: BoardPile): number {
+    return this.boardFan === pile ? Z.boardFan : 0;
+  }
+
+  /** Разложить стопки доски по слоям: раскрытая — сверху, собранная — на своём месте. */
+  private applyPileZ(): void {
+    this.cards.forEach((c, i) => (c.sprite.zIndex = this.pileZBase("deck") + i));
+    this.discardCards.forEach((c, i) => (c.sprite.zIndex = this.pileZBase("discard") + i));
+  }
+
   private get deckCount(): number {
     return this.deckPile.count;
   }
@@ -821,7 +838,7 @@ export class RoomEngine {
       // второй раз и получим исходную колоду.
       if (this.flipAnim.reverseAtEdge) this.flipAnim.reversed = true;
       this.cards.forEach((c, i) => {
-        c.sprite.zIndex = i;
+        c.sprite.zIndex = this.pileZBase("deck") + i;
         c.body.setTarget(this.restTarget(i));
       });
     } else if (sameSet && changed && shouldPlay(anim.priority.shuffle, this.profile)) {
@@ -836,7 +853,7 @@ export class RoomEngine {
       this.cards.forEach((c, i) => {
         if (this.deckFanned) c.body.setTarget(this.restTarget(i));
         else c.body.snapTo(this.restTarget(i));
-        c.sprite.zIndex = i;
+        c.sprite.zIndex = this.pileZBase("deck") + i;
       });
     }
 
@@ -900,6 +917,7 @@ export class RoomEngine {
     }
     this.syncDiscardCounter();
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    this.applyPileZ();
     this.positionDeckHit();
     this.updateVisibility();
     this.syncCollapseButton();
@@ -1103,7 +1121,7 @@ export class RoomEngine {
     if (this.selectedDecks.includes(HAND_ID)) return;
     if (!this.selectedDecks.includes(DECK_ID) || this.cards.length === 0) return;
     const a = this.layout.deckAnchor;
-    const scale = deckScale();
+    const scale = this.pileScale();
     const w = this.layout.cardW * scale;
     const h = this.layout.cardH * scale;
     const pad = Math.max(6, this.layout.cardH * 0.12);
@@ -2219,7 +2237,7 @@ export class RoomEngine {
     }
     this.reject = { t: 0, dur: 0.5, dirX: dx, dirY: dy };
     this.setNoticeText(REJECT_TEXT);
-    const zs = deckScale();
+    const zs = this.pileScale();
     for (let i = 0; i < this.cards.length; i++) {
       const so = stackOffset(i, this.cards.length, this.deckIsFaceUp());
       this.cards[i]!.body.setTarget({
@@ -2400,7 +2418,7 @@ export class RoomEngine {
       return;
     }
     const a = this.layout.deckAnchor;
-    const zs = deckScale();
+    const zs = this.pileScale();
     const ext = stackExtent(this.cards.length);
     const w = (this.layout.cardW * 1.3 + ext.w) * zs;
     const h = (this.layout.cardH * 1.3 + ext.h) * zs;
@@ -2579,9 +2597,10 @@ export class RoomEngine {
   private syncDiscardVisibility(): void {
     const cards = this.discardCards;
     const fanned = this.boardFan === "discard";
+    const z = this.pileZBase("discard");
     cards.forEach((c, i) => {
       c.sprite.visible = fanned || i >= cards.length - 2;
-      c.sprite.zIndex = i;
+      c.sprite.zIndex = z + i;
     });
   }
 
@@ -2732,6 +2751,7 @@ export class RoomEngine {
     this.shadowLayer = null;
     this.deckShadow = null;
     this.cardShadow = null;
+    this.fanShadows = [];
     this.deckBody = null;
     this.cardLayer = null;
     this.backTex = null;
@@ -2987,6 +3007,7 @@ export class RoomEngine {
     for (const c of this.discardCards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
     this.syncDeckShadow();
+    this.syncFanShadows();
     this.syncCardShadow();
     this.syncRejectText();
     this.syncShout();
@@ -3110,6 +3131,34 @@ export class RoomEngine {
 
   // Одна тень на всю колоду — под нижней картой стопки. Смещение/размер растут с
   // «подъёмом» (scale при захвате), альфа единая → нет накопления от перекрытий.
+  // Тени под картами раскрытого веера: у стопки тень одна на всю (см. syncDeckShadow), а
+  // в вееере карты лежат порознь — каждой нужна своя, иначе веер «висит» без опоры.
+  private syncFanShadows(): void {
+    const cards = this.boardFan ? this.fanCards : [];
+    const want = this.profile.shadows ? cards.length : 0;
+    while (this.fanShadows.length < want) {
+      const sp = new Sprite(this.shadowTex!);
+      sp.anchor.set(0.5);
+      sp.zIndex = Z.boardFan - 1; // под своим веером, но НАД остальным столом
+      this.cardLayer!.addChild(sp);
+      this.fanShadows.push(sp);
+    }
+    this.fanShadows.forEach((sp, i) => {
+      const c = cards[i];
+      if (!c || i >= want) {
+        sp.visible = false;
+        return;
+      }
+      const off = lightShadowOffset(this.layout.cardH, 0.35); // веер приподнят над столом
+      sp.visible = c.sprite.visible;
+      sp.x = c.sprite.x + off.dx;
+      sp.y = c.sprite.y + off.dy;
+      sp.rotation = c.sprite.rotation;
+      sp.scale.set(this.baseScale * c.body.scaleVal * 1.04);
+      sp.alpha = 0.72;
+    });
+  }
+
   private syncDeckShadow(): void {
     const s = this.deckShadow;
     if (!s) return;
@@ -3121,13 +3170,13 @@ export class RoomEngine {
     s.visible = true;
     // Приподнятость — ОТНОСИТЕЛЬНО масштаба зоны: в центре колода крупнее сама по себе,
     // и без деления её тень всегда выглядела бы как у поднятой колоды.
-    const elev = Math.max(0, base.body.scaleVal / deckScale() - 1);
+    const elev = Math.max(0, base.body.scaleVal / this.pileScale() - 1);
     const off = lightShadowOffset(this.layout.cardH, elev);
     s.x = base.body.px + this.shake.dx + off.dx;
     s.y = base.body.py + this.shake.dy + off.dy;
     s.rotation = base.body.rotation + this.shake.rot;
     s.scale.set(this.baseScale * base.body.scaleVal * 1.05);
-    s.alpha = 0.5 + elev * 0.4;
+    s.alpha = 0.62 + elev * 0.3;
   }
 
   // Тень под одиночной картой: живёт только пока карту тащат или пока она отбивается.
@@ -3140,13 +3189,13 @@ export class RoomEngine {
       return;
     }
     s.visible = true;
-    const elev = Math.max(0, v.body.scaleVal / deckScale() - 1);
+    const elev = Math.max(0, v.body.scaleVal / this.pileScale() - 1);
     const off = lightShadowOffset(this.layout.cardH, elev);
     s.x = v.sprite.x + off.dx;
     s.y = v.sprite.y + off.dy;
     s.rotation = v.sprite.rotation;
     s.scale.set(this.baseScale * v.body.scaleVal * 1.05);
-    s.alpha = 0.5 + elev * 0.4;
+    s.alpha = 0.62 + elev * 0.3;
   }
 
   private createCardVisual(card: string): CardVisual {
@@ -3259,7 +3308,7 @@ export class RoomEngine {
   // Стопка в центре: count — сколько карт сейчас «лежат» в кирпиче (при драге верхней — n-1).
   private stackRestTarget(i: number, count: number): CardTargets {
     const a = this.layout.deckAnchor;
-    const zs = deckScale();
+    const zs = this.pileScale();
     const n = Math.max(1, count);
     const so = stackOffset(i, n, this.deckIsFaceUp());
     return { x: a.x + so.dx * zs, y: a.y + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
@@ -3269,8 +3318,8 @@ export class RoomEngine {
   private discardRestTarget(i: number): CardTargets {
     if (this.boardFan === "discard") return this.deckFanTarget(i);
     const slot = this.layout.discardSlot;
-    if (!slot) return { x: -9999, y: -9999, rot: 0, scale: deckScale() };
-    const zs = deckScale();
+    if (!slot) return { x: -9999, y: -9999, rot: 0, scale: this.pileScale() };
+    const zs = this.pileScale();
     const n = Math.max(1, this.discardPile.count);
     const so = stackOffset(i, n, true);
     return { x: slot.cx + so.dx * zs, y: slot.cy + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
@@ -3330,7 +3379,7 @@ export class RoomEngine {
     if (!show || !slot) return;
     t.text = String(n);
     t.style.fontSize = Math.max(11, Math.min(28, this.rowCounterSpace() * 0.85));
-    const zs = deckScale();
+    const zs = this.pileScale();
     const ext = stackExtent(n);
     t.x = slot.cx;
     t.y = slot.cy + (this.layout.cardH / 2) * zs + ext.h * zs + this.rowCounterSpace() * 0.45;
@@ -3345,7 +3394,7 @@ export class RoomEngine {
     t.text = String(this.deckCount);
     t.style.fontSize = Math.max(11, Math.min(28, this.rowCounterSpace() * 0.85));
     const a = this.layout.deckAnchor;
-    const zs = deckScale();
+    const zs = this.pileScale();
     const ext = stackExtent(this.deckCount);
     t.x = a.x;
     t.y = a.y + (this.layout.cardH / 2) * zs + ext.h * zs + this.rowCounterSpace() * 0.45;
@@ -3374,14 +3423,34 @@ export class RoomEngine {
   // Веер колоды в центре: якорь = якорь стопки (рядом со счётчиком).
   // НЕ fanGeomFor(centerZone) — та формула для руки (якорь у верха полосы), от неё веер
   // улетал на «вышку» при открытии.
+  /**
+   * Полоса, отведённая раскрытому вееру доски. Веер — главное на столе, пока он открыт,
+   * поэтому он НЕ жмётся в игровую зону: занимает всё вплоть до слота сброса (сброс
+   * оставляем свободным — туда бросают карты). В раздаче полоса = центр стола.
+   */
+  private boardFanArea(): { cx: number; w: number } {
+    const slot = this.layout.discardSlot;
+    if (!slot) return { cx: this.layout.centerZone.cx, w: this.layout.centerZone.w };
+    const gap = this.layout.cardW * 0.2;
+    const left = Math.max(4, this.layout.cardW * 0.1);
+    const right = slot.cx - slot.w / 2 - gap;
+    return { cx: (left + right) / 2, w: Math.max(this.layout.cardW, right - left) };
+  }
+
+  /** Карты редкого веера крупнее: три штуки видно во весь стол, тридцать — обычным размером. */
+  private boardFanScale(): number {
+    return boardFanCardScale(this.fanCount, this.boardFanArea().w, this.layout.cardW);
+  }
+
   private deckFanGeom(): FanGeom {
+    const area = this.boardFanArea();
     return layoutDeckFan({
-      // Веер доски всегда раскрывается по центру игровой зоны — одно место для всех
-      // стопок стола, где бы сами стопки ни лежали (см. layout.boardFanAnchor).
-      stackAnchor: this.layout.boardFanAnchor,
-      zone: this.layout.centerZone,
+      // Веер доски раскрывается в отведённой полосе — одно место для всех стопок стола,
+      // где бы сами стопки ни лежали (см. layout.boardFanAnchor).
+      stackAnchor: { x: area.cx, y: this.layout.boardFanAnchor.y },
+      zone: { cx: area.cx, cy: this.layout.boardFanAnchor.y, w: area.w, h: this.layout.centerZone.h },
       count: this.fanCount,
-      cardW: this.layout.cardW,
+      cardW: this.layout.cardW * this.boardFanScale(),
       cardH: this.layout.cardH,
       reservedBelow: this.rowCounterSpace() + this.layout.cardH * 2 * anim.fan.collapse.hitRatio,
     });
@@ -3400,7 +3469,7 @@ export class RoomEngine {
   private deckFanTarget(i: number): CardTargets {
     const g = this.deckFanGeom();
     const c = fanCard(i, Math.max(1, this.fanCount), g.anchor, g.width, g.angleDeg, anim.fan.widthFactor);
-    return { x: c.x, y: c.y, rot: c.rot, scale: 1 };
+    return { x: c.x, y: c.y, rot: c.rot, scale: this.boardFanScale() };
   }
 
   private faceTexture(card: string): Texture {

@@ -155,8 +155,8 @@ export function computeLayout(
   };
 }
 
-// Ширина боковых слотов: стопка карт с запасом. Колода в покое крупнее карты
-// (anim.deck.centerScale), и слот обязан вмещать именно её — иначе она вылезает за рамку.
+// Ширина боковых слотов: стопка карт с запасом. В игре стопки лежат обычным размером
+// (deckScale(true) === 1), поэтому слоту хватает карты плюс поля.
 const SLOT_PAD = 1.25;
 // Игровая зона всегда шире слотов — это главный бокс стола, туда будут ложиться карты.
 const PLAY_MIN_RATIO = 1.15;
@@ -174,12 +174,12 @@ function splitGameTable(
   cardH: number,
 ): { deck: RoundedRect; play: RoundedRect; discard: RoundedRect } {
   const gap = Math.max(6, cardW * 0.12);
-  const wantSlot = cardW * anim.deck.centerScale * SLOT_PAD;
+  const wantSlot = cardW * SLOT_PAD;
   // Что останется игре, если взять слоты желаемого размера. Не хватает — режем слоты.
   const free = band.w - 2 * gap;
   const slotW = Math.max(cardW, Math.min(wantSlot, free / (2 + PLAY_MIN_RATIO)));
   const playW = Math.max(cardW * 1.05, free - 2 * slotW);
-  const slotH = Math.min(band.h, Math.max(cardH * anim.deck.centerScale * SLOT_PAD, cardH));
+  const slotH = Math.min(band.h, Math.max(cardH * SLOT_PAD, cardH));
 
   const left = band.cx - band.w / 2;
   const deck: RoundedRect = { cx: left + slotW / 2, cy: band.cy, w: slotW, h: slotH, r: band.r };

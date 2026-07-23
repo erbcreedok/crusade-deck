@@ -33,6 +33,12 @@ export const EMOJI_FONT = "'Apple Color Emoji', 'Noto Color Emoji', 'Segoe UI Em
 /** Огонь: жёлто-оранжевая заливка, тёмно-красная обводка. */
 export const SHOUT_COLORS = { fill: 0xffc233, stroke: 0x7d1b06 } as const;
 
+/**
+ * Цвет тени: не чёрный, а тёмный в тон стола — чёрная тень на зелёном сукне выглядит
+ * дырой, а не тенью. Плотность даёт альфа, а не чернота.
+ */
+export const SHADOW_COLOR = 0x101a14;
+
 /** Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа. */
 export const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 } as const;
 
@@ -83,6 +89,9 @@ export const Z = {
   handHit: 10_100,
   collapseBtn: 10_500, // ВЫШЕ хит-зоны колоды: иначе её съедала полоса веера
   handCards: 2000,
+  // Раскрытый веер доски — поверх ВСЕГО стола: он главный, пока открыт, и не должен
+  // прятаться за колодой или чужими стопками.
+  boardFan: 3000,
   splash: 50_000,
   flight: 80_000,
   draggedCard: 100_000,

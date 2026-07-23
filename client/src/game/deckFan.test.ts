@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layoutDeckFan } from "./deckFan";
+import { boardFanCardScale, layoutDeckFan } from "./deckFan";
 import { fanCard } from "./fan";
 
 const zone = { cx: 200, cy: 300, w: 400, h: 280 };
@@ -46,5 +46,30 @@ describe("layoutDeckFan", () => {
       cardH: 100,
     });
     expect(g.angleDeg).toBeLessThanOrEqual(2.01);
+  });
+});
+
+describe("boardFanCardScale", () => {
+  const cardW = 63;
+
+  it("мало карт — крупнее обычного", () => {
+    expect(boardFanCardScale(3, 320, cardW)).toBeGreaterThan(1.2);
+    expect(boardFanCardScale(1, 320, cardW)).toBeGreaterThan(boardFanCardScale(6, 320, cardW));
+  });
+
+  it("много карт — обычный размер, но не мельче", () => {
+    expect(boardFanCardScale(36, 320, cardW)).toBe(1);
+    expect(boardFanCardScale(52, 100, cardW)).toBe(1);
+  });
+
+  it("растёт вместе с отведённой шириной, но упирается в потолок", () => {
+    expect(boardFanCardScale(5, 400, cardW)).toBeGreaterThan(boardFanCardScale(5, 250, cardW));
+    expect(boardFanCardScale(2, 5000, cardW)).toBe(boardFanCardScale(1, 5000, cardW));
+  });
+
+  it("вырожденные значения не ломают масштаб", () => {
+    expect(boardFanCardScale(0, 320, cardW)).toBe(1);
+    expect(boardFanCardScale(5, 0, cardW)).toBe(1);
+    expect(boardFanCardScale(5, 320, 0)).toBe(1);
   });
 });
