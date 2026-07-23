@@ -1,0 +1,43 @@
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_ed9bee34456abb 4319,4332
+  s_6b17180413249b::t_7a2ea60a57052b 4308-4311
+  s_6b17180413249b::t_67b773e5189a03 4216-4232
+  s_6b17180413249b::t_014a4492528637 2434-2435,2445-2446
+  s_6b17180413249b::t_2c7789f170693b 4525-4527,4534
+  s_6b17180413249b::t_c8ee7b29a4c0ef 1824-1826
+  s_6b17180413249b::t_bbad041a5dc804 4420-4421,4423
+  s_6b17180413249b::t_cf9279f4c7a5d8 3502
+  s_6b17180413249b::t_e786e9fa8697fe 4438,4441,4447
+  s_6b17180413249b::t_d290976bc9dfa8 4511-4513,4518-4519
+  s_6b17180413249b::t_884bcdad91456a 4285-4289,4295-4298,4300
+  s_6b17180413249b::t_17efa535491a7b 4506-4507
+  s_6b17180413249b::t_66b158facac5be 3499-3501
+  s_6b17180413249b::t_ebac00c0acc9da 1749-1751
+client/src/game/engine/gestureIntent.ts
+  s_6b17180413249b::t_ea37ec8c473208 88-90
+  s_6b17180413249b::t_fa456f90d0dcef 91
+client/src/game/anim/config.ts
+  s_6b17180413249b::t_e760ed529e84ea 55-63
+  s_6b17180413249b::t_bac7523474bce1 54
+client/src/game/engine/gestureIntent.test.ts
+  s_6b17180413249b::t_2e52527022b95f 93-101
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_eda83d11da034b 691-718,736,738,740,745-746,748,750,752,757-768
+  s_6b17180413249b::t_e87e9c157978de 719-735,737,739,741-744,747,749,751,753-756
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "43c7f5cc65ff59b6d453bffbc66975ba3edf6dba",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
