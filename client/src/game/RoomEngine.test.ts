@@ -610,6 +610,77 @@ describe("RoomEngine: драг по сложенной руке", () => {
     expect(collapses).toBe(0);
   });
 
+  it("драг по сложенной руке не открывает веер: тап после жеста не считается", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setHand(["2♦", "3♦", "4♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const taps: string[] = [];
+    engine.setOnDeckTap((id: string) => taps.push(id));
+
+    dragFromRow(app, 195, 640); // потащили карту и отпустили над своей же полосой
+    // Pixi после такого жеста шлёт pointertap туда, где нажали, — на полосу руки.
+    findByZ(app.stage, 10_100).__emit("pointertap", { stopPropagation: () => {} });
+    app.stage.__emit("pointertap", {});
+
+    expect(taps).toHaveLength(0); // веер никто не просил открывать
+  });
+
+  it("тап ПОСЛЕ драга (новый жест) снова раскрывает веер", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setHand(["2♦", "3♦", "4♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const taps: string[] = [];
+    engine.setOnDeckTap((id: string) => taps.push(id));
+
+    dragFromRow(app, 195, 640); // жест первый: драг
+    findByZ(app.stage, 10_100).__emit("pointertap", { stopPropagation: () => {} });
+    expect(taps).toHaveLength(0);
+
+    // Жест второй: честный тап. Драг прошлого жеста не должен его глушить.
+    const handHit = findByZ(app.stage, 10_100);
+    handHit.__emit("pointerdown", { pointerId: 41, global: { x: 195, y: 700 }, pointerType: "touch" });
+    app.stage.__emit("pointerdown", { pointerId: 41, global: { x: 195, y: 700 } });
+    app.stage.__emit("pointerup", { pointerId: 41, global: { x: 195, y: 700 } });
+    handHit.__emit("pointertap", { stopPropagation: () => {} });
+
+    expect(taps).toEqual(["hand"]);
+  });
+
+  it("после драга тап прилетает дважды (тач шлёт синтетический) — веер не открывается", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setHand(["2♦", "3♦", "4♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const taps: string[] = [];
+    engine.setOnDeckTap((id: string) => taps.push(id));
+
+    dragFromRow(app, 195, 640);
+    const handHit = findByZ(app.stage, 10_100);
+    handHit.__emit("pointertap", { stopPropagation: () => {} });
+    app.stage.__emit("pointertap", {});
+    handHit.__emit("pointertap", { stopPropagation: () => {} }); // синтетический дубль
+
+    expect(taps).toHaveLength(0);
+  });
+
+  it("тап без движения по-прежнему раскрывает веер", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setHand(["2♦", "3♦"]);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const taps: string[] = [];
+    engine.setOnDeckTap((id: string) => taps.push(id));
+
+    const handHit = findByZ(app.stage, 10_100);
+    handHit.__emit("pointerdown", { pointerId: 31, global: { x: 195, y: 700 }, pointerType: "touch" });
+    app.stage.__emit("pointerup", { pointerId: 31, global: { x: 195, y: 700 } });
+    handHit.__emit("pointertap", { stopPropagation: () => {} });
+
+    expect(taps).toEqual(["hand"]);
+  });
+
   it("карта из сложенной руки, брошенная мимо, возвращается в шеренгу", async () => {
     const { engine, app } = await mountEngine();
     engine.setSelfId("me");

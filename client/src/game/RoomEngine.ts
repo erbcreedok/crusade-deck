@@ -338,7 +338,16 @@ export class RoomEngine {
   private deckBody: Graphics | null = null;
   private deckBodyCount = -1; // на сколько карт нарисован блок (перерисовываем при смене)
   private tapStartedOnDeck = false; // нажатие началось на колоде — тап мимо не снимает выделение
-  private skipNextTap = false; // гасит pointertap, прилетающий сразу после дропа карты
+  /**
+   * В ТЕКУЩЕМ жесте карта уже поехала за пальцем. Тап после такого жеста игнорируют все
+   * обработчики — и рука, и колода, и сброс, и «тап мимо».
+   *
+   * Раньше здесь стоял одноразовый флаг: первый же тап его съедал. На тач-экране этого
+   * мало — после драга прилетает ещё и синтетический тап (браузер добавляет его к
+   * касанию), он доходил до руки и раскрывал веер прямо посреди перетаскивания карты.
+   * Признак живёт до СЛЕДУЮЩЕГО нажатия и потому гасит сколько угодно поздних тапов.
+   */
+  private dragHappened = false;
   private onCardReorder: ((card: string, to: number) => void) | null = null;
   // Разрешено ли класть карту в зоны (центр/рука). Во время раздачи — нет: карту можно
   // только переставить внутри веера. Сеттер — задел под игровые правила.
@@ -623,10 +632,7 @@ export class RoomEngine {
     discardHit.zIndex = Z.deckHit;
     discardHit.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
-      if (this.skipNextTap) {
-        this.skipNextTap = false;
-        return;
-      }
+      if (this.dragHappened) return;
       this.onBoardFanChange?.("discard");
     });
     this.world!.addChild(discardHit);
@@ -688,6 +694,11 @@ export class RoomEngine {
   private bindStageEvents(app: Application): void {
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.w, this.h);
+    // Нажатие всплывает до сцены с любой хит-зоны — значит здесь виден старт ЛЮБОГО
+    // жеста, и это единственное место, где нужно снимать признак драга.
+    app.stage.on("pointerdown", () => {
+      this.dragHappened = false;
+    });
     app.stage.on("pointermove", (e: FederatedPointerEvent) => this.onPointerMove(e));
     app.stage.on("pointerup", (e: FederatedPointerEvent) => {
       const wasDrag = !!this.cardDrag;
@@ -702,10 +713,7 @@ export class RoomEngine {
       // Тап, которым закончился настоящий драг, — не «тап по пустому месту». Pixi шлёт его
       // на общего предка (сцену), когда палец нажали на карте, а отпустили мимо неё, и без
       // этой проверки любой драг снимал бы фокус руки, то есть складывал веер.
-      if (this.skipNextTap) {
-        this.skipNextTap = false;
-        return;
-      }
+      if (this.dragHappened) return;
       // Жест начался на колоде, а палец отпустили мимо зоны — тоже не пустое место.
       if (this.tapStartedOnDeck) {
         this.tapStartedOnDeck = false;
@@ -1275,7 +1283,6 @@ export class RoomEngine {
 
   private onDeckDown(e: FederatedPointerEvent): void {
     this.tapStartedOnDeck = true;
-    this.skipNextTap = false; // новый жест — прошлое подавление тапа больше не актуально
     // Что вообще можно делать этим нажатием, решает dragMode.ts.
     const mode = this.dragMode();
     if (mode === "none") return;
@@ -1356,7 +1363,6 @@ export class RoomEngine {
   // складывал руку побочным эффектом.
   private cancelCardDrag(dragged: CardVisual): void {
     this.cardDrag = null;
-    this.skipNextTap = true;
     this.hoverZone = null;
     this.returnCardHome(dragged);
     this.drawZones();
@@ -1429,7 +1435,6 @@ export class RoomEngine {
       case "wait":
         return;
       case "deal":
-        this.skipNextTap = true; // после драга верхней карты тап не откроет веер
         this.beginCardDrag();
         return;
       case "collapse-hand":
@@ -1917,6 +1922,7 @@ export class RoomEngine {
     this.cardPress = null;
     this.poke = null;
     this.hoverTarget = 0;
+    this.dragHappened = true; // с этого мига поздние тапы жеста игнорируются
     this.cardDrag = {
       id: p.id,
       v,
@@ -2008,7 +2014,6 @@ export class RoomEngine {
     const fromHand = d.fromHand;
     this.cardDrag = null;
     this.dealDrag = false;
-    this.skipNextTap = true;
     this.hoverZone = null;
     this.setHoverSeat(null);
     if (this.deckHit) this.deckHit.cursor = this.deckCursor();
@@ -2314,12 +2319,8 @@ export class RoomEngine {
 
   private handleDeckTap(e: FederatedPointerEvent): void {
     this.tapStartedOnDeck = false; // тап дошёл до колоды — метка отработала
-    if (this.skipNextTap) {
-      this.skipNextTap = false; // после драга верхней карты тап не открывает веер
-      return;
-    }
+    if (this.dragHappened) return; // жест был драгом — тап к нему не относится
     // Одинарный тап по колоде в центре — раскрыть веер. Сворачивает стрелка.
-    // Selection нет; старт драга выставляет skipNextTap и отменяет открытие.
     {
       this.dealDrag = false; // тап открытия — не раздача
       // В игре веер доски — личный: тап раскрывает стопку и складывает её обратно. Веер
@@ -2346,7 +2347,6 @@ export class RoomEngine {
   private onHandDown(e: FederatedPointerEvent): void {
     if (this.hand.length === 0) return;
     this.tapStartedOnDeck = true;
-    this.skipNextTap = false;
     if (this.cardPress || this.cardDrag) return;
     this.dealDrag = false;
     // Раскрытая рука отдаёт карту под пальцем, сложенная — ВЕРХНЮЮ (ту, что видна поверх
@@ -2366,10 +2366,7 @@ export class RoomEngine {
 
   private handleHandTap(e: FederatedPointerEvent): void {
     this.tapStartedOnDeck = false;
-    if (this.skipNextTap) {
-      this.skipNextTap = false;
-      return;
-    }
+    if (this.dragHappened) return;
     // Тап по руке выделяет HAND_ID (фокус → веер). Колоду на столе не трогаем.
     this.onDeckTap?.(HAND_ID);
   }
