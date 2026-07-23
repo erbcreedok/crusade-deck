@@ -11,7 +11,7 @@ describe("forbidDeckOpenTap", () => {
     expect(forbidDeckOpenTap(false, true)).toBe(false);
   });
 
-  it("в режиме свободы колода общая — тапнувшего не отчитываем", () => {
+  it("в режиме свободы колода общая — тап её открывает, а не наказывает", () => {
     expect(forbidDeckOpenTap(false, false, true)).toBe(false);
   });
 });

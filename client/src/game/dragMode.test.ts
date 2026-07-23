@@ -27,9 +27,15 @@ describe("dragModeFor — что берёт палец", () => {
     expect(dragModeFor({ onHand: false, handFocused: false, canDeal: false, freeMode: true })).toBe("topCard");
   });
 
-  it("режим свободы: открытый веер колоды не мешает тянуть карту", () => {
+  it("режим свободы: из раскрытого веера тянется карта ПОД ПАЛЬЦЕМ, а не верхняя", () => {
     expect(
       dragModeFor({ onHand: false, handFocused: false, canDeal: false, deckFanned: true, freeMode: true }),
+    ).toBe("card");
+  });
+
+  it("режим свободы: по закрытой колоде по-прежнему берётся верхняя", () => {
+    expect(
+      dragModeFor({ onHand: false, handFocused: false, canDeal: false, deckFanned: false, freeMode: true }),
     ).toBe("topCard");
   });
 

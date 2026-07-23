@@ -63,6 +63,9 @@ export function RoomScreen({
 
   const [draggingDeck, setDraggingDeck] = useState(false);
   const [handFanOpen, setHandFanOpen] = useState(false);
+  // Веер колоды в ИГРЕ — личный: его видит только тот, кто открыл, поэтому он живёт
+  // здесь, а не в схеме. В раздаче веер общий и приходит с сервера (deckFanned).
+  const [myDeckFanOpen, setMyDeckFanOpen] = useState(false);
   const [shuffleSignal, setShuffleSignal] = useState(0);
   const [autoDealing, setAutoDealing] = useState(false);
   // Выделение элементов стола. Тап выделяет, тап мимо — снимает; правила (что с чем
@@ -107,6 +110,16 @@ export function RoomScreen({
   // Колода всегда лежит в центре стола: раздаёт её дилер по одной карте, а в свободе
   // игроки тянут себе сами. Переносить её целиком по зонам больше некому.
   //
+  // Какой веер колоды показывать: в игре — свой личный, в раздаче — общий дилерский.
+  const deckFanOpen = freeMode ? myDeckFanOpen : deckFanned;
+
+  // Личный веер живёт только пока есть что веером держать: смена режима стола, пустая
+  // колода или унесённая со стола колода — и он сворачивается сам.
+  const deckOnTable = deckLocation === "center";
+  useEffect(() => {
+    if (!freeMode || deck.length === 0 || !deckOnTable) setMyDeckFanOpen(false);
+  }, [freeMode, deck.length, deckOnTable]);
+
   // В свободе дилер перестаёт быть раздающим: вместе с раздачей у него пропадают тасовка,
   // веер колоды и всё остальное, что завязано на canDeal.
   const canDeal = amIDealer && !freeMode;
@@ -143,7 +156,11 @@ export function RoomScreen({
     setSelection((sel) => selectOnly(sel, "deck", deckId));
   }, []);
   const onFanCollapse = useCallback(() => setSelection(clearSelection()), []);
-  const onEmptyTap = useCallback(() => setSelection(clearSelection()), []);
+  // Тап мимо всего — снять выделение и свернуть свой веер колоды: это явное «убери».
+  const onEmptyTap = useCallback(() => {
+    setSelection(clearSelection());
+    setMyDeckFanOpen(false);
+  }, []);
   const selectedDecks = selection.type === "deck" ? selection.ids : [];
 
   // Веер своей руки → на сервер: остальные рисуют веер на моём месте.
@@ -158,15 +175,18 @@ export function RoomScreen({
   const onDealCard = useCallback(
     (card: string, to: string) => {
       if (freeMode) {
-        // Какую именно карту снять, решает сервер (верхнюю) — он же разрешает споры
-        // одновременных «тянучек» порядком прихода сообщений.
-        if (to === room.sessionId) room.send("take_card", {});
+        // Со стопки берут верхнюю (сервер решает сам), из раскрытого веера — карту с той
+        // позиции, где её взял палец. Позицию считаем здесь: серверу идентификатор карты
+        // не отправляем, хозяин позиции — он.
+        if (to !== room.sessionId) return;
+        const at = deck.indexOf(card);
+        room.send("take_card", myDeckFanOpen && at >= 0 ? { index: at } : {});
         return;
       }
       if (!canDeal) return;
       room.send("deal_card", { card, to, rev: nextRev() });
     },
-    [freeMode, canDeal, room, nextRev],
+    [freeMode, canDeal, room, nextRev, deck, myDeckFanOpen],
   );
 
   // Скинуть свою карту в сброс — можно только в игре (в раздаче слота нет).
@@ -180,11 +200,17 @@ export function RoomScreen({
 
   const onDeckFanChange = useCallback(
     (open: boolean) => {
-      if (!canDeal) return; // веер колоды на столе меняет только дилер
+      // В игре веер личный — никому его не рассылаем. В раздаче он общий, и менять его
+      // может только дилер (сервер проверяет это сам).
+      if (freeMode) {
+        setMyDeckFanOpen(open);
+        return;
+      }
+      if (!canDeal) return;
       setDeckFanned(open); // сразу, не ждём эхо
       room.send("set_deck_fanned", { open });
     },
-    [canDeal, room, setDeckFanned],
+    [freeMode, canDeal, room, setDeckFanned],
   );
 
   const sendHandOrder = useCallback(
@@ -320,7 +346,7 @@ export function RoomScreen({
         topInset={topInset}
         bottomInset={bottomInset}
         freeMode={freeMode}
-        deckFanned={deckFanned}
+        deckFanned={deckFanOpen}
         canDeal={canDeal}
         selfId={room.sessionId}
         selfReady={myReady}

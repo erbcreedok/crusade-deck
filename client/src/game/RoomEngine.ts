@@ -778,8 +778,11 @@ export class RoomEngine {
       // Порядок ровно тот же — это эхо нашего же оптимистичного реордера (драг карты).
       // Ничего не двигаем: карта как раз доезжает пружиной в новый слот.
     } else if (!this.shuffleAnim && !this.scrambleAnim && !this.cardDrag) {
+      // В стопке телепорт незаметен (карты лежат друг на друге), а раскрытый веер обязан
+      // ПЕРЕСОБИРАТЬСЯ на глазах: пока он открыт, соседи тянут из него карты.
       this.cards.forEach((c, i) => {
-        c.body.snapTo(this.restTarget(i));
+        if (this.deckFanned) c.body.setTarget(this.restTarget(i));
+        else c.body.snapTo(this.restTarget(i));
         c.sprite.zIndex = i;
       });
     }
@@ -1193,17 +1196,16 @@ export class RoomEngine {
     //        не показала достаточную полоску (canGrabAt) — но палец не игнорируем:
     //        ведение раскрывает веер под пальцем, и в открытый зазор карту уже можно взять.
     const nearest = this.nearestFanIndex(e.global.x);
-    this.dealDrag = mode === "topCard";
+    // В свободе любой драг с колоды — это взятие карты себе: со стопки уходит верхняя,
+    // из веера — та, что под пальцем (mode === "card").
+    this.dealDrag = mode === "topCard" || (this.freeMode && mode === "card");
     if (mode !== "card") this.deckPointer = true;
     this.cardPress = {
       id: e.pointerId,
       ...this.pressPoint(e),
-      // В свободе берём именно ВЕРХНЮЮ карту, даже если веер раскрыт: сервер по take_card
-      // снимает верхнюю, и картинка не должна расходиться с тем, что он выдаст.
-      index:
-        mode === "topCard"
-          ? dealSourceIndex(this.cards.length, this.deckFanned && !this.freeMode, nearest)
-          : nearest,
+      // Стопка отдаёт верхнюю карту, раскрытый веер — ту, что под пальцем. В свободе
+      // раскрытый веер приходит сюда уже как mode === "card", то есть по второй ветке.
+      index: mode === "topCard" ? dealSourceIndex(this.cards.length, this.deckFanned, nearest) : nearest,
       canGrab: mode === "topCard" ? true : mode === "peek" ? false : this.canGrabAt(nearest),
       fromHand: false,
       samples: this.startSamples(e),
@@ -2129,6 +2131,12 @@ export class RoomEngine {
     // Selection нет; старт драга выставляет skipNextTap и отменяет открытие.
     {
       this.dealDrag = false; // тап открытия — не раздача
+      // В игре веер колоды — личный: тап его открывает и складывает. Веер руки при этом
+      // не трогается, они независимы.
+      if (this.freeMode) {
+        this.onDeckFanChange?.(!this.deckFanned);
+        return;
+      }
       if (forbidDeckOpenTap(this.canDeal, this.deckFanned, this.freeMode)) {
         // Не-дилер тыкает закрытую колоду «открыть» — удар + «низяяя».
         const a = this.layout.deckAnchor;
@@ -2993,7 +3001,7 @@ export class RoomEngine {
     const cardH = this.layout.cardH;
     const handFan = this.fanOpen();
     // Стрелка колоды: только дилер, независимо от фокуса руки.
-    const deckFanBtn = this.canDeal && this.deckFanned && this.cards.length > 0;
+    const deckFanBtn = (this.canDeal || this.freeMode) && this.deckFanned && this.cards.length > 0;
     this.collapseWantShow = handFan;
     this.deckCollapseWantShow = deckFanBtn;
 

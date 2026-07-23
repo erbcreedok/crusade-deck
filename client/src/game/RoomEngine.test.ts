@@ -332,6 +332,99 @@ describe("RoomEngine: веера не складываются сами", () => 
   });
 });
 
+describe("RoomEngine: веер колоды в игре", () => {
+  function tapDeck(app: any): void {
+    findByZ(app.stage, 10_000).__emit("pointertap", {
+      pointerId: 3,
+      global: { x: 61, y: 362 },
+      pointerType: "touch",
+      stopPropagation: () => {},
+    });
+  }
+
+  it("тап по колоде раскрывает веер и складывает обратно", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    const asked: boolean[] = [];
+    engine.setOnDeckFanChange((open: boolean) => asked.push(open));
+
+    tapDeck(app);
+    expect(asked).toEqual([true]);
+
+    engine.setDeckFanned(true); // React вернул флаг обратно в движок
+    tapDeck(app);
+    expect(asked).toEqual([true, false]);
+  });
+
+  it("раскрытие веера будит цикл и отпускает его, когда карты доехали", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+    expect(app.ticker.started).toBe(false);
+
+    engine.setDeckFanned(true);
+    expect(app.ticker.started).toBe(true);
+    for (let i = 0; i < 200 && app.ticker.started; i++) app.ticker.__advance(16);
+    expect(app.ticker.started).toBe(false); // веер разъехался — цикл снова спит
+  });
+
+  it("из раскрытого веера тянется карта ПОД ПАЛЬЦЕМ, а не верхняя", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setDeckFanned(true);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const taken: string[] = [];
+    engine.setOnDealCard((card: string) => taken.push(card));
+    // Тянем с левого края веера — там лежат НЕ верхние карты.
+    const deckHit = findByZ(app.stage, 10_000);
+    deckHit.__emit("pointerdown", { pointerId: 4, global: { x: 40, y: 362 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 4, global: { x: 60, y: 380 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 4, global: { x: 195, y: 740 } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 4, global: { x: 195, y: 740 } });
+
+    expect(taken).toHaveLength(1);
+    expect(taken[0]).not.toBe(DECK_36[DECK_36.length - 1]);
+  });
+
+  it("сосед забрал карту — раскрытый веер доезжает пружиной, а не моргает", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    engine.setDeckFanned(true);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    // Позиции спрайтов веера, отсортированные: карты по одной не различаем — важно, КАК
+    // едет вся раскладка.
+    const xs = (): number[] => {
+      const live = new Set(pixi.__liveSprites());
+      return findByZ(app.stage, 3)
+        .children.filter((c: any) => live.has(c) && c.visible)
+        .map((c: any) => c.x)
+        .sort((p: number, q: number) => p - q);
+    };
+    const maxDelta = (a: number[], b: number[]): number =>
+      Math.max(...a.map((v, i) => Math.abs(v - (b[i] ?? v))));
+
+    engine.setDeck(DECK_36.slice(1)); // сосед забрал карту из веера
+    const atOnce = xs(); // спрайты ещё на старых местах
+    app.ticker.__advance(16);
+    const nextFrame = xs();
+    for (let i = 0; i < 80; i++) app.ticker.__advance(16);
+    const settled = xs();
+
+    expect(maxDelta(atOnce, nextFrame)).toBeLessThan(6); // за кадр почти не сдвинулись
+    expect(maxDelta(atOnce, settled)).toBeGreaterThan(6); // но в итоге переехали
+  });
+});
+
 describe("RoomEngine: сброс", () => {
   /** Утащить карту из раскрытой руки в точку (x,y). */
   function dragHandCardTo(app: any, x: number, y: number): void {
