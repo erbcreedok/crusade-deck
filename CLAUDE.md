@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 802 tests
+cd client && npm test && npx tsc --noEmit   # 804 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -164,7 +164,14 @@ zero-sized rect — so hit-testing and painting both drop it without a special c
     between stacks flies instead of teleporting.
   - Stacks of the zone are ordinary board piles named `play:N` (`engine/boardPile.ts`), so
     the whole board-fan mechanism came for free: a tap opens a stack at `boardFanAnchor`,
-    exactly where the deck and the discard open.
+    exactly where the deck and the discard open. A CLOSED stack also gives up its top card
+    to a plain drag — reaching for the fan on every move is a step too many, and the top
+    card is what's usually wanted. The two gestures don't argue: move the finger and you
+    drag the card, don't move it and you open the stack (the tap checks `dragHappened`).
+  - What happens to the REST of a pile when a card is dragged off it depends on the pile of
+    the GESTURE, not on "is the deck fanned". That used to read `!this.deckFanned`, so a
+    drag out of the open discard or a zone stack (a fan that isn't the deck's) quietly
+    re-laid the DECK out as n−1.
   - While a card is being dragged over the zone the table ANSWERS (`playHover.ts`): the
     stack under the finger lifts and grows (so its shadow travels further on its own —
     lift IS the excess over the resting scale), and the immediate neighbours step aside,

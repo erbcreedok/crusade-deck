@@ -588,6 +588,14 @@ describe("RoomEngine: игральная зона", () => {
     app.stage.__emit("pointerup", { pointerId: 2, global: { x, y } });
   }
 
+  /**
+   * Хит-зона игральной зоны. Именно она, а не «все узлы этого слоя»: на Z.deckHit их
+   * четыре (колода, сброс, зона, полоса соседей), и полоса на чужом pointerdown начала бы
+   * панорамировать места.
+   */
+  const playHitOf = (app: any): any =>
+    findAllByZ(app.stage, 10_000).find((n: any) => n.label === "playHit");
+
   async function inGame() {
     const r = await mountEngine();
     r.engine.setSelfId("me");
@@ -677,11 +685,7 @@ describe("RoomEngine: игральная зона", () => {
     const layout = computeLayout(390, 800, undefined, true);
     const grid = playGrid(layout.centerZone, layout.cardW, layout.cardH, 2);
     const cell = grid.cells[1]!;
-    // Хит-зон на Z.deckHit несколько (колода, сброс, зона) — тапаем все: сработает та,
-    // чья хит-область накрывает точку.
-    for (const node of findAllByZ(app.stage, 10_000)) {
-      node.__emit("pointertap", { global: { x: cell.cx, y: cell.cy }, stopPropagation() {} });
-    }
+    playHitOf(app).__emit("pointertap", { global: { x: cell.cx, y: cell.cy }, stopPropagation() {} });
 
     expect(opened).toContain("play:1");
   });
@@ -732,6 +736,63 @@ describe("RoomEngine: игральная зона", () => {
     expect(gapFromTarget(back.x, back.y)).toBeCloseTo(gapBefore, 0);
   });
 
+  // Веер ради одной верхней карты — лишний шаг на каждый ход. Закрытая кучка отдаёт её
+  // прямо с места; веер остаётся на «покопаться в середине».
+  it("верхняя карта тянется прямо из закрытой кучки, без раскрытия веера", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦", "3♦"], ["4♦"]]);
+    for (let i = 0; i < 40; i++) app.ticker.__advance(16);
+
+    const taken: string[] = [];
+    const fans: (string | null)[] = [];
+    engine.setOnTakePlay((card: string) => taken.push(card));
+    engine.setOnBoardFanChange((pile: string | null) => fans.push(pile));
+
+    const { computeLayout } = await import("./layout");
+    const { playGrid } = await import("./playGrid");
+    const layout = computeLayout(390, 800, undefined, true);
+    const grid = playGrid(layout.centerZone, layout.cardW, layout.cardH, 2);
+    const cell = grid.cells[0]!;
+    const hand = layout.handZone;
+
+    const playHit = playHitOf(app);
+    playHit.__emit("pointerdown", { pointerId: 31, global: { x: cell.cx, y: cell.cy }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 31, global: { x: cell.cx + 15, y: cell.cy + 25 } });
+    for (let i = 0; i < 8; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 31, global: { x: hand.cx, y: hand.cy } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 31, global: { x: hand.cx, y: hand.cy } });
+
+    expect(taken).toEqual(["3♦"]); // именно верхняя, а не нижняя карта кучки
+    expect(fans).toHaveLength(0); // веер по дороге не раскрывался
+  });
+
+  it("тап по кучке по-прежнему раскрывает веер, а не уводит карту", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦", "3♦"]]);
+    for (let i = 0; i < 40; i++) app.ticker.__advance(16);
+
+    const taken: string[] = [];
+    const fans: (string | null)[] = [];
+    engine.setOnTakePlay((card: string) => taken.push(card));
+    engine.setOnBoardFanChange((pile: string | null) => fans.push(pile));
+
+    const { computeLayout } = await import("./layout");
+    const { playGrid } = await import("./playGrid");
+    const layout = computeLayout(390, 800, undefined, true);
+    const grid = playGrid(layout.centerZone, layout.cardW, layout.cardH, 1);
+    const cell = grid.cells[0]!;
+
+    // Палец прижали и отпустили НА МЕСТЕ — это тап, а не драг.
+    const playHit = playHitOf(app);
+    playHit.__emit("pointerdown", { pointerId: 32, global: { x: cell.cx, y: cell.cy }, pointerType: "touch" });
+    app.stage.__emit("pointerup", { pointerId: 32, global: { x: cell.cx, y: cell.cy } });
+    playHit.__emit("pointertap", { global: { x: cell.cx, y: cell.cy }, stopPropagation() {} });
+
+    expect(taken).toHaveLength(0);
+    expect(fans).toContain("play:0");
+  });
+
   it("кнопка «В СБРОС» уносит зону целиком", async () => {
     const { engine, app } = await inGame();
     engine.setPlay([["2♦"], ["3♦"]]);
@@ -743,9 +804,7 @@ describe("RoomEngine: игральная зона", () => {
     const { clearPlayButton } = await import("./engine/clearPlayButton");
     const layout = computeLayout(390, 800, undefined, true);
     const btn = clearPlayButton(layout.centerZone, layout.cardH);
-    for (const node of findAllByZ(app.stage, 10_000)) {
-      node.__emit("pointertap", { global: { x: btn.cx, y: btn.cy }, stopPropagation() {} });
-    }
+    playHitOf(app).__emit("pointertap", { global: { x: btn.cx, y: btn.cy }, stopPropagation() {} });
 
     expect(cleared).toBe(1);
   });

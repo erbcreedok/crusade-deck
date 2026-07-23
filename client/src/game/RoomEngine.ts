@@ -679,6 +679,7 @@ export class RoomEngine {
 
     // Своя хит-зона у сброса: тап по нему раскрывает его веером — там же, по центру доски.
     const discardHit = new Container();
+    discardHit.label = "discardHit";
     discardHit.eventMode = "none";
     discardHit.cursor = "pointer";
     discardHit.zIndex = Z.deckHit;
@@ -694,9 +695,13 @@ export class RoomEngine {
     // появляются и исчезают на ходу, и заводить им контейнеры значило бы вести второй
     // список того же самого. Какая кучка под пальцем — спрашивается у сетки в момент тапа.
     const playHit = new Container();
+    // Имена хит-зон: Pixi ими не пользуется, зато в инспекторе сцены и в тестах видно,
+    // КТО из четырёх невидимых прямоугольников на этом слое поймал палец.
+    playHit.label = "playHit";
     playHit.eventMode = "none";
     playHit.cursor = "pointer";
     playHit.zIndex = Z.deckHit;
+    playHit.on("pointerdown", (e: FederatedPointerEvent) => this.onPlayDown(e));
     playHit.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
       if (this.dragHappened) return;
@@ -2301,8 +2306,17 @@ export class RoomEngine {
     v.sprite.zIndex = 100_000;
     if (this.deckHit) this.deckHit.cursor = "grabbing";
     if (this.dealDrag) {
-      // Стопка: остальные как n-1 на якоре. Веер: раступаются, оставляя дырку под картой.
-      if (!this.deckFanned) {
+      // Что делать с ОСТАВШИМИСЯ картами той стопки, откуда ушла карта.
+      //
+      // Смотрим на стопку ЖЕСТА, а не на «раскрыт ли веер колоды»: раньше здесь стояло
+      // !this.deckFanned, и драг из раскрытого веера сброса или кучки зоны (веер-то не
+      // колоды) уводил в перекладку КОЛОДУ — она молча пересобиралась как n−1.
+      const fanned = this.boardFan === p.pile;
+      if (fanned) {
+        // Веер: карты раступаются, оставляя дырку под взятой.
+        this.applyCardDragTargets();
+      } else if (p.pile === "deck") {
+        // Стопка колоды: остальные как n−1 на якоре, иначе кирпич уезжает вместе с картой.
         const left = this.cards.length - 1;
         this.cards.forEach((c, i) => {
           if (c === v) return;
@@ -2312,7 +2326,10 @@ export class RoomEngine {
         this.drawDeckBody();
         v.body.setTarget({ x: p.x, y: p.y, rot: 0, scale: DRAG_SCALE });
       } else {
-        this.applyCardDragTargets();
+        // Кучка зоны или сброс: кирпича и общего якоря у них нет, остальные карты уже
+        // лежат по своим местам — двигать нечего, карта просто уходит с пальцем.
+        v.body.setTarget({ x: p.x, y: p.y, rot: 0, scale: DRAG_SCALE });
+        this.syncPlayVisibility();
       }
       const seatHit = pickSeat(p.x, p.y, this.seatBoxes);
       this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
@@ -2815,6 +2832,40 @@ export class RoomEngine {
     const w = (this.layout.cardW * 1.3 + ext.w) * zs;
     const h = (this.layout.cardH * 1.3 + ext.h) * zs;
     this.deckHit.hitArea = new Rectangle(a.x - w / 2, a.y - h / 2, w, h);
+  }
+
+  /**
+   * Палец прижат к кучке игральной зоны — тянем её ВЕРХНЮЮ карту.
+   *
+   * Раскрывать веер ради одной верхней карты незачем: чаще всего нужна именно она, а
+   * тянуться за веером на каждый ход утомительно. Веер остаётся на «покопаться в середине»
+   * и открывается тапом — жесты не спорят: сдвинул палец — потащил карту, не сдвинул —
+   * раскрыл кучку (тап проверяет dragHappened).
+   *
+   * Раскрытым веером заведует хит-зона доски (deckHit), поэтому при открытом вееере эта
+   * ветка молчит — иначе за одну карту дрались бы два обработчика.
+   */
+  private onPlayDown(e: FederatedPointerEvent): void {
+    if (!this.freeMode || this.boardFan) return;
+    if (this.cardPress || this.cardDrag) return;
+    const stack = pickPlayCell(this.playGridNow(), e.global.x, e.global.y);
+    if (stack === null) return;
+    const pile = playPile(stack);
+    const cards = this.pileCards(pile);
+    if (cards.length === 0) return;
+    // Из кучки карту БЕРУТ себе — это раздача (в свободе только самому себе), а не
+    // перестановка внутри стопки. Отсюда dealDrag: он же коротит pressIntent на «deal».
+    this.dealDrag = true;
+    this.cardPress = {
+      id: e.pointerId,
+      ...this.pressPoint(e),
+      index: cards.length - 1, // верхняя карта кучки
+      canGrab: true,
+      fromHand: false,
+      pile,
+      samples: this.startSamples(e),
+    };
+    this.wake();
   }
 
   /** Видна ли кнопка «В СБРОС»: в игре, при непустой зоне и пока не раскрыт никакой веер. */
