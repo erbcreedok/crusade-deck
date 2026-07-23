@@ -664,8 +664,14 @@ export class RoomEngine {
     // Тап мимо всего — снять выделение. Тап по колоде сюда не доходит: он погашен на её
     // хит-зоне (stopPropagation выше).
     app.stage.on("pointertap", () => {
-      // Жест начался на колоде, а палец отпустили мимо зоны — это НЕ «тап по пустому
-      // месту»: рука не должна складываться от касания собственных карт.
+      // Тап, которым закончился настоящий драг, — не «тап по пустому месту». Pixi шлёт его
+      // на общего предка (сцену), когда палец нажали на карте, а отпустили мимо неё, и без
+      // этой проверки любой драг снимал бы фокус руки, то есть складывал веер.
+      if (this.skipNextTap) {
+        this.skipNextTap = false;
+        return;
+      }
+      // Жест начался на колоде, а палец отпустили мимо зоны — тоже не пустое место.
       if (this.tapStartedOnDeck) {
         this.tapStartedOnDeck = false;
         return;
@@ -1247,6 +1253,10 @@ export class RoomEngine {
     this.wake();
   }
 
+  // Отмена драга: вернуть карту домой — и всё. Раскладку стола она не трогает: веер руки
+  // и веер колоды независимы и живут, пока игрок не свернёт их САМ (стрелкой, свайпом
+  // вниз или тапом мимо). Раньше отсюда дёргался onFanCollapse, и любой прерванный жест
+  // складывал руку побочным эффектом.
   private cancelCardDrag(dragged: CardVisual): void {
     this.cardDrag = null;
     this.skipNextTap = true;
@@ -1254,7 +1264,6 @@ export class RoomEngine {
     this.returnCardHome(dragged);
     this.drawZones();
     this.onDragChange?.(false);
-    this.onFanCollapse?.();
     this.wake();
   }
 

@@ -294,6 +294,44 @@ describe("RoomEngine: отбой запрещённого дропа", () => {
   });
 });
 
+describe("RoomEngine: веера не складываются сами", () => {
+  // Веер колоды и веер руки независимы и переживают любые жесты с картами. Складывает их
+  // только явное намерение: стрелка, свайп вниз или тап мимо.
+  it("драг карты с колоды в руку не снимает фокус руки", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setSelfDealState(true, true);
+    engine.setCanDeal(true);
+    engine.setDeck(DECK_36);
+    engine.setHand(["2♦", "3♦"]);
+    engine.setSelectedDecks(["hand"]); // рука раскрыта
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    let collapsed = 0;
+    let emptyTaps = 0;
+    engine.setOnFanCollapse(() => collapsed++);
+    engine.setOnEmptyTap(() => emptyTaps++);
+
+    dragTopCardTo(app, engine, 195, 740); // в свою полосу руки
+    // Pixi после драга шлёт pointertap на общего предка — это НЕ тап по пустому месту.
+    app.stage.__emit("pointertap", {});
+
+    expect(collapsed).toBe(0);
+    expect(emptyTaps).toBe(0);
+  });
+
+  it("честный тап по пустому месту по-прежнему снимает выделение", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setHand(["2♦"]);
+    let emptyTaps = 0;
+    engine.setOnEmptyTap(() => emptyTaps++);
+
+    app.stage.__emit("pointertap", {});
+
+    expect(emptyTaps).toBe(1);
+  });
+});
+
 describe("RoomEngine: сброс", () => {
   /** Утащить карту из раскрытой руки в точку (x,y). */
   function dragHandCardTo(app: any, x: number, y: number): void {
