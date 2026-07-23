@@ -159,6 +159,17 @@ A hard split that must not blur when adding new deck-related mechanics:
   makes every hand private (the reverse transition). Every deck action (flip,
   `move_deck`) is checked against this mode on the server — the UI hides unavailable
   buttons, but the server must refuse on its own rather than trust the client.
+- **Free mode** (`GameState.freeMode`, off until the dealer presses «ГОУ!») — the first
+  brick of the future rules system (rules will later be configs). It flips the room into
+  `phase: "playing"` WITHOUT dealing the deck out, and `dealMode` stays on: the deck sits
+  in the centre face-down and every player pulls the top card for themselves
+  (`take_card`). Nobody may put a card into someone else's hand — the dealer included:
+  `deal_card` answers `action_rejected` with `free_mode`. Two simultaneous pulls need no
+  extra logic — Colyseus processes messages one at a time, so the first taker gets the
+  top card and the second gets the next one. The only way out is `collect_hands`
+  («Перераздача»), which returns the room to `lobby` and to dealing. Note the side
+  effect of the phase change: the six `phase === "lobby"` deck handlers (shuffling,
+  flipping, `move_deck`, `reset_deck`) go away on their own — that is the intent.
 - **Dealer vote weight** is 1.01 (`DEALER_VOTE_WEIGHT` in `handRules.ts`), not 1.5: the
   dealer only decides tied votes, two regular players always outweigh them. The client
   must show the SAME weight (`client/src/game/voteWeight.ts`) — it used to display 1.5,
