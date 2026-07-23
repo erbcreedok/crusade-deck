@@ -1,0 +1,36 @@
+client/src/game/layout.ts
+  s_b16a7b1f1196ad::t_8aa294bca1be6e 16-22,68-77,122-135,137-139,141,148-184
+  s_b16a7b1f1196ad::t_8071b8c2c00d7a 185-186
+client/src/game/engine/zonePaint.ts
+  s_b16a7b1f1196ad::t_55d231fc624e12 3,5-12,19-20,30,63-96
+  s_b16a7b1f1196ad::t_ccf09010dc3dde 97-98
+client/src/game/engine/zoneChrome.ts
+  s_b16a7b1f1196ad::t_55d231fc624e12 61-90
+client/src/game/layout.test.ts
+  s_b16a7b1f1196ad::t_96e195d2e24460 158-239
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_7c85edb812aac1 160-174,176-188
+  s_b16a7b1f1196ad::t_fb5cd862f67bd4 175,200
+  s_b16a7b1f1196ad::t_cdfc4100e8445b 228-243
+  s_b16a7b1f1196ad::t_90fbc0dc92a113 122-143
+  s_b16a7b1f1196ad::t_25566f6134ef61 189-199,201-213
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_d7f1c3a966dc2a 819-821,825-827,829-834,905-910
+  s_b16a7b1f1196ad::t_d26d6979337720 113,133,471-482,1982,2380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "08d125cbb541d3047cd5ada4c2767a1fc0476dad",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
