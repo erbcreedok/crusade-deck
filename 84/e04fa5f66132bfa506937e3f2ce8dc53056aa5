@@ -1,0 +1,38 @@
+client/src/game/RoomCanvas.tsx
+  s_6b17180413249b::t_103d8edb4ac108 88
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_03320ad2bda7e0 2559-2563,2565-2569,2574
+  s_6b17180413249b::t_9ac36a59e280db 1339-1343
+  s_6b17180413249b::t_f1d2940174b3ca 2533
+  s_6b17180413249b::t_e53291ff801c8b 122-125,129-135
+  s_6b17180413249b::t_b8fce1eb73e7bf 126-128
+  s_6b17180413249b::t_12c384a2490949 2550-2554
+  s_6b17180413249b::t_dd7285573ab28c 2493-2504,2506-2509,2514-2532,2534-2549,2555-2558,2564,2570-2573,2575-2576
+  s_6b17180413249b::t_d11e44170e62d4 286-288
+  s_6b17180413249b::t_503b32471fd761 2505,2510-2513
+  s_6b17180413249b::t_9bb58d4097ea8f 2621-2624,2626-2630
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_cb7feb866bc827 828-830,835-836,841
+  s_6b17180413249b::t_3e32d5260fd241 788-827,831-834,837-840,842-857
+client/src/RoomScreen.tsx
+  s_6b17180413249b::t_abb11eb9f26b32 432
+  s_6b17180413249b::t_49c02a8761a555 251-260
+client/src/game/engineProps.ts
+  s_6b17180413249b::t_103d8edb4ac108 53-54,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "84e04fa5f66132bfa506937e3f2ce8dc53056aa5",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
