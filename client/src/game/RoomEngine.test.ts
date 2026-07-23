@@ -119,6 +119,28 @@ describe("RoomEngine.setHand", () => {
   });
 });
 
+/** Найти на сцене узел по zIndex (хит-зоны движка отличаются именно им). */
+function findByZ(node: any, z: number): any {
+  if (node.zIndex === z) return node;
+  for (const kid of node.children ?? []) {
+    const hit = findByZ(kid, z);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Проиграть жест «утащить верхнюю карту с колоды и бросить в точку (x,y)». */
+function dragTopCardTo(app: any, engine: any, x: number, y: number): void {
+  const deckHit = findByZ(app.stage, 10_000); // Z.deckHit
+  const anchor = { x: 195, y: 300 };
+  deckHit.__emit("pointerdown", { pointerId: 1, global: anchor, pointerType: "touch" });
+  // Первый сдвиг переводит нажатие в драг, дальше карта едет за пальцем.
+  app.stage.__emit("pointermove", { pointerId: 1, global: { x: anchor.x + 20, y: anchor.y + 20 } });
+  app.stage.__emit("pointermove", { pointerId: 1, global: { x, y } });
+  app.stage.__emit("pointerup", { pointerId: 1, global: { x, y } });
+  void engine;
+}
+
 describe("RoomEngine: карта улетает с колоды", () => {
   // Карта, утащенную с колоды пальцем, обязана покинуть стопку СРАЗУ, не дожидаясь эха
   // сервера: к верхней карте привязаны кирпич колоды и её тень, и пока улетевшая карта
@@ -135,6 +157,60 @@ describe("RoomEngine: карта улетает с колоды", () => {
     expect(pixi.__liveSprites().length).toBe(before);
   });
 
+  // Жест целиком: дилер тащит верхнюю карту и роняет её в свою полосу руки. Раньше при
+  // дропе на месте колоды оставалась ОДНА карта, а кирпич с верхней уезжали к руке —
+  // потому что улетевшая карта до эха сервера числилась в стопке верхней.
+  it("после дропа колода остаётся на месте целиком: низ, кирпич и новая верхняя", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setSelfDealState(true, true);
+    engine.setCanDeal(true);
+    engine.setDeck(DECK_36);
+    const dealt: string[] = [];
+    engine.setOnDealCard((card: string) => dealt.push(card));
+    for (let i = 0; i < 30 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const deckX = 195;
+    dragTopCardTo(app, engine, 195, 740); // полоса своей руки внизу
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16); // пружины и синк сцены после дропа
+
+    expect(dealt).toEqual([DECK_36[DECK_36.length - 1]]); // ушла именно верхняя карта
+
+    // Видимые карты колоды снова стоят у своего якоря, а не в точке дропа.
+    const visible = pixi
+      .__liveSprites()
+      .filter((sp: any) => sp.visible && sp.y < 600 && sp.zIndex < 80_000);
+    expect(visible.length).toBeGreaterThan(0);
+    for (const sp of visible) {
+      expect(Math.abs(sp.x - deckX)).toBeLessThan(60);
+    }
+  });
+
+  it("в режиме свободы дроп в свою руку тоже не уводит колоду с места", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setSelfDealState(true, false);
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    const taken: string[] = [];
+    engine.setOnDealCard((card: string) => taken.push(card));
+    for (let i = 0; i < 30 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    dragTopCardTo(app, engine, 195, 740);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+    expect(taken).toEqual([DECK_36[DECK_36.length - 1]]);
+
+    // Кирпич колоды (Graphics под картами) обязан остаться у якоря, а не уехать в руку:
+    // он рисуется ОТНОСИТЕЛЬНО верхней карты, и именно он «уносил колоду» в точку дропа.
+    const body = findByZ(app.stage, 0.5); // Z.deckBody внутри слоя карт
+    if (body) expect(body.y).toBeLessThan(600);
+
+    const onTable = pixi
+      .__liveSprites()
+      .filter((sp: any) => sp.visible && sp.zIndex < 80_000 && sp.y < 600);
+    expect(onTable.length).toBeGreaterThan(0);
+  });
+
   it("эхо сервера с той же картой не плодит второй полёт", async () => {
     const { engine } = await mountEngine();
     engine.setDeck(DECK_36);
@@ -146,6 +222,22 @@ describe("RoomEngine: карта улетает с колоды", () => {
     engine.playCardMoved([{ card: top, from: "deck", to: "me" }]);
 
     expect(pixi.__liveSprites().length).toBe(after);
+  });
+});
+
+describe("RoomEngine: разметка игрового стола", () => {
+  it("после «ГОУ!» колода уезжает в левый слот", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setDeck(DECK_36);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const dealingX = pixi.__liveSprites().filter((s: any) => s.visible)[0]?.x ?? 0;
+
+    engine.setFreeMode(true);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+    const gameX = pixi.__liveSprites().filter((s: any) => s.visible)[0]?.x ?? 0;
+
+    expect(gameX).toBeLessThan(dealingX - 20);
+    expect(gameX).toBeGreaterThan(0); // но не за краем экрана
   });
 });
 

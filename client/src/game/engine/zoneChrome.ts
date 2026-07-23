@@ -58,6 +58,36 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
   return { fill, stroke, label };
 }
 
+// Боковые слоты игрового стола. Не дроп-зоны: это разметка, по которой игрок понимает,
+// где что лежит. Оттого и вид у них тише зон — только рамка и подпись под ней.
+export type TableSlot = "deck" | "discard";
+
+const SLOT_LABELS: Record<TableSlot, string> = {
+  deck: "колода",
+  discard: "сброс",
+};
+
+export function tableSlotChrome(slot: TableSlot): {
+  stroke: { width: number; color: number; alpha: number };
+  label: string;
+  tint: number;
+  alpha: number;
+} {
+  return {
+    stroke: { width: 2, color: COLORS.gold, alpha: 0.35 },
+    label: SLOT_LABELS[slot],
+    tint: COLORS.gold,
+    alpha: 0.5,
+  };
+}
+
+/** Подпись слота мельче зонной: она служебная и не должна спорить с картами. */
+export function slotLabelFontSize(slotWidth: number, cardH: number): number {
+  const base = Math.min(22, Math.max(10, cardH * 0.26));
+  const longest = Math.max(...Object.values(SLOT_LABELS).map((t) => t.length));
+  return Math.max(8, Math.min(base, (slotWidth * 0.9) / Math.max(1, longest * 0.62)));
+}
+
 /**
  * Размер шрифта подписи зоны: от размера карты, но так, чтобы САМАЯ ДЛИННАЯ из подписей
  * этой зоны влезала по ширине. Считаем по максимуму, иначе шрифт прыгал бы при смене

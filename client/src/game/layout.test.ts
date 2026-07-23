@@ -155,3 +155,85 @@ describe("высота полосы руки", () => {
     expect(l.handZone.h).toBeGreaterThanOrEqual(recommendedHandHeight(l.cardH) - 1e-9);
   });
 });
+
+// Стол в ИГРЕ (после «ГОУ!») делится на три бокса: колода слева, игровая зона по центру,
+// пустой слот сброса справа. В раздаче стола-с-боксами нет — там колода лежит по центру,
+// и дилер раздаёт с неё.
+describe("computeLayout — игровой стол", () => {
+  const sizes = [
+    [390, 800],
+    [320, 640],
+    [900, 1200],
+    [1400, 900],
+  ] as const;
+
+  it("в раздаче боксов нет, колода лежит в центре", () => {
+    const l = computeLayout(390, 800);
+    expect(l.deckSlot).toBeNull();
+    expect(l.discardSlot).toBeNull();
+    expect(l.deckAnchor.x).toBeCloseTo(l.centerZone.cx, 5);
+  });
+
+  it("в игре колода уезжает влево, сброс — вправо, игра — между ними", () => {
+    for (const [w, h] of sizes) {
+      const l = computeLayout(w, h, undefined, true);
+      expect(l.deckSlot).not.toBeNull();
+      expect(l.discardSlot).not.toBeNull();
+      expect(l.deckSlot!.cx).toBeLessThan(l.centerZone.cx);
+      expect(l.discardSlot!.cx).toBeGreaterThan(l.centerZone.cx);
+    }
+  });
+
+  it("игровая зона — самый широкий бокс", () => {
+    for (const [w, h] of sizes) {
+      const l = computeLayout(w, h, undefined, true);
+      expect(l.centerZone.w).toBeGreaterThan(l.deckSlot!.w);
+      expect(l.centerZone.w).toBeGreaterThan(l.discardSlot!.w);
+    }
+  });
+
+  it("боксы не наезжают друг на друга", () => {
+    for (const [w, h] of sizes) {
+      const l = computeLayout(w, h, undefined, true);
+      const rightOf = (r: { cx: number; w: number }) => r.cx + r.w / 2;
+      const leftOf = (r: { cx: number; w: number }) => r.cx - r.w / 2;
+      expect(rightOf(l.deckSlot!)).toBeLessThanOrEqual(leftOf(l.centerZone) + 1e-9);
+      expect(rightOf(l.centerZone)).toBeLessThanOrEqual(leftOf(l.discardSlot!) + 1e-9);
+    }
+  });
+
+  it("колода покоится в своём слоте, а не в игровой зоне", () => {
+    for (const [w, h] of sizes) {
+      const l = computeLayout(w, h, undefined, true);
+      expect(l.deckAnchor.x).toBeCloseTo(l.deckSlot!.cx, 5);
+      expect(l.deckAnchor.y).toBeCloseTo(l.deckSlot!.cy, 5);
+    }
+  });
+
+  it("слоты вмещают стопку карт целиком", () => {
+    for (const [w, h] of sizes) {
+      const l = computeLayout(w, h, undefined, true);
+      for (const slot of [l.deckSlot!, l.discardSlot!]) {
+        expect(slot.w).toBeGreaterThanOrEqual(l.cardW);
+        expect(slot.h).toBeGreaterThanOrEqual(l.cardH);
+      }
+    }
+  });
+
+  it("все три бокса живут в прежней полосе стола — рука не задета", () => {
+    for (const [w, h] of sizes) {
+      const deal = computeLayout(w, h);
+      const game = computeLayout(w, h, undefined, true);
+      expect(game.handZone).toEqual(deal.handZone);
+      for (const box of [game.deckSlot!, game.centerZone, game.discardSlot!]) {
+        expect(box.cx - box.w / 2).toBeGreaterThanOrEqual(deal.centerZone.cx - deal.centerZone.w / 2 - 1e-9);
+        expect(box.cx + box.w / 2).toBeLessThanOrEqual(deal.centerZone.cx + deal.centerZone.w / 2 + 1e-9);
+      }
+    }
+  });
+
+  it("на узком экране игровая зона не вырождается", () => {
+    const l = computeLayout(320, 640, undefined, true);
+    expect(l.centerZone.w).toBeGreaterThan(l.cardW);
+  });
+});

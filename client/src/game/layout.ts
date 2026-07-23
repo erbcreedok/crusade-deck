@@ -13,7 +13,13 @@ export interface RoundedRect {
 }
 
 export interface RoomLayout {
-  centerZone: RoundedRect; // общая зона игры (широкая, сверху)
+  // Общая зона игры. В раздаче — весь стол целиком (там же лежит колода); в игре —
+  // только средний бокс, между слотом колоды слева и слотом сброса справа.
+  centerZone: RoundedRect;
+  // Слоты игрового стола. null в раздаче: пока дилер раздаёт, стол не размечен, колода
+  // лежит по центру и с неё раздают.
+  deckSlot: RoundedRect | null; // слева: там лежит колода, оттуда её тянут
+  discardSlot: RoundedRect | null; // справа: сброс, пока просто пустое место
   // Низ экрана — полоса руки во всю ширину. Это единственное место, где колода
   // раскрывается веером.
   handZone: RoundedRect;
@@ -59,7 +65,16 @@ export interface LayoutInsets {
 
 const NO_INSETS: LayoutInsets = { top: 0, left: 0, right: 0, bottom: 0 };
 
-export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_INSETS): RoomLayout {
+/**
+ * `gameMode` — стол после «ГОУ!»: середина делится на три бокса (колода слева, игра по
+ * центру, сброс справа). В раздаче деления нет: колода в центре, дилер раздаёт с неё.
+ */
+export function computeLayout(
+  w: number,
+  h: number,
+  insets: LayoutInsets = NO_INSETS,
+  gameMode = false,
+): RoomLayout {
   const freeBottomRaw = Math.min(Math.max(0, insets.bottom ?? 0), h * 0.5);
   // Карта масштабируется от меньшей стороны канваса, с потолком/полом. Но есть второй
   // ограничитель: полоса руки должна вместить карту с кнопкой и при этом не съесть
@@ -102,17 +117,71 @@ export function computeLayout(w: number, h: number, insets: LayoutInsets = NO_IN
   const centerCy = centerTop + Math.max(centerH / 2, (centerBottom - centerTop) / 2);
   const centerZone: RoundedRect = { cx: centerCx, cy: centerCy, w: centerW, h: centerH, r };
 
-  const deckAnchor = { x: centerZone.cx, y: centerZone.cy };
   const handAnchor = { x: handZone.cx, y: handZone.cy };
 
+  if (!gameMode) {
+    return {
+      centerZone,
+      deckSlot: null,
+      discardSlot: null,
+      handZone,
+      deckAnchor: { x: centerZone.cx, y: centerZone.cy },
+      handAnchor,
+      cardW,
+      cardH,
+    };
+  }
+
+  const table = splitGameTable(centerZone, cardW, cardH);
   return {
-    centerZone,
+    centerZone: table.play,
+    deckSlot: table.deck,
+    discardSlot: table.discard,
     handZone,
-    deckAnchor,
+    deckAnchor: { x: table.deck.cx, y: table.deck.cy },
     handAnchor,
     cardW,
     cardH,
   };
+}
+
+// Ширина боковых слотов: стопка карт с запасом. Колода в покое крупнее карты
+// (anim.deck.centerScale), и слот обязан вмещать именно её — иначе она вылезает за рамку.
+const SLOT_PAD = 1.25;
+// Игровая зона всегда шире слотов — это главный бокс стола, туда будут ложиться карты.
+const PLAY_MIN_RATIO = 1.15;
+
+/**
+ * Разделить полосу стола на три бокса: колода — игра — сброс.
+ *
+ * Слоты считаются от карты, а остаток отдаётся игровой зоне: на широком экране она просто
+ * растёт, а на узком слоты ужимаются вместе с ней, но игровая зона всё равно остаётся
+ * самым широким боксом — иначе стол читался бы как три равные ячейки без главной.
+ */
+function splitGameTable(
+  band: RoundedRect,
+  cardW: number,
+  cardH: number,
+): { deck: RoundedRect; play: RoundedRect; discard: RoundedRect } {
+  const gap = Math.max(6, cardW * 0.12);
+  const wantSlot = cardW * anim.deck.centerScale * SLOT_PAD;
+  // Что останется игре, если взять слоты желаемого размера. Не хватает — режем слоты.
+  const free = band.w - 2 * gap;
+  const slotW = Math.max(cardW, Math.min(wantSlot, free / (2 + PLAY_MIN_RATIO)));
+  const playW = Math.max(cardW * 1.05, free - 2 * slotW);
+  const slotH = Math.min(band.h, Math.max(cardH * anim.deck.centerScale * SLOT_PAD, cardH));
+
+  const left = band.cx - band.w / 2;
+  const deck: RoundedRect = { cx: left + slotW / 2, cy: band.cy, w: slotW, h: slotH, r: band.r };
+  const play: RoundedRect = { cx: left + slotW + gap + playW / 2, cy: band.cy, w: playW, h: band.h, r: band.r };
+  const discard: RoundedRect = {
+    cx: left + slotW + gap + playW + gap + slotW / 2,
+    cy: band.cy,
+    w: slotW,
+    h: slotH,
+    r: band.r,
+  };
+  return { deck, play, discard };
 }
 
 function clamp(v: number, lo: number, hi: number): number {

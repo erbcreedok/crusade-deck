@@ -1,14 +1,23 @@
 import { Graphics, Text } from "pixi.js";
 import { dropZoneRegions, type DropTarget, type DropZone } from "../dropZones";
-import type { RoomLayout } from "../layout";
+import type { RoomLayout, RoundedRect } from "../layout";
 import type { DraggedKind } from "../zoneLabels";
-import { noticeFontSize, zoneChrome, zoneLabelFontSize } from "./zoneChrome";
+import {
+  noticeFontSize,
+  slotLabelFontSize,
+  tableSlotChrome,
+  zoneChrome,
+  zoneLabelFontSize,
+  type TableSlot,
+} from "./zoneChrome";
 
 // Рисование дроп-зон. Что рисовать — решает zoneChrome.ts; здесь только Pixi.
 
 export interface ZonePaintDeps {
   g: Graphics;
   labels: Partial<Record<DropZone, Text>>;
+  /** Подписи боковых слотов игрового стола (колода / сброс). */
+  slotLabels: Partial<Record<TableSlot, Text>>;
   layout: RoomLayout;
   dragging: boolean;
   hoverZone: DropTarget | null;
@@ -18,6 +27,7 @@ export interface ZonePaintDeps {
 
 export function paintZones(d: ZonePaintDeps): void {
   d.g.clear();
+  paintTableSlots(d.g, d.layout, d.slotLabels);
   const regions = dropZoneRegions(d.layout);
   (Object.keys(regions) as DropZone[]).forEach((zone) => {
     const { rect } = regions[zone];
@@ -48,6 +58,42 @@ export function paintZones(d: ZonePaintDeps): void {
       label.alpha = c.label.alpha;
     }
   });
+}
+
+/**
+ * Боковые слоты игрового стола: слева колода, справа сброс. Рисуются только в игре (в
+ * раздаче их нет), тихой рамкой без заливки — это разметка стола, а не дроп-зоны: под
+ * ними ничего не подсвечивается и на них ничего не бросают. Сброс пока просто пустое
+ * место: карты туда начнут ложиться, когда появятся правила.
+ */
+export function paintTableSlots(
+  g: Graphics,
+  layout: RoomLayout,
+  labels: Partial<Record<TableSlot, Text>>,
+): void {
+  const rects: Record<TableSlot, RoundedRect | null> = {
+    deck: layout.deckSlot,
+    discard: layout.discardSlot,
+  };
+  for (const slot of Object.keys(rects) as TableSlot[]) {
+    const rect = rects[slot];
+    const label = labels[slot];
+    if (!rect || rect.w <= 0 || rect.h <= 0) {
+      if (label) label.visible = false;
+      continue;
+    }
+    const c = tableSlotChrome(slot);
+    g.roundRect(rect.cx - rect.w / 2, rect.cy - rect.h / 2, rect.w, rect.h, rect.r).stroke(c.stroke);
+    if (!label) continue;
+    label.text = c.label;
+    label.x = rect.cx;
+    // Подпись под слотом, а не в нём: в слоте колоды лежат карты и накрыли бы её.
+    label.y = rect.cy + rect.h / 2 + layout.cardH * 0.16;
+    label.style.fontSize = slotLabelFontSize(rect.w, layout.cardH);
+    label.tint = c.tint;
+    label.alpha = c.alpha;
+    label.visible = true;
+  }
 }
 
 /** Размер шрифта подписей/«низяяя» от размера карты (обновляется на ресайзе). */

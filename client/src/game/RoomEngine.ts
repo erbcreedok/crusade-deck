@@ -110,6 +110,7 @@ import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
 import { paintSeats } from "./engine/seatPaint";
 import { paintZones, styleZoneLabels } from "./engine/zonePaint";
+import type { TableSlot } from "./engine/zoneChrome";
 import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReveal } from "./engine/collapseArrow";
 import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
 import { canSleep } from "./engine/idleGate";
@@ -129,6 +130,7 @@ export class RoomEngine {
   private tableG: Graphics | null = null;
   private zoneLayer: Graphics | null = null; // подсветка дроп-зон при драге
   private zoneLabels: Partial<Record<DropZone, Text>> = {}; // текстовые подписи зон
+  private slotLabels: Partial<Record<TableSlot, Text>> = {}; // подписи слотов колоды/сброса
   private rejectText: Text | null = null; // «низяяя» по центру во время отскока
   // Клич «ГОУ!» — СВОЙ объект, а не переиспользованный rejectText: отказ и клич могут
   // прилететь одновременно (дилер жмёт «ГОУ!», у кого-то в этот момент отбивается карта),
@@ -464,6 +466,18 @@ export class RoomEngine {
       t.visible = false;
       this.zoneLayer!.addChild(t);
       this.zoneLabels[z] = t;
+    });
+
+    // Подписи боковых слотов игрового стола — тем же «водяным» текстом, что и у зон.
+    (["deck", "discard"] as TableSlot[]).forEach((slot) => {
+      const t = new Text({
+        text: "",
+        style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xffffff, letterSpacing: 2 },
+      });
+      t.anchor.set(0.5);
+      t.visible = false;
+      this.zoneLayer!.addChild(t);
+      this.slotLabels[slot] = t;
     });
 
     this.rejectText = new Text({
@@ -802,10 +816,22 @@ export class RoomEngine {
 
   // Режим свободы: колода на столе общая. Верхнюю карту тянет любой игрок, но только СЕБЕ
   // — чужие места перестают быть дроп-зонами (см. dropCard и aimDealDrag).
+  // Режим свободы: колода на столе общая. Верхнюю карту тянет любой игрок, но только СЕБЕ
+  // — чужие места перестают быть дроп-зонами (см. dropCard и aimDealDrag). Заодно меняется
+  // разметка стола: колода уезжает в левый слот, справа появляется сброс (см. layout.ts).
   setFreeMode(v: boolean): void {
     if (v === this.freeMode) return;
     this.freeMode = v;
+    this.rebuildLayout();
+    this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
+    this.hand.forEach((c, i) => c.body.setTarget(this.handRestTarget(i)));
     if (this.deckHit) this.deckHit.cursor = this.deckCursor();
+    this.positionDeckHit();
+    this.positionHandHit();
+    this.syncDeckCounter();
+    this.syncCollapseButton();
+    this.drawZones();
+    this.drawFocus();
     this.wake();
   }
 
@@ -876,7 +902,12 @@ export class RoomEngine {
   }
 
   private rebuildLayout(): void {
-    this.layout = computeLayout(this.w, this.h, { ...this.seatInsets, bottom: this.bottomInset });
+    this.layout = computeLayout(
+      this.w,
+      this.h,
+      { ...this.seatInsets, bottom: this.bottomInset },
+      this.freeMode,
+    );
   }
 
   // Высота топбара комнаты: он HTML и лежит поверх канваса, движок про него не знает.
@@ -1948,6 +1979,7 @@ export class RoomEngine {
     paintZones({
       g: this.zoneLayer,
       labels: this.zoneLabels,
+      slotLabels: this.slotLabels,
       layout: this.layout,
       dragging: !!this.cardDrag,
       hoverZone: this.hoverZone,
@@ -2345,6 +2377,7 @@ export class RoomEngine {
     this.tableG = null;
     this.zoneLayer = null;
     this.zoneLabels = {};
+    this.slotLabels = {};
     // Тексты мест уничтожил app.destroy({children:true}) — просто отпускаем ссылки.
     this.seatTexts = [];
     this.seatHandNodes = [];
