@@ -1,0 +1,30 @@
+client/src/game/dropZoneActivity.test.ts
+  s_b16a7b1f1196ad::t_4ac3b994fdc731 1-52
+client/src/game/engine/zonePaint.ts
+  s_b16a7b1f1196ad::t_5b26dfef6bdd82 19-20,42,46,49
+client/src/game/dropZoneActivity.ts
+  s_b16a7b1f1196ad::t_29123f4380cd63 1-54
+client/src/game/engine/zoneChrome.ts
+  s_b16a7b1f1196ad::t_5b26dfef6bdd82 20-21,32-40
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_5b26dfef6bdd82 18,2210-2216,2225
+client/src/game/engine/zoneChrome.test.ts
+  s_b16a7b1f1196ad::t_3a82e706f0c177 7,72-78
+  s_b16a7b1f1196ad::t_98efda98f3e55b 79-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "685b8ce08c4cacee31df954fd016987c42f59485",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
