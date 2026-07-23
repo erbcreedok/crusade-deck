@@ -1,6 +1,16 @@
 import { clearPlay, playCard, takeFromPlay } from "../playRules.js";
-import { playStacks, writeDiscard, writeHand, writePlay } from "../stateWrite.js";
+import { resolveMove, type MoveDest, type PileName } from "../moveRules.js";
+import {
+  playStacks,
+  writeDeck,
+  writeDiscard,
+  writeHand,
+  writePlay,
+} from "../stateWrite.js";
 import type { MessageRoom } from "./host.js";
+
+const SOURCES: readonly PileName[] = ["deck", "discard", "play", "hand"];
+const DESTS: readonly MoveDest[] = ["discard", "play", "hand"];
 
 // Сообщения ИГРАЛЬНОЙ ЗОНЫ — среднего бокса стола: выложить карту из руки, забрать
 // карту обратно, смахнуть всю зону в сброс.
@@ -62,4 +72,48 @@ export function registerPlayMessages(room: MessageRoom): void {
       moves: stacks.flat().map((card) => ({ card, from: "play", to: "discard" })),
     });
   });
+
+  // ЕДИНОЕ перемещение карты между боксами стола: колода/сброс/зона/рука → сброс/зона/рука.
+  // Один обработчик на все пары (drag-n-drop куда угодно), чтобы правило жило в одном месте.
+  //
+  // Исключения зашиты здесь: в КОЛОДУ класть нельзя (в свободе она закрыта на вход), а в
+  // ЧУЖУЮ руку — вовсе (dest "hand" всегда своя). Всё остальное разрешено: стек→стек,
+  // колода→сброс, сброс→зона и т.д. Реордер внутри одного бокса — это тот же move с
+  // from === to (см. resolveMove: карта снимается, потом кладётся).
+  room.onMessage(
+    "move_card",
+    (client, message: { card?: string; from?: string; to?: string; toStack?: number }) => {
+      const player = state.players.get(client.sessionId);
+      const { card, from, to } = message ?? {};
+      if (!player || !state.freeMode) return;
+      if (typeof card !== "string") return;
+      if (!SOURCES.includes(from as PileName) || !DESTS.includes(to as MoveDest)) return;
+
+      const out = resolveMove(
+        {
+          deck: state.deck.toArray(),
+          discard: state.discard.toArray(),
+          play: playStacks(state),
+          hand: player.hand.toArray(),
+        },
+        { card, from: from as PileName, to: to as MoveDest, toStack: message.toStack },
+      );
+      if (!out) return; // карты нет в источнике
+
+      writeDeck(state, out.piles.deck);
+      writeDiscard(state, out.piles.discard);
+      writePlay(state, out.piles.play);
+      writeHand(player, out.piles.hand);
+      // Сторона в назначении: сброс/зона — лицом; рука прячет карту (её не видит стол).
+      if (to === "hand") state.faceUp.delete(card);
+      else state.faceUp.set(card, out.faceUp);
+      // Ревизию двигаем, если колода менялась — иначе устаревшее эхо откатит её у соседа.
+      if (from === "deck") state.deckRev += 1;
+      if (state.deck.length === 0) state.deckFanned = false; // разобрали колоду — веера нет
+
+      const fromLabel = from === "hand" ? client.sessionId : from;
+      const toLabel = to === "hand" ? client.sessionId : to;
+      room.broadcast("card_moved", { moves: [{ card, from: fromLabel, to: toLabel }] });
+    },
+  );
 }

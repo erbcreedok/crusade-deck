@@ -159,3 +159,92 @@ describe("CardRoom: игральная зона", () => {
     expect((await moved).moves).toEqual([{ card: "A♠", from: dealer.sessionId, to: "play" }]);
   });
 });
+
+// ЕДИНЫЙ move_card: карту можно перекинуть из любого бокса в любой, кроме колоды.
+describe("CardRoom: перемещение карты между боксами (move_card)", () => {
+  const server = useTestServer(TEST_PORTS.move);
+
+  async function inGame() {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const bob = await server().connectTo(room, { name: "Bob" });
+    const waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    return { room, dealer, bob };
+  }
+  const zone = (room: any): string[][] => room.state.play.map((s: any) => s.cards.toArray());
+  async function move(room: any, client: any, msg: any) {
+    const w = room.waitForMessage("move_card");
+    client.send("move_card", msg);
+    await w;
+  }
+
+  it("колода → сброс: карта уходит из колоды в сброс лицом вверх", async () => {
+    const { room, dealer } = await inGame();
+    const top = room.state.deck.at(-1)!;
+    const before = room.state.deck.length;
+    await move(room, dealer, { card: top, from: "deck", to: "discard" });
+
+    expect(room.state.deck.length).toBe(before - 1);
+    expect(room.state.discard.toArray()).toContain(top);
+    expect(room.state.faceUp.get(top)).toBe(true);
+  });
+
+  it("колода → игральная зона", async () => {
+    const { room, dealer } = await inGame();
+    const top = room.state.deck.at(-1)!;
+    await move(room, dealer, { card: top, from: "deck", to: "play" });
+    expect(zone(room)).toEqual([[top]]);
+  });
+
+  it("сброс → зона, зона → сброс, зона → рука — всё работает", async () => {
+    const { room, dealer } = await inGame();
+    // положим пару карт в сброс и зону через move из колоды
+    const [c1, c2] = [room.state.deck.at(-1)!, room.state.deck.at(-2)!];
+    await move(room, dealer, { card: c1, from: "deck", to: "discard" });
+    await move(room, dealer, { card: c2, from: "deck", to: "play" });
+
+    await move(room, dealer, { card: c1, from: "discard", to: "play", toStack: 0 });
+    expect(zone(room)[0]).toEqual([c2, c1]);
+    expect(room.state.discard.length).toBe(0);
+
+    await move(room, dealer, { card: c2, from: "play", to: "hand" });
+    expect(room.state.players.get(dealer.sessionId)!.hand.toArray()).toContain(c2);
+    expect(room.state.faceUp.get(c2)).toBeUndefined(); // в руке карта не в общем faceUp
+  });
+
+  it("любой игрок может перекидывать — стол общий", async () => {
+    const { room, dealer, bob } = await inGame();
+    const top = room.state.deck.at(-1)!;
+    await move(room, bob, { card: top, from: "deck", to: "discard" }); // не дилер
+    expect(room.state.discard.toArray()).toContain(top);
+  });
+
+  // Исключение: в КОЛОДУ дропать нельзя (в свободе она закрыта на вход).
+  it("в колоду положить нельзя: move с to='deck' игнорируется", async () => {
+    const { room, dealer } = await inGame();
+    const player = room.state.players.get(dealer.sessionId)!;
+    player.hand.push("A♠");
+    const deckBefore = room.state.deck.length;
+
+    await move(room, dealer, { card: "A♠", from: "hand", to: "deck" });
+
+    expect(room.state.deck.length).toBe(deckBefore); // колода не приняла
+    expect(player.hand.toArray()).toContain("A♠"); // карта осталась в руке
+  });
+
+  it("карты нет в источнике — ход игнорируется", async () => {
+    const { room, dealer } = await inGame();
+    await move(room, dealer, { card: "9♦", from: "discard", to: "play" }); // сброс пуст
+    expect(zone(room)).toEqual([]);
+  });
+
+  it("вне свободы move_card не работает", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const top = room.state.deck.at(-1)!;
+    await move(room, dealer, { card: top, from: "deck", to: "discard" });
+    expect(room.state.discard.length).toBe(0);
+  });
+});
