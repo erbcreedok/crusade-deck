@@ -1,0 +1,38 @@
+client/src/game/playHover.test.ts
+  s_6b17180413249b::t_dbd904db9c9029 1-58
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_4fee822d7c5aa3 3604-3608,3612,3655-3661,3670
+  s_6b17180413249b::t_29287328d080c7 120
+  s_6b17180413249b::t_196bad9a675ab5 3755-3757
+  s_6b17180413249b::t_05d6d621a5ccec 1687,1722,1728,2334,2383-2385
+  s_6b17180413249b::t_dd5384f2da3119 1104-1125
+  s_6b17180413249b::t_9e9339063effb1 236-238,1149-1151,1153-1158
+client/src/game/playHover.ts
+  s_6b17180413249b::t_3734f705c8ad25 1-57
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_c17ad5626847fc 689-701,704-706,710-719,722,727,729,733-734
+  s_6b17180413249b::t_6c9a2d49de4a72 720-721,723-724,728,730
+  s_6b17180413249b::t_63b6e29f9350e9 702-703
+  s_6b17180413249b::t_99bfe9e9fdd812 725-726,731-732
+  s_6b17180413249b::t_707f2f2e2c600d 707-709
+CLAUDE.md
+  s_6b17180413249b::t_4229d33c1bcfa6 29,168-173
+CLAUDE_RU.md
+  s_6b17180413249b::t_673c70db8ad118 26,161-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2a428a67906c924052d259cf01b5c94f16d89f4f",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
