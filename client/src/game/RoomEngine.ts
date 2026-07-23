@@ -200,7 +200,7 @@ export class RoomEngine {
   private deckPile = new CardPile({
     create: (card) => this.createCardVisual(card),
     restTarget: (i) => this.restTarget(i),
-    place: (v, i) => (v.sprite.zIndex = i),
+    place: (v, i) => (v.sprite.zIndex = this.pileZ("deck", i)),
   });
   private handPile = new CardPile({
     create: (card) => this.createCardVisual(card),
@@ -217,7 +217,7 @@ export class RoomEngine {
   private discardPile = new CardPile({
     create: (card) => this.createCardVisual(card),
     restTarget: (i) => this.discardRestTarget(i),
-    place: (v, i) => (v.sprite.zIndex = i),
+    place: (v, i) => (v.sprite.zIndex = this.pileZ("discard", i)),
   });
   // ИГРАЛЬНАЯ ЗОНА — средний бокс стола. Стопка ОДНА на всю зону, хотя кучек в ней много:
   // карты развёрнуты в плоский порядок (playFlat), а раскладка переводит номер обратно в
@@ -876,6 +876,20 @@ export class RoomEngine {
   /** База z-порядка стопки доски: раскрытый веер поднимается над всем столом. */
   private pileZBase(pile: BoardPile): number {
     return this.boardFan === pile ? Z.boardFan : 0;
+  }
+
+  /**
+   * z-порядок карты номер i в стопке доски. ВСЕГДА через это, никогда голым индексом.
+   *
+   * Раскрытый веер живёт на Z.boardFan (3000+), а его тень — слоем ниже, на Z.boardFan−1.
+   * Любое место, которое ставило карте просто `i`, роняло её на z ≈ 0 — под собственную
+   * тень, и веер оказывался ею закрашен. Ровно так ломались тени после тасовки, реордера,
+   * сумбура и выплеска: каждый из них раскладывал карты по-своему и своим же голым
+   * индексом. База берётся В МОМЕНТ ПРИМЕНЕНИЯ, а не запоминается заранее: веер могут
+   * свернуть посреди анимации, и замороженная база пережила бы сворачивание.
+   */
+  private pileZ(pile: BoardPile, i: number): number {
+    return this.pileZBase(pile) + i;
   }
 
   /**
@@ -2569,7 +2583,7 @@ export class RoomEngine {
   // Разложить стопку по местам покоя пружиной, попутно выставив z-порядок.
   private layoutDeck(): void {
     this.deckPile.layout((c, i, t) => {
-      c.sprite.zIndex = i;
+      c.sprite.zIndex = this.pileZ("deck", i);
       c.body.setTarget(t);
     });
   }
@@ -2613,7 +2627,7 @@ export class RoomEngine {
     }
     const di = this.discardCards.indexOf(v);
     if (di >= 0) {
-      v.sprite.zIndex = di;
+      v.sprite.zIndex = this.pileZ("discard", di);
       this.homingCard = v;
       this.discardCards.forEach((c, j) => c.body.setTarget(this.discardRestTarget(j)));
       this.updateVisibility();
@@ -2628,7 +2642,7 @@ export class RoomEngine {
       return;
     }
     const i = Math.max(0, this.cards.indexOf(v));
-    v.sprite.zIndex = i;
+    v.sprite.zIndex = this.pileZ("deck", i);
     // Карта возвращается домой ПРУЖИНОЙ и всё это время остаётся верхней в стопке.
     // Пока она в пути, стопку рисуем как n−1 (topDetached), иначе кирпич колоды летит
     // домой вместе с ней — со стороны это выглядит как возвращающаяся целиком колода.
@@ -2978,7 +2992,7 @@ export class RoomEngine {
       this.cards.forEach((c, i) => {
         const s = slots[perm[i]!]!;
         c.body.setTarget({ x: s.x ?? 0, y: (s.y ?? 0) - rise, rot: (s.rot ?? 0) + scrambleRot() });
-        c.sprite.zIndex = perm[i]!;
+        c.sprite.zIndex = this.pileZ("deck", perm[i]!);
       });
       sc.nextAt = sc.t + SCRAMBLE_STEP_SEC;
     }
@@ -3342,14 +3356,14 @@ export class RoomEngine {
       }
       e.v.body.setTarget(shufflePose(e, p));
       if (shouldSwapZ(p) && !e.zSwapped) {
-        e.v.sprite.zIndex = e.newZ;
+        e.v.sprite.zIndex = this.pileZ("deck", e.newZ);
         e.zSwapped = true;
       }
     }
     if (sa.t < sa.totalDur) return;
     for (const e of sa.entries) {
       e.v.body.setTarget(e.to);
-      e.v.sprite.zIndex = e.newZ;
+      e.v.sprite.zIndex = this.pileZ("deck", e.newZ);
     }
     this.shuffleAnim = null;
   }
@@ -4269,7 +4283,7 @@ export class RoomEngine {
     if (p >= 1) {
       for (const e of sa.entries) {
         const i = this.cards.indexOf(e.v);
-        e.v.sprite.zIndex = i < 0 ? 0 : i; // вернулись в общий порядок
+        e.v.sprite.zIndex = this.pileZ("deck", i < 0 ? 0 : i); // вернулись в общий порядок
         if (i >= 0) e.v.body.setTarget(this.restTarget(i));
       }
       this.splashAnim = null;

@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 831 tests
+cd client && npm test && npx tsc --noEmit   # 832 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -70,6 +70,14 @@ actually moving. The sleep condition is `canSleep()` in `engine/idleGate.ts`: it
 every active animation explicitly as a typed field. Any new continuous animation must
 be added to `EngineActivity`, or it either won't play (the loop falls asleep under it)
 or will keep the engine awake and burn CPU/GPU for nothing.
+
+z-order inside a board pile ALWAYS goes through `RoomEngine.pileZ(pile, i)`, never a bare
+index. An open fan lives at `Z.boardFan` (3000+) and its shadow one layer below it, so any
+place that wrote a plain `i` dropped the card to z≈0 — under its own shadow, and the fan
+came out painted over by it. That's how fan shadows broke after a shuffle, a reorder, the
+scramble and the splash: each of them re-laid the cards out its own way, with its own bare
+index. The base is read AT APPLY TIME, not frozen when an animation starts — the fan can be
+collapsed mid-flight.
 
 The engine has a safety net: `RoomEngine.test.ts` mounts it headless against a Pixi
 fake (`src/test/pixiFake.ts`, `vi.mock("pixi.js")`) and checks structural invariants —

@@ -1234,6 +1234,37 @@ describe("RoomEngine: тени", () => {
     expect(fills.length).toBeLessThan(full.length); // а не по заливке на карту
   });
 
+  // Тени веера ломались после ЛЮБОЙ перекладки колоды: тасовка, реордер, сумбур и выплеск
+  // раскладывали карты каждый по-своему и ставили z голым индексом — карты падали с
+  // Z.boardFan (3000+) на ноль, под собственный слой теней, и веер оказывался ими закрашен.
+  it("веер колоды остаётся НАД своей тенью после тасовки и реордера", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setCanDeal(true);
+    engine.setAuthoritative(true);
+    engine.setDeck(DECK_36);
+    engine.setBoardFan("deck");
+    for (let i = 0; i < 200; i++) app.ticker.__advance(16);
+
+    const lowestFanCard = () =>
+      Math.min(
+        ...DECK_36.map((f) => pixi.__liveSprites().find((sp: any) => sp.label === f)!.zIndex),
+      );
+    const topShadow = () =>
+      Math.max(...shadowFills(app).filter((f: any) => f.visible).map((f: any) => f.zIndex));
+
+    expect(topShadow()).toBeLessThan(lowestFanCard());
+
+    // Тасовка: тот же набор в другом порядке.
+    engine.setDeck([...DECK_36].reverse());
+    for (let i = 0; i < 250; i++) app.ticker.__advance(16);
+    expect(topShadow()).toBeLessThan(lowestFanCard());
+
+    // Реордер одной карты внутри веера.
+    engine.setDeck([DECK_36[4]!, ...DECK_36.filter((c) => c !== DECK_36[4])]);
+    for (let i = 0; i < 250; i++) app.ticker.__advance(16);
+    expect(topShadow()).toBeLessThan(lowestFanCard());
+  });
+
   it("тень стопки лежит ПОД её картами, а не поверх них", async () => {
     const { engine, app } = await mountEngine();
     engine.setDeck(DECK_36); // раздача: колода стопкой посреди стола
