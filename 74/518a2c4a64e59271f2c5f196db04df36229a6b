@@ -1,0 +1,26 @@
+server/src/handRules.ts
+  s_b16a7b1f1196ad::t_c3553c48525dca 51-60
+server/src/handRules.test.ts
+  s_b16a7b1f1196ad::t_c3553c48525dca 6,133-155,157
+  s_b16a7b1f1196ad::t_42ce5a5a63f77c 156,158-159
+server/src/CardRoom.free.test.ts
+  s_b16a7b1f1196ad::t_0cebad7b4e7d7e 130-163
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_0cebad7b4e7d7e 8,58-68,71-72,74,78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "74518a2c4a64e59271f2c5f196db04df36229a6b",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
