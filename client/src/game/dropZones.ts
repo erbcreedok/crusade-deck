@@ -43,6 +43,7 @@ export function pickSeat(x: number, y: number, seats: SeatBox[]): string | null 
 // Места приоритетнее руки, если вдруг пересекутся.
 // readyIds — кто включил дроп-зону кнопкой «Готов». Своя рука всегда принимает
 // (дилер себе), даже если он сам не жал «Готов».
+// selfOnly — режим свободы: карту тянут ТОЛЬКО себе, чужие места дроп не принимают.
 export function pickDealTarget(
   x: number,
   y: number,
@@ -50,9 +51,11 @@ export function pickDealTarget(
   layout: RoomLayout,
   selfId: string | null,
   readyIds?: ReadonlySet<string> | null,
+  selfOnly = false,
 ): string | null {
   const seat = pickSeat(x, y, seats);
   if (seat) {
+    if (selfOnly && seat !== selfId) return null;
     if (readyIds && seat !== selfId && !readyIds.has(seat)) return null;
     return seat;
   }

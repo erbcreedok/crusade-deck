@@ -89,4 +89,13 @@ describe("pickDealTarget — раздача, в том числе себе", () 
     const ready = new Set<string>();
     expect(pickDealTarget(layout.handAnchor.x, layout.handAnchor.y, seats, layout, "me", ready)).toBe("me");
   });
+
+  it("в режиме свободы чужие места не принимают карту — только своя рука", () => {
+    const s = seats[0]!;
+    const ready = new Set(["a"]);
+    expect(pickDealTarget(s.rect.cx, s.rect.cy, seats, layout, "me", ready, true)).toBeNull();
+    expect(pickDealTarget(layout.handAnchor.x, layout.handAnchor.y, seats, layout, "me", ready, true)).toBe(
+      "me",
+    );
+  });
 });

@@ -12,6 +12,8 @@ export const DEAL_HOVER_REJECT = "Неа";
 
 /** Отбой при дропе в неготового. */
 export const DEAL_DROP_REJECT_TEXT = "нииизя";
+/** Отбой при попытке положить карту в чужую руку в режиме свободы (то же говорит сервер). */
+export const FREE_DROP_REJECT_TEXT = "карты берут сами";
 
 /** Дилер всегда готов принимать карты. */
 export function isDealReady(isReady: boolean, isDealer: boolean): boolean {

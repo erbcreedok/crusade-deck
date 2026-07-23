@@ -53,6 +53,7 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setDeckZone(props.deckZone), [props.deckZone]);
   useEngineEffect(e, (en) => en.setDeckHolder(props.deckHolder), [props.deckHolder]);
   useEngineEffect(e, (en) => en.setDealMode(props.dealMode), [props.dealMode]);
+  useEngineEffect(e, (en) => en.setFreeMode(props.freeMode), [props.freeMode]);
   useEngineEffect(e, (en) => en.setDeckFanned(props.deckFanned), [props.deckFanned]);
   useEngineEffect(e, (en) => en.setCanDeal(props.canDeal), [props.canDeal]);
   useEngineEffect(e, (en) => en.setSelfId(props.selfId), [props.selfId]);
@@ -105,6 +106,12 @@ export function RoomCanvas(props: EngineProps) {
     (en) => props.rejectedFlip && en.rejectFlip(props.rejectedFlip.cards, props.rejectedFlip.text),
     [props.rejectedFlip],
   );
+  useEngineEffect(
+    e,
+    (en) => props.noticeSignal && en.showRejectNotice(props.noticeSignal.text),
+    [props.noticeSignal],
+  );
+  useEngineEffect(e, (en) => props.shoutSignal && en.playShout(), [props.shoutSignal]);
   useEngineEffect(e, (en) => props.incomingFx && en.playFx(props.incomingFx), [props.incomingFx]);
   useEngineEffect(
     e,

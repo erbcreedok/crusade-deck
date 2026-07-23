@@ -25,6 +25,14 @@ async function mountEngine(w = 390, h = 800) {
   return { engine, host, app };
 }
 
+/** Все надписи сцены: у фейка Text — обычный контейнер с полем text. */
+function allTexts(node: { children?: unknown[]; text?: string }): string[] {
+  const out: string[] = [];
+  if (typeof node.text === "string") out.push(node.text);
+  for (const child of node.children ?? []) out.push(...allTexts(child as { children?: unknown[] }));
+  return out;
+}
+
 beforeEach(() => {
   pixi.__reset();
   document.body.innerHTML = "";
@@ -131,6 +139,39 @@ describe("RoomEngine: сон рендер-цикла", () => {
     engine.setDeck(DECK_36);
     for (let i = 0; i < 200 && app.ticker.started; i++) app.ticker.__advance(16);
     expect(app.ticker.started).toBe(false);
+  });
+});
+
+describe("RoomEngine: клич «ГОУ!»", () => {
+  it("будит цикл и сам же отпускает его, отыграв", async () => {
+    const { engine, app } = await mountEngine();
+    app.ticker.__advance(16);
+    expect(app.ticker.started).toBe(false);
+
+    engine.playShout();
+    expect(app.ticker.started).toBe(true);
+
+    // Клич живёт около секунды: за две цикл обязан снова уснуть, иначе он жёг бы батарею
+    // (новая анимация должна быть перечислена в engine/idleGate.ts).
+    for (let i = 0; i < 125 && app.ticker.started; i++) app.ticker.__advance(16);
+    expect(app.ticker.started).toBe(false);
+  });
+
+  it("надпись клича живёт отдельно от «низяяя» — их можно показать разом", async () => {
+    const { engine, app } = await mountEngine();
+    engine.playShout();
+    engine.showRejectNotice("карты теперь берут сами");
+    app.ticker.__advance(16);
+    expect(app.destroyed).toBe(false);
+    const texts = allTexts(app.stage);
+    expect(texts.some((t) => t.includes("ГО"))).toBe(true);
+    expect(texts.some((t) => t.includes("берут сами"))).toBe(true);
+  });
+
+  it("клич после destroy ничего не трогает", async () => {
+    const { engine } = await mountEngine();
+    engine.destroy();
+    expect(() => engine.playShout()).not.toThrow();
   });
 });
 

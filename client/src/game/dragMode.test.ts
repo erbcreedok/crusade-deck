@@ -51,6 +51,39 @@ describe("dragModeFor — что берёт палец на этой зоне", 
     ).toBe("peek");
   });
 
+  it("режим свободы: верхнюю карту со стола тащит ЛЮБОЙ игрок, не только дилер", () => {
+    expect(
+      dragModeFor({
+        zone: "center",
+        handFocused: false,
+        draggable: false,
+        dealMode: true,
+        canDeal: false,
+        freeMode: true,
+      }),
+    ).toBe("topCard");
+  });
+
+  it("режим свободы: открытый веер колоды не мешает тянуть карту", () => {
+    expect(
+      dragModeFor({
+        zone: "center",
+        handFocused: false,
+        draggable: false,
+        dealMode: true,
+        canDeal: false,
+        deckFanned: true,
+        freeMode: true,
+      }),
+    ).toBe("topCard");
+  });
+
+  it("режим свободы не трогает свою руку: там по-прежнему перестановка карт", () => {
+    expect(
+      dragModeFor({ zone: "hand", handFocused: true, draggable: true, freeMode: true }),
+    ).toBe("card");
+  });
+
   it("режим раздачи: даже если draggable, в центре всё равно topCard", () => {
     expect(
       dragModeFor({ zone: "center", handFocused: false, draggable: true, dealMode: true, canDeal: true }),

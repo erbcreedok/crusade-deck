@@ -27,6 +27,7 @@ export interface RoomStateView {
   /** Применить свой порядок руки локально и запомнить его до подтверждения эхом. */
   applyMyHandOrder: (order: string[]) => void;
   dealMode: boolean;
+  freeMode: boolean;
   deckFanned: boolean;
   setDeckFanned: (open: boolean) => void;
   deckLocation: string;
@@ -45,6 +46,7 @@ export function useRoomState(room: Room): RoomStateView {
   const [deck, setDeck] = useState<string[]>([]);
   const [myHand, setMyHand] = useState<string[]>([]);
   const [dealMode, setDealMode] = useState(true);
+  const [freeMode, setFreeMode] = useState(false);
   const [deckFanned, setDeckFanned] = useState(false);
   const [deckLocation, setDeckLocation] = useState("center");
   // Сторона каждой карты приходит из состояния — это правда, а не локальный тумблер.
@@ -74,6 +76,7 @@ export function useRoomState(room: Room): RoomStateView {
       setProposal(s.proposal);
       setDeckLocation(s.deckLocation);
       setDealMode(s.dealMode);
+      setFreeMode(s.freeMode);
       setDeckFanned(s.deckFanned);
 
       // Устаревшее эхо собственных действий не принимаем: на экране уже более новое.
@@ -113,6 +116,7 @@ export function useRoomState(room: Room): RoomStateView {
     myHand,
     applyMyHandOrder,
     dealMode,
+    freeMode,
     deckFanned,
     setDeckFanned,
     deckLocation,

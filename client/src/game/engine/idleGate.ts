@@ -18,6 +18,8 @@ export interface EngineActivity {
   stretch: boolean;
   /** Надпись-объяснение поверх стола. */
   notice: boolean;
+  /** Клич «ГОУ!» на весь стол. */
+  shout: boolean;
   /** «Ударный» отскок запрещённого дропа. */
   reject: boolean;
   /** Сколько карт-призраков сейчас в полёте (раздача/сбор). */
@@ -47,6 +49,7 @@ export function canSleep(a: EngineActivity): boolean {
     !a.flip &&
     !a.stretch &&
     !a.notice &&
+    !a.shout &&
     !a.reject &&
     a.flights === 0 &&
     !a.press &&

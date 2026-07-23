@@ -19,10 +19,15 @@ describe("zoneAction", () => {
     expect(zoneAction("hand", "deck")).not.toBe(zoneAction("hand", "card"));
   });
 
+  it("в режиме свободы карта со стола «берётся себе», а не «оставляется в руке»", () => {
+    expect(zoneAction("hand", "take")).toContain("взять");
+    expect(zoneAction("hand", "take")).not.toBe(zoneAction("hand", "card"));
+  });
+
   it("все подписи непустые и короткие — это надпись поверх зоны", () => {
     for (const zone of ["center", "hand"] as const) {
       expect(zoneTitle(zone).length).toBeGreaterThan(0);
-      for (const kind of ["deck", "card"] as const) {
+      for (const kind of ["deck", "card", "take"] as const) {
         const t = zoneAction(zone, kind);
         expect(t.length).toBeGreaterThan(0);
         expect(t.length).toBeLessThanOrEqual(20);

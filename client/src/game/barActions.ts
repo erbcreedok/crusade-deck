@@ -11,8 +11,11 @@ export type BarActionId =
   | "unready"
   | "wait"
   | "shuffle"
+  // Автораздача осталась действием, но переехала с панели в меню (см. roomMenu.ts).
   | "auto_deal"
-  | "auto_deal_stop";
+  | "auto_deal_stop"
+  | "go"
+  | "redeal";
 
 export interface BarAction {
   id: BarActionId;
@@ -28,6 +31,8 @@ export interface BarContext {
   deckZone: DeckZone;
   canMoveDeck: boolean;
   dealMode?: boolean;
+  /** Игра пошла: карты со стола берут сами (см. GameState.freeMode). */
+  freeMode?: boolean;
   amIDealer?: boolean;
   autoDealing?: boolean;
   myReady?: boolean;
@@ -37,14 +42,21 @@ export interface BarContext {
 const NOTHING: BarActions = { main: null, secondary: null };
 
 export function barActionsFor(sel: Selection, ctx: BarContext): BarActions {
+  // Свобода проверяется ПЕРВОЙ: раздача из неё не выключается (dealMode остаётся), но
+  // раздавать больше нечего — единственное дилерское действие теперь «Перераздача».
+  if (ctx.freeMode) {
+    if (!ctx.amIDealer) return NOTHING; // остальным кнопки не нужны: карту берут жестом
+    return { main: { id: "redeal", label: "Перераздача" }, secondary: null };
+  }
+
   // Режим раздачи: кнопки по роли, не по выделению колоды.
   if (ctx.dealMode) {
     if (ctx.amIDealer) {
       return {
         main: { id: "shuffle", label: "Перемешать" },
-        secondary: ctx.autoDealing
-          ? { id: "auto_deal_stop", label: "STOP" }
-          : { id: "auto_deal", label: "Автораздача" },
+        // «ГОУ!» — старт игры. Автораздача уехала в меню: она вспомогательная, а место
+        // на панели одно, и занимать его должно то, чем заканчивается раздача.
+        secondary: { id: "go", label: "ГОУ!" },
       };
     }
     return {

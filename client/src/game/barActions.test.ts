@@ -62,15 +62,16 @@ describe("barActionsFor — режим раздачи", () => {
     dealMode: true,
   };
 
-  it("дилер: Перемешать + Автораздача", () => {
-    const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: true, autoDealing: false });
+  it("дилер: Перемешать + ГОУ!", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: true });
     expect(a.main?.id).toBe("shuffle");
-    expect(a.secondary?.id).toBe("auto_deal");
+    expect(a.secondary?.id).toBe("go");
+    expect(a.secondary?.label).toContain("ГОУ");
   });
 
-  it("дилер во время автораздачи: STOP", () => {
+  it("автораздача с панели ушла — она живёт в меню", () => {
     const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: true, autoDealing: true });
-    expect(a.secondary?.id).toBe("auto_deal_stop");
+    expect(a.secondary?.id).toBe("go");
   });
 
   it("игрок: Готов / Ждите…", () => {
@@ -82,5 +83,32 @@ describe("barActionsFor — режим раздачи", () => {
   it("игрок готовый: Не готов", () => {
     const a = barActionsFor(EMPTY_SELECTION, { ...deal, amIDealer: false, myReady: true });
     expect(a.main?.id).toBe("unready");
+  });
+});
+
+describe("barActionsFor — режим свободы", () => {
+  const free = {
+    deckZone: "center" as const,
+    canMoveDeck: false,
+    dealMode: true,
+    freeMode: true,
+  };
+
+  it("дилер: главное действие — Перераздача", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
+    expect(a.main?.id).toBe("redeal");
+    expect(a.main?.label).toContain("Перераздача");
+  });
+
+  it("свобода важнее раздачи: «ГОУ!» и «Перемешать» уступают место Перераздаче", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: true });
+    expect(a.secondary?.id).not.toBe("go");
+    expect(a.main?.id).not.toBe("shuffle");
+  });
+
+  it("остальным в свободе кнопок нет — карты берут жестом со стола", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { ...free, amIDealer: false });
+    expect(a.main).toBeNull();
+    expect(a.secondary).toBeNull();
   });
 });

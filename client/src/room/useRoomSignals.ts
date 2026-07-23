@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Room } from "colyseus.js";
 import { FxClock, shouldPlayFx, type DeckFxIncoming } from "../game/deckFxClient";
-import { rejectionText } from "../game/rejections";
+import { rejectionKind, rejectionText } from "../game/rejections";
 
 // Серверные сообщения-события (не состояние): отказы, чужие эффекты, облёты карт.
 // Каждое едет в движок как «сигнал» — объект с растущим seq, чтобы два одинаковых
@@ -24,11 +24,24 @@ export interface RejectedFlip {
   seq: number;
 }
 
+/** Отказ, которому нечего откатывать: только надпись поверх стола. */
+export interface NoticeSignal {
+  text: string;
+  seq: number;
+}
+
+/** Клич «ГОУ!»: состояния в нём нет, только «сыграй это» (см. go_shout на сервере). */
+export interface ShoutSignal {
+  seq: number;
+}
+
 export interface RoomSignals {
   rejectedFlip: RejectedFlip | null;
+  noticeSignal: NoticeSignal | null;
   incomingFx: DeckFxIncoming | null;
   collectSignal: CollectSignal | null;
   cardMovedSignal: CardMovedSignal | null;
+  shoutSignal: ShoutSignal | null;
 }
 
 export interface RoomSignalHandlers {
@@ -40,9 +53,11 @@ export interface RoomSignalHandlers {
 
 export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): RoomSignals {
   const [rejectedFlip, setRejectedFlip] = useState<RejectedFlip | null>(null);
+  const [noticeSignal, setNoticeSignal] = useState<NoticeSignal | null>(null);
   const [incomingFx, setIncomingFx] = useState<DeckFxIncoming | null>(null);
   const [collectSignal, setCollectSignal] = useState<CollectSignal | null>(null);
   const [cardMovedSignal, setCardMovedSignal] = useState<CardMovedSignal | null>(null);
+  const [shoutSignal, setShoutSignal] = useState<ShoutSignal | null>(null);
 
   // Обработчики меняются на каждый рендер — держим их в ref, чтобы не переподписываться.
   const hRef = useRef(handlers);
@@ -54,12 +69,23 @@ export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): R
     let seq = 0;
     room.onMessage("action_rejected", (msg: { cards?: string[]; reason?: string }) => {
       hRef.current.onRejected?.();
-      setRejectedFlip({
-        cards: Array.isArray(msg?.cards) ? msg.cards : [],
-        text: rejectionText(String(msg?.reason ?? "")),
-        seq: ++seq,
-      });
+      const reason = String(msg?.reason ?? "");
+      const text = rejectionText(reason);
+      // Отказ БЕЗ списка карт означает «вся колода», поэтому отправить сюда отказ, не
+      // связанный с переворотом (раздача в свободе), значило бы перевернуть обратно всю
+      // колоду ни за что. Такие отказы показываем одной надписью — см. rejectionKind.
+      if (rejectionKind(reason) === "notice") {
+        setNoticeSignal({ text, seq: ++seq });
+        return;
+      }
+      setRejectedFlip({ cards: Array.isArray(msg?.cards) ? msg.cards : [], text, seq: ++seq });
     });
+  }, [room]);
+
+  // Клич «ГОУ!» — украшение без состояния: играем его как есть, у кого он застал вкладку.
+  useEffect(() => {
+    let seq = 0;
+    room.onMessage("go_shout", () => setShoutSignal({ seq: ++seq }));
   }, [room]);
 
   // Приём чужих эффектов. Протухшие (пинг скакнул, вкладка была свёрнута) не играем:
@@ -95,5 +121,5 @@ export function useRoomSignals(room: Room, handlers: RoomSignalHandlers = {}): R
     });
   }, [room]);
 
-  return { rejectedFlip, incomingFx, collectSignal, cardMovedSignal };
+  return { rejectedFlip, noticeSignal, incomingFx, collectSignal, cardMovedSignal, shoutSignal };
 }

@@ -11,6 +11,19 @@ export const ZERO_SHAKE = { dx: 0, dy: 0, rot: 0 } as const;
 /** Надпись «сюда нельзя» при запрещённом дропе колоды. */
 export const REJECT_TEXT = "низяяя";
 
+/**
+ * Клич «ГОУ!»: дилер объявил начало игры, и это видит весь стол. Родня «низяяя» по духу
+ * (крупная надпись поверх карт), но противоположная по смыслу — поэтому огненная.
+ * Эмодзи вынесены отдельными надписями: пиксельный VT323 их не содержит, и рисует их
+ * системный шрифт (см. buildOverlays).
+ */
+export const SHOUT_TEXT = "ГОООООУУУ!!!";
+export const SHOUT_EMOJI = "🔥";
+/** Шрифт эмодзи: системный, пиксельного тут не существует. */
+export const EMOJI_FONT = "'Apple Color Emoji', 'Noto Color Emoji', 'Segoe UI Emoji', sans-serif";
+/** Огонь: жёлто-оранжевая заливка, тёмно-красная обводка. */
+export const SHOUT_COLORS = { fill: 0xffc233, stroke: 0x7d1b06 } as const;
+
 /** Кромка карты (толщина бумаги): низ светло-серый, бока темнее — свет сверху справа. */
 export const CARD_EDGE = { bottom: 0xa8a8a8, side: 0x6e6e6e, width: 4 } as const;
 
@@ -56,6 +69,7 @@ export const Z = {
   focus: 9000,
   counters: 9200,
   rejectText: 5000,
+  shout: 5100, // клич «ГОУ!» — над отказом: он про весь стол, а не про одну карту
   deckHit: 10_000,
   handHit: 10_100,
   collapseBtn: 10_500, // ВЫШЕ хит-зоны колоды: иначе её съедала полоса веера

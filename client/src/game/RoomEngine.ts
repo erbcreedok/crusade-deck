@@ -26,6 +26,7 @@ import {
   dealSeatHoverLabel,
   isDealReady,
   DEAL_DROP_REJECT_TEXT,
+  FREE_DROP_REJECT_TEXT,
 } from "./dealReadyTint";
 import { cardFlightPose, type CardMove, type FlightPoint } from "./cardFlight";
 import {
@@ -93,9 +94,13 @@ import {
   COLORS,
   DECK_ID,
   DRAG_SCALE,
+  EMOJI_FONT,
   HAND_ID,
   PIXEL_FONT,
   REJECT_TEXT,
+  SHOUT_COLORS,
+  SHOUT_EMOJI,
+  SHOUT_TEXT,
   TEX_H,
   Z,
   ZERO_SHAKE,
@@ -109,6 +114,7 @@ import { paintZones, styleZoneLabels } from "./engine/zonePaint";
 import { applyCollapseReveal, layoutCollapseButton, paintCollapseArrow, stepReveal } from "./engine/collapseArrow";
 import { randomPermutation, scrambleRot, SCRAMBLE_MAX_SEC, SCRAMBLE_RISE, SCRAMBLE_STEP_SEC } from "./engine/scramble";
 import { canSleep } from "./engine/idleGate";
+import { SHOUT_DUR, shoutEmojiOffset, shoutFontSize, shoutPose } from "./engine/shout";
 import { CardPile } from "./engine/CardPile";
 import { shufflePose, shuffleProgress, shouldSwapZ } from "./engine/shufflePose";
 import { movedEnough, pressIntent, pushSample } from "./engine/gestureIntent";
@@ -125,6 +131,12 @@ export class RoomEngine {
   private zoneLayer: Graphics | null = null; // подсветка дроп-зон при драге
   private zoneLabels: Partial<Record<DropZone, Text>> = {}; // текстовые подписи зон
   private rejectText: Text | null = null; // «низяяя» по центру во время отскока
+  // Клич «ГОУ!» — СВОЙ объект, а не переиспользованный rejectText: отказ и клич могут
+  // прилететь одновременно (дилер жмёт «ГОУ!», у кого-то в этот момент отбивается карта),
+  // и один общий текст показал бы что-то одно.
+  private shoutBox: Container | null = null;
+  private shoutWord: Text | null = null;
+  private shoutFires: Text[] = []; // огоньки по бокам — системным шрифтом
   private shadowLayer: Container | null = null; // слой под картами
   // ОДНА тень на всю колоду (стопка движется как целое). Раньше была тень на карту —
   // на плотной стопке полупрозрачные тени накапливали альфу в тёмное пятно.
@@ -189,6 +201,7 @@ export class RoomEngine {
   private dealMode = false; // режим раздачи: колода в центре, рука снизу, DnD верхней карты
   private deckFanned = false; // веер колоды на столе (серверное состояние; видно всем)
   private canDeal = false; // дилер может раздавать верхнюю карту
+  private freeMode = false; // режим свободы: карту со стола тянет каждый себе
   private deckPointer = false; // мышь/палец над веером колоды (для liveFan при двух веерах)
   private selfId: string | null = null; // sessionId владельца клиента — дроп в руку = себе
   // Своё место НЕ в this.seats (RoomScreen вычитает self) — готовность/дилерство кэшируем отдельно.
@@ -217,6 +230,8 @@ export class RoomEngine {
   } | null = null;
   // Текст-объяснение поверх стола (отказ сервера). Живёт отдельно от «ударного» отскока.
   private notice: { t: number; dur: number } | null = null;
+  // Клич «ГОУ!»: живёт своё время, ни к каким картам не привязан.
+  private shout: { t: number; dur: number } | null = null;
   // Резиновая тянучка запрещённого жеста (свайп вверх по стопке).
   private stretchAnim: { t: number; dur: number; angle: number } | null = null;
   // Карты в текущем перевороте: по объекту (для рендера) и по идентификатору (для текстур).
@@ -479,7 +494,55 @@ export class RoomEngine {
     this.rejectText.visible = false;
     this.rejectText.zIndex = Z.rejectText; // поверх карт (world.sortableChildren)
     this.world!.addChild(this.rejectText);
+    this.buildShout();
     this.styleZoneLabels();
+  }
+
+  // Клич «ГОООООУУУ!!! 🔥» — контейнер из трёх надписей: слово пиксельным шрифтом и по
+  // огоньку с боков системным (в VT323 эмодзи нет — он нарисовал бы «крокозябру»).
+  // Анимируется контейнер целиком, поэтому огни живут ровно в такт слову.
+  private buildShout(): void {
+    const box = new Container();
+    const word = new Text({
+      text: SHOUT_TEXT,
+      style: {
+        fontFamily: PIXEL_FONT,
+        fill: SHOUT_COLORS.fill,
+        stroke: { color: SHOUT_COLORS.stroke, width: 9 },
+        letterSpacing: 4,
+        align: "center",
+      },
+    });
+    word.anchor.set(0.5);
+    box.addChild(word);
+    this.shoutWord = word;
+
+    this.shoutFires = [-1, 1].map(() => {
+      const fire = new Text({ text: SHOUT_EMOJI, style: { fontFamily: EMOJI_FONT } });
+      fire.anchor.set(0.5);
+      box.addChild(fire);
+      return fire;
+    });
+
+    box.visible = false;
+    box.zIndex = Z.shout;
+    this.shoutBox = box;
+    this.world!.addChild(box);
+    this.styleShout();
+  }
+
+  // Кегль и расстановка огоньков — от ширины экрана (engine/shout.ts). Пересчитываются на
+  // ресайзе: клич должен влезать в поворот телефона так же, как в исходную ориентацию.
+  private styleShout(): void {
+    const word = this.shoutWord;
+    if (!word) return;
+    const size = shoutFontSize(this.w, SHOUT_TEXT.length);
+    word.style.fontSize = size;
+    const offset = shoutEmojiOffset(size, SHOUT_TEXT.length);
+    this.shoutFires.forEach((fire, i) => {
+      fire.style.fontSize = size * 0.7;
+      fire.x = (i === 0 ? -1 : 1) * offset;
+    });
   }
 
   // Тени и «кирпич» колоды. Тень у колоды ОДНА на всю стопку: раньше была тень на карту,
@@ -751,8 +814,26 @@ export class RoomEngine {
 
   setCanDeal(v: boolean): void {
     this.canDeal = v;
-    if (this.deckHit) this.deckHit.cursor = this.dealMode ? (v ? "grab" : "pointer") : this.deckDraggable ? "grab" : "pointer";
+    if (this.deckHit) this.deckHit.cursor = this.deckCursor();
     this.syncCollapseButton();
+  }
+
+  // Кто может снять карту с колоды: дилер в раздаче или ЛЮБОЙ в режиме свободы.
+  private canPullCard(): boolean {
+    return this.dealMode ? this.canDeal || this.freeMode : this.deckDraggable;
+  }
+
+  private deckCursor(): "grab" | "pointer" {
+    return this.canPullCard() ? "grab" : "pointer";
+  }
+
+  // Режим свободы: колода на столе общая. Верхнюю карту тянет любой игрок, но только СЕБЕ
+  // — чужие места перестают быть дроп-зонами (см. dropCard и aimDealDrag).
+  setFreeMode(v: boolean): void {
+    if (v === this.freeMode) return;
+    this.freeMode = v;
+    if (this.deckHit) this.deckHit.cursor = this.deckCursor();
+    this.wake();
   }
 
   setSelfId(id: string | null): void {
@@ -1148,7 +1229,12 @@ export class RoomEngine {
     this.cardPress = {
       id: e.pointerId,
       ...this.pressPoint(e),
-      index: mode === "topCard" ? dealSourceIndex(this.cards.length, this.deckFanned, nearest) : nearest,
+      // В свободе берём именно ВЕРХНЮЮ карту, даже если веер раскрыт: сервер по take_card
+      // снимает верхнюю, и картинка не должна расходиться с тем, что он выдаст.
+      index:
+        mode === "topCard"
+          ? dealSourceIndex(this.cards.length, this.deckFanned && !this.freeMode, nearest)
+          : nearest,
       canGrab: mode === "topCard" ? true : mode === "peek" ? false : this.canGrabAt(nearest),
       fromHand: false,
       samples: this.startSamples(e),
@@ -1215,7 +1301,7 @@ export class RoomEngine {
     // Ховерим и неготовых — чтобы показать «Неа»; принять или отбить решает дроп.
     const seatHit = pickSeat(x, y, this.seatBoxes);
     this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
-    const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds());
+    const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds(), this.freeMode);
     // Своя рука подсвечивается как обычная дроп-зона hand.
     this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
 
@@ -1489,6 +1575,22 @@ export class RoomEngine {
     this.showNotice(text);
   }
 
+  /**
+   * Клич «ГОУ!»: дилер объявил начало, и это видит весь стол — включая его самого.
+   * Ничего не двигает и ни к чему не привязан, только надпись поверх стола.
+   */
+  playShout(): void {
+    if (this.destroyed) return;
+    this.shout = { t: 0, dur: SHOUT_DUR };
+    this.wake();
+  }
+
+  /** Короткая надпись поверх стола БЕЗ отката карт: отказ, которому нечего возвращать. */
+  showRejectNotice(text: string): void {
+    if (this.destroyed) return;
+    this.showNotice(text);
+  }
+
   // Короткая надпись поверх стола (переиспользуем оверлей «низяяя»).
   private showNotice(text: string): void {
     if (this.rejectText) this.rejectText.text = text;
@@ -1740,6 +1842,7 @@ export class RoomEngine {
       dealMode: this.dealMode,
       canDeal: this.canDeal,
       deckFanned: this.deckFanned,
+      freeMode: this.freeMode,
     });
   }
 
@@ -1844,7 +1947,15 @@ export class RoomEngine {
       }
       const seatHit = pickSeat(p.x, p.y, this.seatBoxes);
       this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
-      const to = pickDealTarget(p.x, p.y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds());
+      const to = pickDealTarget(
+        p.x,
+        p.y,
+        this.seatBoxes,
+        this.layout,
+        this.selfId,
+        this.dealReadyIds(),
+        this.freeMode,
+      );
       this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
       this.updateVisibility();
       this.drawSeats();
@@ -1901,14 +2012,16 @@ export class RoomEngine {
     this.skipNextTap = true;
     this.hoverZone = null;
     this.setHoverSeat(null);
-    if (this.deckHit) this.deckHit.cursor = this.dealMode ? (this.canDeal ? "grab" : "pointer") : this.deckDraggable ? "grab" : "pointer";
+    if (this.deckHit) this.deckHit.cursor = this.deckCursor();
 
     if (dealing) {
       const seatHit = pickSeat(x, y, this.seatBoxes);
       const readyIds = this.dealReadyIds();
-      // Не готов — отбой «нииизя», карта не уходит.
-      if (seatHit && seatHit !== this.selfId && !readyIds.has(seatHit)) {
-        this.startCardReject(d.v, x, y, DEAL_DROP_REJECT_TEXT);
+      // В свободе чужая рука закрыта для всех — включая дилера (сервер скажет то же).
+      // Не готов (в обычной раздаче) — отбой «нииизя». Карта в обоих случаях не уходит.
+      const foreignSeat = !!seatHit && seatHit !== this.selfId;
+      if (foreignSeat && (this.freeMode || !readyIds.has(seatHit!))) {
+        this.startCardReject(d.v, x, y, this.freeMode ? FREE_DROP_REJECT_TEXT : DEAL_DROP_REJECT_TEXT);
         this.onDragChange?.(false);
         this.drawSeats();
         this.drawZones();
@@ -1916,7 +2029,7 @@ export class RoomEngine {
         this.wake();
         return;
       }
-      const seat = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, readyIds);
+      const seat = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, readyIds, this.freeMode);
       if (seat) {
         const card = d.v.card;
         // Плавный полёт с пальца к месту; эхо card_moved этот же card пропустит.
@@ -2090,7 +2203,13 @@ export class RoomEngine {
       layout: this.layout,
       dragging: this.dragging || !!this.cardDrag,
       hoverZone: this.hoverZone,
-      dragged: (this.cardDrag ? "card" : "deck") as DraggedKind,
+      // В свободе тянут карту СЕБЕ — у зоны руки должна быть своя подпись («взять себе»),
+      // а не «оставить в руке», как при перестановке своей же карты.
+      dragged: (this.cardDrag
+        ? this.freeMode && this.dealDrag
+          ? "take"
+          : "card"
+        : "deck") as DraggedKind,
       dealMode: this.dealMode,
       myReady: this.selfDealReady(),
     });
@@ -2131,7 +2250,7 @@ export class RoomEngine {
     // Selection нет; старт драга выставляет skipNextTap и отменяет открытие.
     if (this.dealMode && this.deckZone === "center") {
       this.dealDrag = false; // тап открытия — не раздача
-      if (forbidDeckOpenTap(this.dealMode, this.canDeal, this.deckFanned)) {
+      if (forbidDeckOpenTap(this.dealMode, this.canDeal, this.deckFanned, this.freeMode)) {
         // Не-дилер тыкает закрытую колоду «открыть» — удар + «низяяя».
         const a = this.layout.deckAnchor;
         this.startReject(a.x, a.y);
@@ -2477,6 +2596,7 @@ export class RoomEngine {
     this.syncHandCounter();
     this.syncDeckCounter();
     this.styleZoneLabels();
+    this.styleShout();
     this.drawSeats();
     this.drawZones();
     this.wake();
@@ -2518,6 +2638,10 @@ export class RoomEngine {
     this.handCounter = null;
     this.deckCounter = null;
     this.rejectText = null;
+    this.shoutBox = null;
+    this.shoutWord = null;
+    this.shoutFires = [];
+    this.shout = null;
     this.shadowLayer = null;
     this.deckShadow = null;
     this.cardShadow = null;
@@ -2711,6 +2835,11 @@ export class RoomEngine {
   // Короткоживущие эффекты поверх стола: надпись-объяснение, резиновая тянучка
   // запрещённого жеста и «ударный» отбой.
   private stepOverlays(frameDt: number): void {
+    if (this.shout) {
+      this.shout.t += frameDt;
+      if (this.shout.t >= this.shout.dur) this.shout = null;
+    }
+
     if (this.notice) {
       this.notice.t += frameDt;
       if (this.notice.t >= this.notice.dur) {
@@ -2758,6 +2887,24 @@ export class RoomEngine {
     this.syncDeckShadow();
     this.syncCardShadow();
     this.syncRejectText();
+    this.syncShout();
+  }
+
+  // Клич по центру экрана: наезд ударом и затухание (поза считается в engine/shout.ts).
+  private syncShout(): void {
+    const box = this.shoutBox;
+    if (!box) return;
+    if (!this.shout) {
+      if (box.visible) box.visible = false;
+      return;
+    }
+    const pose = shoutPose(this.shout.t / this.shout.dur);
+    box.visible = true;
+    box.x = this.w / 2;
+    // Чуть выше центра: в центре клич накрыл бы колоду, ради которой всё и затевалось.
+    box.y = this.h * 0.4;
+    box.scale.set(pose.scale);
+    box.alpha = pose.alpha;
   }
 
   // Всё осело и ничего не движется → усыпляем цикл. Список активностей — в
@@ -2773,6 +2920,7 @@ export class RoomEngine {
         flip: !!this.flipAnim,
         stretch: !!this.stretchAnim,
         notice: !!this.notice,
+        shout: !!this.shout,
         reject: !!this.reject,
         flights: this.cardFlights.length,
         press: !!this.press,

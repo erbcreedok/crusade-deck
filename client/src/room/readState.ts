@@ -36,6 +36,8 @@ export interface RoomSnapshot {
   facing: Record<string, boolean>;
   deckLocation: string;
   dealMode: boolean;
+  /** Режим свободы: карты со стола игроки берут сами (см. GameState.freeMode). */
+  freeMode: boolean;
   deckFanned: boolean;
   /** Рука ЭТОГО игрока в порядке сервера. */
   myHand: string[];
@@ -103,6 +105,7 @@ export function readRoomState(state: any, sessionId: string): RoomSnapshot {
     deckLocation: state.deckLocation ?? "center",
     // Раздача включена с момента создания комнаты — выключенной она бывает только явно.
     dealMode: state.dealMode !== false,
+    freeMode: !!state.freeMode,
     deckFanned: !!state.deckFanned,
     myHand: me?.hand ? [...me.hand] : [],
   };

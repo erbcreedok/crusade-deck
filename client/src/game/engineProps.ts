@@ -21,6 +21,8 @@ export interface EngineState {
   deckZone: DeckZone;
   deckDraggable: boolean;
   dealMode: boolean;
+  /** Режим свободы: карту со стола тянет каждый себе, в чужие руки не кладёт никто. */
+  freeMode: boolean;
   deckFanned: boolean;
   canDeal: boolean;
   selfId: string; // sessionId — дроп раздачи в полосу руки = себе
@@ -59,6 +61,10 @@ export interface EngineSignals {
   flipSignal: number;
   incomingFx: DeckFxIncoming | null;
   rejectedFlip: { cards: string[]; text: string; seq: number } | null;
+  /** Отказ без отката карт — только надпись. */
+  noticeSignal: { text: string; seq: number } | null;
+  /** Клич «ГОУ!» на весь стол. */
+  shoutSignal: { seq: number } | null;
   collectSignal: { order: string[]; counts?: Record<string, number>; seq: number } | null;
   cardMovedSignal: { moves: { card: string; from: string; to: string }[]; seq: number } | null;
 }
@@ -81,6 +87,7 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setFourColor(p.fourColor);
   engine.setCardBack(p.cardBack);
   engine.setDealMode(p.dealMode);
+  engine.setFreeMode(p.freeMode);
   engine.setDeckFanned(p.deckFanned);
   engine.setCanDeal(p.canDeal);
   engine.setSelfId(p.selfId);

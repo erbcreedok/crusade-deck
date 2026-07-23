@@ -3,7 +3,9 @@ import { roomMenu, type RoomMenuFlags } from "./roomMenu";
 
 const BASE: RoomMenuFlags = {
   dealMode: true,
+  freeMode: false,
   amIDealer: false,
+  autoDealing: false,
   phase: "lobby",
   handFanOpen: false,
   handSize: 0,
@@ -15,14 +17,45 @@ const BASE: RoomMenuFlags = {
 const ids = (f: Partial<RoomMenuFlags>) => roomMenu({ ...BASE, ...f }).map((i) => i.id);
 
 describe("roomMenu", () => {
-  it("выход и настройки есть всегда и идут последними", () => {
-    expect(ids({}).slice(-2)).toEqual(["leave", "settings"]);
+  // Веер рендерит список развёрнутым (см. ActionBar), поэтому ПОСЛЕДНИЙ пункт массива
+  // оказывается ВЕРХНИМ на экране — «Выйти в меню» должен быть именно им.
+  it("выход и настройки есть всегда; выход — последний в списке, то есть верхний в веере", () => {
+    expect(ids({}).slice(-2)).toEqual(["settings", "leave"]);
   });
 
   it("сбор и сброс колоды — только дилеру в раздаче", () => {
     expect(ids({ amIDealer: true })).toContain("collect_hands");
     expect(ids({ amIDealer: false })).not.toContain("collect_hands");
     expect(ids({ amIDealer: true, dealMode: false })).not.toContain("reset_deck");
+  });
+
+  it("в режиме свободы сбора и сброса в меню нет: сбор живёт в кнопке «Перераздача»", () => {
+    const free = ids({ amIDealer: true, freeMode: true });
+    expect(free).not.toContain("collect_hands");
+    expect(free).not.toContain("reset_deck");
+  });
+
+  it("автораздача переехала в меню — дилеру в раздаче", () => {
+    expect(ids({ amIDealer: true })).toContain("auto_deal");
+    expect(ids({ amIDealer: false })).not.toContain("auto_deal");
+    expect(ids({ amIDealer: true, dealMode: false })).not.toContain("auto_deal");
+    expect(ids({ amIDealer: true, freeMode: true })).not.toContain("auto_deal");
+  });
+
+  it("во время автораздачи пункт становится «стопом»", () => {
+    const running = ids({ amIDealer: true, autoDealing: true });
+    expect(running).toContain("auto_deal_stop");
+    expect(running).not.toContain("auto_deal");
+  });
+
+  it("тумблер режима раздачи виден только дилеру и показывает текущее состояние", () => {
+    expect(ids({ amIDealer: false })).not.toContain("toggle_deal_mode");
+    const on = roomMenu({ ...BASE, amIDealer: true }).find((i) => i.id === "toggle_deal_mode")!;
+    expect(on.label).toContain("вкл");
+    const off = roomMenu({ ...BASE, amIDealer: true, dealMode: false }).find(
+      (i) => i.id === "toggle_deal_mode",
+    )!;
+    expect(off.label).toContain("выкл");
   });
 
   it("сортировка появляется только у раскрытого веера с двумя и более картами", () => {
