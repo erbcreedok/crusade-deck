@@ -1,0 +1,24 @@
+client/src/game/engine/zonePaint.ts
+  s_b16a7b1f1196ad::t_303b4ca9293daa 8,31,102,105
+client/src/game/engine/zoneChrome.ts
+  s_b16a7b1f1196ad::t_303b4ca9293daa 84-91
+client/src/game/engine/zoneChrome.test.ts
+  s_b16a7b1f1196ad::t_303b4ca9293daa 4,71-80
+  s_b16a7b1f1196ad::t_61e341410a737c 81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "608585df1994b7612782a4d125c7cf8ed4efa86b",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
