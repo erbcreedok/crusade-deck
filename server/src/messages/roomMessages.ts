@@ -29,6 +29,24 @@ export function registerRoomMessages(room: MessageRoom): void {
     }
   });
 
+  // «ГОУ!» — дилер объявляет начало: стол переходит в режим свободы, где карты со стола
+  // игроки берут сами (см. take_card). Колоду при этом НЕ раздаём — в отличие от
+  // start_game, она остаётся лежать в центре; и dealMode не трогаем: номиналов
+  // по-прежнему не видит никто, карты тянут вслепую.
+  //
+  // Смена фазы на "playing" заодно снимает с дилера власть над колодой: тасовка,
+  // перевороты, move_deck и reset_deck закрыты условием phase === "lobby" (deckMessages).
+  // Это и есть нужное поведение — игра началась, колоду больше не крутят.
+  room.onMessage("go", (client) => {
+    const player = state.players.get(client.sessionId);
+    if (!player?.isDealer) return;
+    state.freeMode = true;
+    state.phase = "playing";
+    // Клич — чистое украшение: состояния в нём нет (правда едет схемой). Поэтому повторное
+    // нажатие при уже включённой свободе просто подгоняет стол ещё раз.
+    room.broadcast("go_shout", {});
+  });
+
   room.onMessage("start_game", (client) => {
     const player = state.players.get(client.sessionId);
     if (player?.isDealer && state.phase === "lobby") {

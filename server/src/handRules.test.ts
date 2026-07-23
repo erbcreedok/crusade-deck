@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectHands, dealCardTo, collectOrder, DEALER_VOTE_WEIGHT } from "./handRules.js";
+import { collectHands, dealCardTo, takeTopCard, collectOrder, DEALER_VOTE_WEIGHT } from "./handRules.js";
 
 describe("collectHands", () => {
   const hands = { alice: ["A♠", "2♠"], bob: ["K♦"] };
@@ -64,6 +64,33 @@ describe("dealCardTo", () => {
   it("исходная колода не мутируется", () => {
     const src = [...deck];
     dealCardTo(src, "A♠");
+    expect(src).toEqual(deck);
+  });
+});
+
+describe("takeTopCard", () => {
+  // Верх колоды — последний элемент массива (см. topCard.ts на клиенте и deckStack).
+  const deck = ["6♣", "K♦", "A♠"];
+
+  it("снимает верхнюю карту — последнюю в массиве", () => {
+    expect(takeTopCard(deck)).toEqual({ deck: ["6♣", "K♦"], card: "A♠" });
+  });
+
+  it("два снятия подряд дают РАЗНЫЕ карты: кто раньше, тот и взял верхнюю", () => {
+    const first = takeTopCard(deck)!;
+    const second = takeTopCard(first.deck)!;
+    expect(first.card).toBe("A♠");
+    expect(second.card).toBe("K♦");
+    expect([...second.deck, second.card, first.card].sort()).toEqual([...deck].sort());
+  });
+
+  it("пустая колода — брать нечего", () => {
+    expect(takeTopCard([])).toBeNull();
+  });
+
+  it("исходная колода не мутируется", () => {
+    const src = [...deck];
+    takeTopCard(src);
     expect(src).toEqual(deck);
   });
 });
