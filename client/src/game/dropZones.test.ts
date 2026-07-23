@@ -19,10 +19,24 @@ describe("pickDropTarget", () => {
     expect(pickDropTarget(2, 2, layout)).toBeNull();
   });
 
-  it("все зоны доступны для дропа — запретных больше нет", () => {
+  it("в раздаче зон две: стол и рука. Сброса нет — стол ещё не размечен", () => {
     const r = dropZoneRegions(layout);
-    expect(Object.values(r).every((z) => z.droppable)).toBe(true);
-    expect(Object.keys(r).sort()).toEqual(["center", "hand"]);
+    expect(r.center.droppable).toBe(true);
+    expect(r.hand.droppable).toBe(true);
+    expect(r.discard.droppable).toBe(false);
+    expect(pickDropTarget(r.discard.rect.cx, r.discard.rect.cy, layout)?.zone).not.toBe("discard");
+  });
+
+  it("в игре появляется сброс: правый слот принимает карты", () => {
+    const game = computeLayout(800, 600, undefined, true);
+    const r = dropZoneRegions(game);
+    expect(r.discard.droppable).toBe(true);
+    expect(pickDropTarget(r.discard.rect.cx, r.discard.rect.cy, game)).toEqual({ zone: "discard" });
+  });
+
+  it("сброс и игровая зона не спорят за одну точку", () => {
+    const game = computeLayout(800, 600, undefined, true);
+    expect(pickDropTarget(game.centerZone.cx, game.centerZone.cy, game)).toEqual({ zone: "center" });
   });
 
 });

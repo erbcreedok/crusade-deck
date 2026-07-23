@@ -201,6 +201,85 @@ describe("CardRoom: режим свободы", () => {
     expect(room.state.players.get(dealer.sessionId)!.hand.length).toBe(0);
   });
 
+  it("discard_card: игрок скидывает свою карту в сброс лицом вверх", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    waiter = room.waitForMessage("take_card");
+    player.send("take_card", {});
+    await waiter;
+    const card = room.state.players.get(player.sessionId)!.hand[0]!;
+
+    // Ждём именно полёт В СБРОС: до него по той же трубе прилетело взятие карты.
+    const moved = new Promise<{ moves: { card: string; from: string; to: string }[] }>((resolve) => {
+      dealer.onMessage("card_moved", (m) => {
+        if (m.moves?.[0]?.to === "discard") resolve(m);
+      });
+    });
+    waiter = room.waitForMessage("discard_card");
+    player.send("discard_card", { card });
+    await waiter;
+    const fx = await moved;
+
+    expect(room.state.players.get(player.sessionId)!.hand.length).toBe(0);
+    expect(room.state.discard.toArray()).toEqual([card]);
+    expect(room.state.faceUp.get(card)).toBe(true); // сыгранную карту видно всем
+    expect(fx.moves).toEqual([{ card, from: player.sessionId, to: "discard" }]);
+  });
+
+  it("чужую карту в сброс не отправить, и вне свободы сброса нет", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    waiter = room.waitForMessage("take_card");
+    player.send("take_card", {});
+    await waiter;
+    const card = room.state.players.get(player.sessionId)!.hand[0]!;
+
+    waiter = room.waitForMessage("discard_card");
+    dealer.send("discard_card", { card }); // карта чужая
+    await waiter;
+    expect(room.state.discard.length).toBe(0);
+
+    waiter = room.waitForMessage("collect_hands");
+    dealer.send("collect_hands"); // вышли из свободы
+    await waiter;
+    waiter = room.waitForMessage("discard_card");
+    player.send("discard_card", { card });
+    await waiter;
+    expect(room.state.discard.length).toBe(0);
+  });
+
+  it("перераздача возвращает сброс в колоду", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    waiter = room.waitForMessage("take_card");
+    dealer.send("take_card", {});
+    await waiter;
+    const card = room.state.players.get(dealer.sessionId)!.hand[0]!;
+    waiter = room.waitForMessage("discard_card");
+    dealer.send("discard_card", { card });
+    await waiter;
+    expect(room.state.discard.length).toBe(1);
+
+    waiter = room.waitForMessage("collect_hands");
+    dealer.send("collect_hands");
+    await waiter;
+
+    expect(room.state.discard.length).toBe(0);
+    expect(room.state.deck.length).toBe(36);
+    expect([...room.state.faceUp.values()].every((v) => v === false)).toBe(true);
+  });
+
   it("в свободе раздавать в чужие руки нельзя даже дилеру — отказ с причиной", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });

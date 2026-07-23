@@ -58,13 +58,13 @@ export function zoneChrome(o: ZoneChromeInput): ZoneChrome {
   return { fill, stroke, label };
 }
 
-// Боковые слоты игрового стола. Не дроп-зоны: это разметка, по которой игрок понимает,
-// где что лежит. Оттого и вид у них тише зон — только рамка и подпись под ней.
-export type TableSlot = "deck" | "discard";
+// Слот колоды: разметка, а не дроп-зона — по ней игрок понимает, где лежит колода.
+// Сброс раньше был здесь же, но он ПРИНИМАЕТ карты, поэтому переехал в настоящие
+// дроп-зоны (dropZones.ts) и рисуется вместе с ними — с подсветкой и действием.
+export type TableSlot = "deck";
 
 const SLOT_LABELS: Record<TableSlot, string> = {
   deck: "колода",
-  discard: "сброс",
 };
 
 export function tableSlotChrome(slot: TableSlot): {

@@ -86,10 +86,7 @@ export function paintTableSlots(
   layout: RoomLayout,
   labels: Partial<Record<TableSlot, Text>>,
 ): void {
-  const rects: Record<TableSlot, RoundedRect | null> = {
-    deck: layout.deckSlot,
-    discard: layout.discardSlot,
-  };
+  const rects: Record<TableSlot, RoundedRect | null> = { deck: layout.deckSlot };
   for (const slot of Object.keys(rects) as TableSlot[]) {
     const rect = rects[slot];
     const label = labels[slot];

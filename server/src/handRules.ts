@@ -55,6 +55,17 @@ export function takeAllCards(deck: readonly string[]): { deck: string[]; cards: 
   return { deck: [], cards: [...deck].reverse() };
 }
 
+// Скинуть карту из руки в сброс: она ложится НАВЕРХ сброса (последней в массиве).
+// Скинуть можно только свою карту — иначе null и сервер молча отказывает.
+export function discardCard(
+  hand: readonly string[],
+  discard: readonly string[],
+  card: string,
+): { hand: string[]; discard: string[] } | null {
+  if (!hand.includes(card)) return null;
+  return { hand: hand.filter((c) => c !== card), discard: [...discard, card] };
+}
+
 // Порядок облёта карт при сборе: по часовой ОТ ДИЛЕРА (его карты летят первыми).
 // Правило игры, а не деталь рассылки, — поэтому живёт здесь и проверяется тестами.
 // Дилера нет в круге (вышел) — облетаем места как есть, порядок хотя бы стабилен.

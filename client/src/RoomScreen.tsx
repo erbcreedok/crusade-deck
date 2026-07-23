@@ -50,6 +50,7 @@ export function RoomScreen({
     proposal,
     deck,
     setDeck,
+    discard,
     facing,
     myHand,
     applyMyHandOrder,
@@ -166,6 +167,15 @@ export function RoomScreen({
       room.send("deal_card", { card, to, rev: nextRev() });
     },
     [freeMode, canDeal, room, nextRev],
+  );
+
+  // Скинуть свою карту в сброс — можно только в игре (в раздаче слота нет).
+  const onDiscardCard = useCallback(
+    (card: string) => {
+      if (!freeMode) return;
+      room.send("discard_card", { card });
+    },
+    [freeMode, room],
   );
 
   const onDeckFanChange = useCallback(
@@ -301,6 +311,7 @@ export function RoomScreen({
       <RoomCanvas
         deck={deck}
         hand={myHand}
+        discard={discard}
         seats={seats}
         selectedDecks={selectedDecks}
         onDeckTap={onDeckTap}
@@ -324,6 +335,7 @@ export function RoomScreen({
         noticeSignal={noticeSignal}
         shoutSignal={shoutSignal}
         onDealCard={onDealCard}
+        onDiscardCard={onDiscardCard}
         onDeckFanChange={onDeckFanChange}
         collectSignal={collectSignal}
         cardMovedSignal={cardMovedSignal}

@@ -4,6 +4,7 @@ import {
   dealCardTo,
   takeTopCard,
   takeAllCards,
+  discardCard,
   collectOrder,
   DEALER_VOTE_WEIGHT,
 } from "./handRules.js";
@@ -34,6 +35,32 @@ describe("collectHands", () => {
   it("пустые руки и пустая колода безопасны", () => {
     expect(collectHands([], {})).toEqual({ deck: [], faceUp: {} });
     expect(collectHands(["A♠"], { alice: [] }).deck).toEqual(["A♠"]);
+  });
+});
+
+describe("discardCard", () => {
+  const hand = ["A♠", "2♠", "3♠"];
+
+  it("карта уходит из руки на верх сброса", () => {
+    const out = discardCard(hand, ["K♦"], "2♠");
+    expect(out).toEqual({ hand: ["A♠", "3♠"], discard: ["K♦", "2♠"] });
+  });
+
+  it("порядок остальных карт руки не меняется", () => {
+    expect(discardCard(hand, [], "A♠")!.hand).toEqual(["2♠", "3♠"]);
+  });
+
+  it("чужую или несуществующую карту скинуть нельзя", () => {
+    expect(discardCard(hand, [], "K♦")).toBeNull();
+    expect(discardCard([], [], "A♠")).toBeNull();
+  });
+
+  it("исходные стопки не мутируются", () => {
+    const h = [...hand];
+    const d = ["K♦"];
+    discardCard(h, d, "A♠");
+    expect(h).toEqual(hand);
+    expect(d).toEqual(["K♦"]);
   });
 });
 

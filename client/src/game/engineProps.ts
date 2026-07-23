@@ -12,6 +12,7 @@ import type { SeatView } from "./seats";
 export interface EngineState {
   deck: string[];
   hand: string[]; // моя рука (Player.hand)
+  discard: string[]; // сброс: сыгранные карты, лицом вверх
   seats: SeatView[];
   selectedDecks: readonly string[];
   topInset: number;
@@ -34,6 +35,8 @@ export interface EngineCallbacks {
   onDeckTap: (deckId: string) => void;
   onEmptyTap: () => void;
   onDealCard: (card: string, to: string) => void;
+  /** Карта из руки ушла в сброс. */
+  onDiscardCard: (card: string) => void;
   onDeckFanChange: (open: boolean) => void;
   onCardReorder: (card: string, to: number) => void;
   onShuffleChange: (order: string[]) => void;
@@ -83,12 +86,14 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setAuthoritative(p.canDeal);
   engine.setDeck(p.deck);
   engine.setHand(p.hand);
+  engine.setDiscard(p.discard);
   engine.setCardFacing(p.facing);
   engine.setSelectedDecks(p.selectedDecks);
 
   engine.setOnDeckTap(p.onDeckTap);
   engine.setOnEmptyTap(p.onEmptyTap);
   engine.setOnDealCard(p.onDealCard);
+  engine.setOnDiscardCard(p.onDiscardCard);
   engine.setOnDeckFanChange(p.onDeckFanChange);
   engine.setOnCardReorder(p.onCardReorder);
   engine.setOnShuffleChange(p.onShuffleChange);

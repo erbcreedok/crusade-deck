@@ -294,6 +294,52 @@ describe("RoomEngine: отбой запрещённого дропа", () => {
   });
 });
 
+describe("RoomEngine: сброс", () => {
+  /** Утащить карту из раскрытой руки в точку (x,y). */
+  function dragHandCardTo(app: any, x: number, y: number): void {
+    const handHit = findByZ(app.stage, 10_100); // Z.handHit
+    const start = { x: 195, y: 700 };
+    handHit.__emit("pointerdown", { pointerId: 2, global: start, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 2, global: { x: start.x + 20, y: start.y - 20 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 2, global: { x, y } });
+    for (let i = 0; i < 25; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 2, global: { x, y } });
+  }
+
+  it("карту из руки роняют в слот сброса — уходит ровно она", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    engine.setHand(["2♦", "3♦", "4♦"]);
+    engine.setSelectedDecks(["hand"]); // рука в фокусе: веер, карты берутся по одной
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const discarded: string[] = [];
+    engine.setOnDiscardCard((card: string) => discarded.push(card));
+    const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).discardSlot!;
+    dragHandCardTo(app, slot.cx, slot.cy);
+
+    expect(discarded).toHaveLength(1);
+    expect(["2♦", "3♦", "4♦"]).toContain(discarded[0]);
+  });
+
+  it("сброс с сервера лежит стопкой в своём слоте", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setFreeMode(true);
+    const before = pixi.__liveSprites().length;
+    engine.setDiscard(["2♦", "3♦"]);
+    for (let i = 0; i < 20; i++) app.ticker.__advance(16);
+
+    expect(pixi.__liveSprites().length - before).toBe(2);
+    const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).discardSlot!;
+    const live = new Set(pixi.__liveSprites());
+    const onScene = findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible);
+    const atSlot = onScene.filter((sp: any) => Math.abs(sp.x - slot.cx) < 60 && Math.abs(sp.y - slot.cy) < 60);
+    expect(atSlot.length).toBeGreaterThan(0);
+  });
+});
+
 describe("RoomEngine: разметка игрового стола", () => {
   it("после «ГОУ!» колода уезжает в левый слот", async () => {
     const { engine, app } = await mountEngine();

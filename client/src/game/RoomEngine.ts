@@ -189,6 +189,13 @@ export class RoomEngine {
       v.sprite.alpha = 0;
     },
   });
+  // Сброс: сыгранные карты лежат лицом вверх в правом слоте игрового стола. Стопка та же
+  // самая по устройству, что колода и рука, — только якорь другой.
+  private discardPile = new CardPile({
+    create: (card) => this.createCardVisual(card),
+    restTarget: (i) => this.discardRestTarget(i),
+    place: (v, i) => (v.sprite.zIndex = i),
+  });
   private layout: RoomLayout = computeLayout(1, 1);
   private w = 1;
   private h = 1;
@@ -205,6 +212,7 @@ export class RoomEngine {
   private selfReady = false;
   private selfIsDealer = false;
   private onDealCard: ((card: string, to: string) => void) | null = null;
+  private onDiscardCard: ((card: string) => void) | null = null;
   private onDeckFanChange: ((open: boolean) => void) | null = null; // тап открывает / стрелка сворачивает
   private handHit: Container | null = null; // хит-зона полосы руки
   private dealDrag = false; // тащим верхнюю карту на раздачу (не reorder веера)
@@ -247,6 +255,7 @@ export class RoomEngine {
   private collapseLayout: ButtonLayout | null = null;
   private deckCollapseLayout: ButtonLayout | null = null;
   private handCounter: Text | null = null; // счётчик карт под сложенной рукой
+  private discardCounter: Text | null = null; // счётчик карт под сбросом
   private deckCounter: Text | null = null; // счётчик карт под колодой в центре (стопка и веер)
   private deckHit: Container | null = null;
 
@@ -599,8 +608,10 @@ export class RoomEngine {
 
     this.handCounter = this.makeCounterText();
     this.deckCounter = this.makeCounterText();
+    this.discardCounter = this.makeCounterText();
     this.syncCollapseButton();
     this.syncDeckCounter();
+    this.syncDiscardCounter();
 
     // Хит-зона руки — отдельный невидимый слой над полосой handZone.
     const handHit = new Container();
@@ -676,6 +687,9 @@ export class RoomEngine {
   }
   private get handCards(): string[] {
     return this.handPile.order;
+  }
+  private get discardCards(): CardVisual[] {
+    return this.discardPile.cards;
   }
   private get deckCount(): number {
     return this.deckPile.count;
@@ -795,6 +809,24 @@ export class RoomEngine {
     this.wake();
   }
 
+  /** Сброс с сервера: сыгранные карты. Лежат лицом вверх в своём слоте. */
+  setDiscard(cards: string[]): void {
+    const order = dedupeDeckOrder(cards).slice(0, 52);
+    if (!this.cardLayer || !this.backTex) {
+      this.discardPile.remember(order);
+      return;
+    }
+    this.discardPile.reconcile(order);
+    this.discardCards.forEach((c, i) => {
+      c.body.snapTo(this.discardRestTarget(i));
+      c.sprite.texture = this.faceTexture(c.card); // сыгранную карту видно всем
+      c.sprite.visible = i >= this.discardCards.length - 2; // видна только верхушка стопки
+      c.sprite.alpha = 1;
+    });
+    this.syncDiscardCounter();
+    this.wake();
+  }
+
   setDeckFanned(open: boolean): void {
     // Веер колоды независим от веера руки: серверное состояние принимаем всегда.
     if (open === this.deckFanned) return;
@@ -833,10 +865,12 @@ export class RoomEngine {
     this.rebuildLayout();
     this.cards.forEach((c, i) => c.body.setTarget(this.restTarget(i)));
     this.hand.forEach((c, i) => c.body.setTarget(this.handRestTarget(i)));
+    this.discardCards.forEach((c, i) => c.body.snapTo(this.discardRestTarget(i)));
     if (this.deckHit) this.deckHit.cursor = this.deckCursor();
     this.positionDeckHit();
     this.positionHandHit();
     this.syncDeckCounter();
+    this.syncDiscardCounter();
     this.syncCollapseButton();
     this.drawZones();
     this.drawFocus();
@@ -857,6 +891,11 @@ export class RoomEngine {
 
   setOnDealCard(fn: ((card: string, to: string) => void) | null): void {
     this.onDealCard = fn;
+  }
+
+  /** Карту из руки скинули в сброс (React шлёт discard_card на сервер). */
+  setOnDiscardCard(fn: ((card: string) => void) | null): void {
+    this.onDiscardCard = fn;
   }
 
   setOnDeckFanChange(fn: ((open: boolean) => void) | null): void {
@@ -1478,6 +1517,29 @@ export class RoomEngine {
     this.setDeck(withoutCard(this.deckCards, card));
   }
 
+  /**
+   * Карта уходит ИЗ РУКИ в сброс: призрак летит с пальца в слот, а сама карта покидает
+   * руку сразу — по той же причине, что и у колоды (см. flyCardOff): пока она числится в
+   * стопке, веер руки продолжает держать под неё место.
+   */
+  flyHandCardOff(card: string, from: FlightPoint): void {
+    if (this.destroyed) return;
+    const to = this.layout.discardSlot;
+    if (to) {
+      this.enqueueCardFlight({
+        card,
+        from,
+        to: { x: to.cx, y: to.cy, rot: 0 },
+        faceUp: true, // сыгранную карту видно всем
+        delay: 0,
+        toSelf: false,
+        seatBiasId: null,
+        seatBias: 0,
+      });
+    }
+    this.setHand(withoutCard(this.handCards, card));
+  }
+
   /** Старт полёта с текущей позы (дроп раздачи с пальца). */
   playDealFlight(card: string, from: FlightPoint, toId: string): void {
     const to = this.cardMoveAnchor(toId);
@@ -1853,6 +1915,19 @@ export class RoomEngine {
       }
       this.onDragChange?.(false);
       this.drawSeats();
+      this.drawZones();
+      this.positionDeckHit();
+      this.wake();
+      return;
+    }
+
+    // Сброс: карту из руки роняют в правый слот игрового стола. Зона появляется только в
+    // игре (см. layout.discardSlot), поэтому в раздаче сюда не попасть.
+    if (fromHand && pickDropTarget(x, y, this.layout)?.zone === "discard") {
+      const card = d.v.card;
+      this.flyHandCardOff(card, { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation });
+      this.onDiscardCard?.(card);
+      this.onDragChange?.(false);
       this.drawZones();
       this.positionDeckHit();
       this.wake();
@@ -2384,6 +2459,8 @@ export class RoomEngine {
     this.syncCollapseButton();
     this.syncHandCounter();
     this.syncDeckCounter();
+    this.discardCards.forEach((c, i) => c.body.snapTo(this.discardRestTarget(i)));
+    this.syncDiscardCounter();
     this.styleZoneLabels();
     this.styleShout();
     this.drawSeats();
@@ -2426,6 +2503,7 @@ export class RoomEngine {
     this.deckCollapseBtn = null;
     this.handCounter = null;
     this.deckCounter = null;
+    this.discardCounter = null;
     this.rejectText = null;
     this.shoutBox = null;
     this.shoutWord = null;
@@ -2442,11 +2520,13 @@ export class RoomEngine {
     this.deckHit = null;
     this.handHit = null;
     this.onDealCard = null;
+    this.onDiscardCard = null;
     this.onDeckFanChange = null;
     this.onDragChange = null;
     this.reject = null;
     this.deckPile.clear();
     this.handPile.clear();
+    this.discardPile.clear();
   }
 
   // ——— внутреннее ———
@@ -2485,6 +2565,7 @@ export class RoomEngine {
 
       for (const c of this.cards) c.body.step(dt);
       for (const c of this.hand) c.body.step(dt);
+      for (const c of this.discardCards) c.body.step(dt);
     } while (remaining > 0);
 
     // Карта долетела домой — стопка снова целая (см. topDetached).
@@ -2678,6 +2759,7 @@ export class RoomEngine {
     this.syncDeckCounter();
     for (const c of this.cards) if (c.sprite.visible) this.syncVisual(c);
     for (const c of this.hand) if (c.sprite.visible) this.syncVisual(c);
+    for (const c of this.discardCards) if (c.sprite.visible) this.syncVisual(c);
     this.syncDeckBody();
     this.syncDeckShadow();
     this.syncCardShadow();
@@ -2731,7 +2813,7 @@ export class RoomEngine {
         idle: this.idleRunning(),
         fanWiggle: this.fanWiggling,
         cardsResting: this.cards.every((c) => c.body.isResting()),
-        handResting: this.hand.every((c) => c.body.isResting()),
+        handResting: this.hand.every((c) => c.body.isResting()) && this.discardCards.every((c) => c.body.isResting()),
       })
     ) {
       this.sleep();
@@ -2958,6 +3040,16 @@ export class RoomEngine {
     return { x: a.x + so.dx * zs, y: a.y + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
   }
 
+  // Сброс лежит стопкой в своём слоте (в раздаче слота нет — прячем за экран).
+  private discardRestTarget(i: number): CardTargets {
+    const slot = this.layout.discardSlot;
+    if (!slot) return { x: -9999, y: -9999, rot: 0, scale: deckScale() };
+    const zs = deckScale();
+    const n = Math.max(1, this.discardPile.count);
+    const so = stackOffset(i, n, true);
+    return { x: slot.cx + so.dx * zs, y: slot.cy + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
+  }
+
   private handRestTarget(i: number): CardTargets {
     if (this.handFocused) return this.handFanTarget(i);
     return this.rowTarget(i, this.handCount);
@@ -3001,6 +3093,23 @@ export class RoomEngine {
 
   // Счётчик под колодой. Не зависит от стрелки (она то есть, то нет — из‑за неё и прыгал).
   // Одна формула от якоря стопки — и в веере, и в кирпиче.
+  // Счётчик сброса — под его слотом, как у колоды.
+  private syncDiscardCounter(): void {
+    const t = this.discardCounter;
+    const slot = this.layout.discardSlot;
+    if (!t) return;
+    const n = this.discardPile.count;
+    const show = !!slot && n > 0;
+    t.visible = show;
+    if (!show || !slot) return;
+    t.text = String(n);
+    t.style.fontSize = Math.max(11, Math.min(28, this.rowCounterSpace() * 0.85));
+    const zs = deckScale();
+    const ext = stackExtent(n);
+    t.x = slot.cx;
+    t.y = slot.cy + (this.layout.cardH / 2) * zs + ext.h * zs + this.rowCounterSpace() * 0.45;
+  }
+
   private syncDeckCounter(): void {
     const t = this.deckCounter;
     if (!t) return;

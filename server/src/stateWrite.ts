@@ -13,6 +13,12 @@ export function writeDeck(state: GameState, order: readonly string[]): void {
   order.forEach((card) => state.deck.push(card));
 }
 
+/** Переписать сброс целиком. */
+export function writeDiscard(state: GameState, order: readonly string[]): void {
+  state.discard.clear();
+  order.forEach((card) => state.discard.push(card));
+}
+
 /** Переписать руку игрока целиком новым порядком. */
 export function writeHand(player: Player, order: readonly string[]): void {
   player.hand.clear();

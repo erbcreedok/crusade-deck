@@ -33,6 +33,8 @@ export interface RoomSnapshot {
   /** Номер ревизии колоды: по нему отбрасывается устаревшее эхо. */
   deckRev: number;
   deck: string[];
+  /** Сброс: сыгранные карты, лежат лицом вверх. */
+  discard: string[];
   facing: Record<string, boolean>;
   deckLocation: string;
   /** Режим свободы: карты со стола игроки берут сами (см. GameState.freeMode). */
@@ -100,6 +102,7 @@ export function readRoomState(state: any, sessionId: string): RoomSnapshot {
     proposal: readProposal(state),
     deckRev: state.deckRev ?? 0,
     deck: state.deck ? [...state.deck] : [],
+    discard: state.discard ? [...state.discard] : [],
     facing: readFacing(state),
     deckLocation: state.deckLocation ?? "center",
     freeMode: !!state.freeMode,

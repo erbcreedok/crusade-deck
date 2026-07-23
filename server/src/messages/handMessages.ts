@@ -1,6 +1,20 @@
 import { isPermutationOf } from "../deckOrder.js";
-import { collectHands, collectOrder, dealCardTo, takeAllCards, takeTopCard } from "../handRules.js";
-import { clearAllHands, handsSnapshot, writeDeck, writeFacing, writeHand } from "../stateWrite.js";
+import {
+  collectHands,
+  collectOrder,
+  dealCardTo,
+  discardCard,
+  takeAllCards,
+  takeTopCard,
+} from "../handRules.js";
+import {
+  clearAllHands,
+  handsSnapshot,
+  writeDeck,
+  writeDiscard,
+  writeFacing,
+  writeHand,
+} from "../stateWrite.js";
 import type { MessageRoom } from "./host.js";
 
 // Сообщения про РУКИ: раздача карты, свой порядок, открыть/закрыть, веер, спрятать
@@ -83,6 +97,20 @@ export function registerHandMessages(room: MessageRoom): void {
     });
   });
 
+  // Скинуть карту из руки в сброс. Только своя карта и только в игре: в раздаче скидывать
+  // некуда — стол ещё не размечен. Сброшенная карта ложится ЛИЦОМ ВВЕРХ: её уже сыграли.
+  room.onMessage("discard_card", (client, message: { card?: string }) => {
+    const player = state.players.get(client.sessionId);
+    const card = message?.card;
+    if (!player || !state.freeMode || typeof card !== "string") return;
+    const out = discardCard(player.hand.toArray(), state.discard.toArray(), card);
+    if (!out) return;
+    writeHand(player, out.hand);
+    writeDiscard(state, out.discard);
+    state.faceUp.set(card, true);
+    room.broadcast("card_moved", { moves: [{ card, from: client.sessionId, to: "discard" }] });
+  });
+
   // Свой порядок руки (сортировка/перестановка на клиенте). Принимается только
   // перестановка СВОЕЙ руки — состав не изменить.
   room.onMessage("set_hand_order", (client, message: { order?: string[] }) => {
@@ -127,7 +155,9 @@ export function registerHandMessages(room: MessageRoom): void {
     if (!player?.isDealer) return;
     const { hands, counts } = handsSnapshot(state);
     const seatIds = room.seatIds();
-    const out = collectHands(state.deck.toArray(), hands);
+    // Сброс возвращается в колоду вместе с руками — иначе сыгранные карты пропали бы.
+    const out = collectHands(state.deck.toArray(), { ...hands, __discard: state.discard.toArray() });
+    writeDiscard(state, []);
     writeDeck(state, out.deck);
     writeFacing(state, out.faceUp);
     clearAllHands(state);
