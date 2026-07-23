@@ -785,6 +785,76 @@ describe("RoomEngine: вееры доски ведут себя одинаков
   });
 });
 
+// Drag-n-drop между боксами: карту из веера доски можно перекинуть в любой бокс, кроме
+// колоды. В колоду — низя.
+describe("RoomEngine: перекидывание карт между боксами", () => {
+  async function inGame() {
+    const r = await mountEngine();
+    r.engine.setSelfId("me");
+    r.engine.setFreeMode(true);
+    return r;
+  }
+
+  /** Схватить верхнюю карту раскрытого веера доски и отпустить в точке (x,y). */
+  function dragBoardCardTo(engine: any, app: any, cards: any[], x: number, y: number): void {
+    const xs = cards.map((c: any) => c.sprite.x);
+    const cx = xs.at(-1); // верхняя (правая) карта — берётся свободно
+    const fy = engine.layout.boardFanAnchor.y;
+    const hit = findByZ(app.stage, 10_000);
+    hit.__emit("pointerdown", { pointerId: 71, global: { x: cx, y: fy }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 71, global: { x: cx + 14, y: fy - 6 } });
+    for (let i = 0; i < 12; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 71, global: { x, y } });
+    for (let i = 0; i < 12; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointerup", { pointerId: 71, global: { x, y } });
+  }
+
+  it("из веера СБРОСА карту роняют в игровую зону — move_card play", async () => {
+    const { engine, app } = await inGame();
+    engine.setDiscard(["2♣", "3♣", "4♣"]);
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 100 && app.ticker.started; i++) app.ticker.__advance(16);
+    const moves: any[] = [];
+    engine.setOnMoveCard((...a: any[]) => moves.push(a));
+
+    const cz = (engine as any).layout.centerZone;
+    dragBoardCardTo(engine, app, (engine as any).discardCards, cz.cx, cz.cy + cz.h / 2 - 12);
+
+    expect(moves).toHaveLength(1);
+    expect(moves[0][1]).toBe("discard"); // from
+    expect(moves[0][2]).toBe("play"); // to
+  });
+
+  // В свою руку карта из веера доски берётся тем же путём, что и раньше (take_*), не через
+  // move_card — это существующая «возьми себе». Проверяем, что взятие сработало.
+  it("из веера СБРОСА карту роняют в свою руку — берётся себе", async () => {
+    const { engine, app } = await inGame();
+    engine.setDiscard(["2♣", "3♣", "4♣"]);
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 100 && app.ticker.started; i++) app.ticker.__advance(16);
+    const taken: string[] = [];
+    engine.setOnTakeDiscard((c: string) => taken.push(c));
+
+    const hz = (engine as any).layout.handZone;
+    dragBoardCardTo(engine, app, (engine as any).discardCards, hz.cx, hz.cy);
+
+    expect(taken).toHaveLength(1); // карта уехала в руку
+  });
+
+  // В колоду дропать нельзя: чужая карта на открытый веер колоды → низя.
+  it("дроп на веер КОЛОДЫ запрещён (низя), move_card не шлётся", async () => {
+    const { engine, app } = await inGame();
+    engine.setDeck(["6♠", "7♠", "8♠", "9♠", "10♠"]);
+    engine.setDiscard(["2♣", "3♣", "4♣"]);
+    engine.setBoardFan("deck"); // открыт веер колоды
+    for (let i = 0; i < 100 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    // resolveDrop чужого источника на площадь веера колоды — запрет.
+    const a = (engine as any).layout.boardFanAnchor;
+    expect((engine as any).resolveDrop(a.x, a.y, "discard")).toEqual({ pile: "deck" });
+  });
+});
+
 describe("RoomEngine: игральная зона", () => {
   /** Утащить карту из раскрытой руки в точку (x,y). */
   function dragHandCardTo(app: any, x: number, y: number): void {

@@ -85,6 +85,7 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setOnPlayCard(props.onPlayCard), [props.onPlayCard]);
   useEngineEffect(e, (en) => en.setOnTakePlay(props.onTakePlay), [props.onTakePlay]);
   useEngineEffect(e, (en) => en.setOnClearPlay(props.onClearPlay), [props.onClearPlay]);
+  useEngineEffect(e, (en) => en.setOnMoveCard(props.onMoveCard), [props.onMoveCard]);
   useEngineEffect(e, (en) => en.setOnBoardFanChange(props.onBoardFanChange), [props.onBoardFanChange]);
   useEngineEffect(e, (en) => en.setOnDeckFanChange(props.onDeckFanChange), [props.onDeckFanChange]);
   useEngineEffect(e, (en) => en.setOnCardReorder(props.onCardReorder), [props.onCardReorder]);

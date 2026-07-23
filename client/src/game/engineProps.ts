@@ -50,6 +50,8 @@ export interface EngineCallbacks {
   onTakePlay: (card: string) => void;
   /** Кнопка «В СБРОС» в боксе зоны. */
   onClearPlay: () => void;
+  /** Единое перемещение карты между боксами: из from-бокса в to-бокс (см. move_card). */
+  onMoveCard: (card: string, from: "deck" | "discard" | "play" | "hand", to: "discard" | "play" | "hand", toStack?: number) => void;
   /** Игрок раскрыл/свернул веер доски. */
   onBoardFanChange: (pile: BoardPile | null) => void;
   onDeckFanChange: (open: boolean) => void;
@@ -116,6 +118,7 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setOnPlayCard(p.onPlayCard);
   engine.setOnTakePlay(p.onTakePlay);
   engine.setOnClearPlay(p.onClearPlay);
+  engine.setOnMoveCard(p.onMoveCard);
   engine.setOnBoardFanChange(p.onBoardFanChange);
   engine.setOnDeckFanChange(p.onDeckFanChange);
   engine.setOnCardReorder(p.onCardReorder);

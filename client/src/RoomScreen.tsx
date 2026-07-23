@@ -248,6 +248,16 @@ export function RoomScreen({
     room.send("clear_play");
   }, [freeMode, room]);
 
+  // Единое перемещение карты между боксами (drag-n-drop куда угодно). Сервер сам проверит
+  // правила (в колоду/чужую руку нельзя), клиент только шлёт намерение.
+  const onMoveCard = useCallback(
+    (card: string, from: "deck" | "discard" | "play" | "hand", to: "discard" | "play" | "hand", toStack?: number) => {
+      if (!freeMode) return;
+      room.send("move_card", toStack === undefined ? { card, from, to } : { card, from, to, toStack });
+    },
+    [freeMode, room],
+  );
+
   // Раскрыть/свернуть свою стопку на доске. Наружу ничего не шлём: веер личный.
   const onBoardFanChange = useCallback((pile: BoardPile | null) => setMyBoardFan(pile), []);
 
@@ -419,6 +429,7 @@ export function RoomScreen({
         onPlayCard={onPlayCard}
         onTakePlay={onTakePlay}
         onClearPlay={onClearPlay}
+        onMoveCard={onMoveCard}
         onBoardFanChange={onBoardFanChange}
         onDeckFanChange={onDeckFanChange}
         collectSignal={collectSignal}

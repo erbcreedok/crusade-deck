@@ -119,6 +119,20 @@ import {
 } from "./engine/constants";
 import type { BoardPile, ButtonLayout, CardVisual, FanGeom, ShadowLayer, ShufflePose } from "./engine/types";
 import { playPile, playPileIndex } from "./engine/boardPile";
+
+// Единое перемещение карты между боксами (совпадает с сервером, см. moveRules.ts).
+type MoveFrom = "deck" | "discard" | "play" | "hand";
+type MoveTo = "discard" | "play" | "hand";
+// Куда карта опущена. "deck"/"seat" — запрещённые назначения (низя); null — мимо всех
+// боксов. Дроп в свой же бокс отдельного варианта не имеет: его ловит вызывающий, сравнив
+// источник с назначением.
+type DropDest =
+  | { pile: "discard" }
+  | { pile: "play"; stack: number | null }
+  | { pile: "hand" }
+  | { pile: "deck" }
+  | { pile: "seat"; id: string }
+  | null;
 import { playStackOffset } from "./playStack";
 import { discardHeapExtent, discardHeapPose, discardHeapVisible } from "./discardHeap";
 import { CLEAR_PLAY_LABEL, clearPlayButton, hitsClearPlay } from "./engine/clearPlayButton";
@@ -269,6 +283,9 @@ export class RoomEngine {
   private onPlayCard: ((card: string, stack: number | null) => void) | null = null;
   private onTakePlay: ((card: string) => void) | null = null;
   private onClearPlay: (() => void) | null = null;
+  private onMoveCard:
+    | ((card: string, from: MoveFrom, to: MoveTo, toStack?: number) => void)
+    | null = null;
   private onPutToDeck: ((card: string) => void) | null = null;
   private onDeckFanChange: ((open: boolean) => void) | null = null;
   private onBoardFanChange: ((pile: BoardPile | null) => void) | null = null; // тап открывает / стрелка сворачивает
@@ -1317,6 +1334,11 @@ export class RoomEngine {
   /** Кнопка «В СБРОС» в боксе зоны: вся зона уезжает в сброс. */
   setOnClearPlay(fn: (() => void) | null): void {
     this.onClearPlay = fn;
+  }
+
+  /** Единое перемещение карты между боксами (см. move_card на сервере). */
+  setOnMoveCard(fn: ((card: string, from: MoveFrom, to: MoveTo, toStack?: number) => void) | null): void {
+    this.onMoveCard = fn;
   }
 
   /**
@@ -2468,6 +2490,90 @@ export class RoomEngine {
     }
   }
 
+  /** Как назвать источник карты из веера доски для move_card. */
+  private boardSourceName(pile: BoardPile): "deck" | "discard" | "play" {
+    if (playPileIndex(pile) !== null) return "play";
+    if (pile === "discard") return "discard";
+    return "deck";
+  }
+
+  /**
+   * Куда опущена карта: разбирает точку по боксам стола. Один порядок приоритета для всех
+   * источников. Раскрытый веер доски «владеет» центром — дроп туда идёт в ЕГО стопку (и в
+   * веер колоды — низя).
+   */
+  private resolveDrop(x: number, y: number, sourcePile?: BoardPile | null): DropDest {
+    const seat = pickSeat(x, y, this.seatBoxes);
+    if (seat) return seat === this.selfId ? { pile: "hand" } : { pile: "seat", id: seat };
+    const zone = pickDropTarget(x, y, this.layout)?.zone;
+    if (zone === "hand") return { pile: "hand" };
+    // Раскрытый ЧУЖОЙ веер доски занимает центр — дроп в его площадь адресован его стопке
+    // (это перекидывание из веера в веер). Свой же веер центром не владеет: вытягивая из
+    // него карту, игрок целится в игровую зону под ним, а не «обратно в себя».
+    if (this.boardFan && this.boardFan !== sourcePile && this.inDeckFanArea(x, y)) {
+      if (this.boardFan === "deck") return { pile: "deck" };
+      if (this.boardFan === "discard") return { pile: "discard" };
+      const pi = playPileIndex(this.boardFan);
+      if (pi !== null) return { pile: "play", stack: pi };
+    }
+    if (zone === "discard") return { pile: "discard" };
+    if (zone === "deck") return { pile: "deck" };
+    if (zone === "center") return { pile: "play", stack: pickPlayCell(this.playGridNow(), x, y) };
+    return null;
+  }
+
+  /**
+   * Дроп карты из веера ДОСКИ (колода/сброс/зона) в свободе. Разрешено куда угодно, кроме
+   * колоды; в чужую руку тоже нельзя. Дроп обратно в свой же бокс — тихий возврат.
+   */
+  private dropBoardCardFree(d: { v: CardVisual; pile: BoardPile }, x: number, y: number): void {
+    const source = this.boardSourceName(d.pile);
+    const card = d.v.card;
+    const from: FlightPoint = { x: d.v.sprite.x, y: d.v.sprite.y, rot: d.v.sprite.rotation };
+    const dest = this.resolveDrop(x, y, d.pile);
+
+    // В колоду нельзя. Из ДРУГОГО веера в колоду — низя (запрет между веерами); свою же
+    // колоду вернул на место — молча (это «передумал», а не нарушение).
+    if (dest?.pile === "deck") {
+      if (source === "deck") this.returnCardHome(d.v);
+      else this.startCardReject(d.v, x, y, DECK_DROP_REJECT_TEXT);
+      return;
+    }
+    if (dest?.pile === "seat") {
+      this.startCardReject(d.v, x, y, FREE_DROP_REJECT_TEXT); // чужая рука закрыта
+      return;
+    }
+    if (!dest) {
+      this.returnCardHome(d.v);
+      return;
+    }
+    // Дроп в свой же бокс: сброс→сброс, ТА ЖЕ кучка зоны — реордера пока нет, тихий возврат.
+    // «Та же кучка» только когда источник тоже кучка зоны (иначе null === null дал бы
+    // ложное совпадение и сброс→новая кучка молча возвращался бы).
+    const srcStack = playPileIndex(d.pile);
+    const sameStack = dest.pile === "play" && srcStack !== null && dest.stack === srcStack;
+    if ((dest.pile === "discard" && source === "discard") || sameStack) {
+      this.returnCardHome(d.v);
+      return;
+    }
+    // Осталось разрешённое назначение: сброс, зона или своя рука.
+    if (dest.pile !== "discard" && dest.pile !== "play" && dest.pile !== "hand") {
+      this.returnCardHome(d.v);
+      return;
+    }
+    const to: MoveTo = dest.pile;
+    const toLabel = to === "hand" ? this.selfId ?? "" : to;
+    if (!toLabel) {
+      this.returnCardHome(d.v);
+      return;
+    }
+    // Оптимистично убираем карту из источника и запускаем полёт к назначению.
+    if (source === "deck") this.flyCardOff(card, from, toLabel);
+    else if (source === "discard") this.flyDiscardCardOff(card, from, toLabel);
+    else this.flyPlayCardOff(card, from, toLabel);
+    this.onMoveCard?.(card, source, to, dest.pile === "play" ? dest.stack ?? undefined : undefined);
+  }
+
   private dropCard(x: number, y: number): void {
     const d = this.cardDrag;
     if (!d) return;
@@ -2512,24 +2618,16 @@ export class RoomEngine {
           this.flyCardOff(card, from, seat);
           this.onDealCard?.(card, seat);
         }
+      } else if (this.freeMode) {
+        // Свобода: карту из веера доски можно перекинуть в ЛЮБОЙ бокс — сброс, зону, свою
+        // руку; в колоду нельзя (низя). Единый резолвер решает, куда именно.
+        this.dropBoardCardFree(d, x, y);
       } else if (this.boardFan && this.inDeckFanArea(x, y)) {
-        // Дроп обратно в тот же веер. В раздаче дилер так перекладывает карты колоды; в
-        // ИГРЕ порядок стопок доски не двигают — карта просто ложится обратно.
-        //
-        // Молча, без надписи: игрок ничего не нарушил и ничего не потерял — он подвигал
-        // карту и отпустил её там же, откуда взял. Ругаться на такое значит ругаться на
-        // каждое «передумал», а надпись-отказ должна оставаться редкой, иначе её
-        // перестают читать. Отбой с объяснением остаётся там, где действие ОСМЫСЛЕННОЕ,
-        // но запрещено (карта в закрытую колоду, раздача не готовому игроку).
-        // Правило пока зашито; станет настройкой вместе с правилами игры.
-        if (this.freeMode) {
-          this.returnCardHome(d.v);
-        } else {
-          const to = this.insertDeckIndexAt(x);
-          this.reorderLocally(d.v.card, to);
-          this.alignUnderTouch(x, y);
-          this.onCardReorder?.(d.v.card, to);
-        }
+        // Раздача: дилер так перекладывает карты колоды (реордер веера на месте).
+        const to = this.insertDeckIndexAt(x);
+        this.reorderLocally(d.v.card, to);
+        this.alignUnderTouch(x, y);
+        this.onCardReorder?.(d.v.card, to);
       } else {
         this.returnCardHome(d.v);
       }
