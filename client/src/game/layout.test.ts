@@ -270,3 +270,60 @@ describe("computeLayout — игровой стол", () => {
     expect(l.centerZone.w).toBeGreaterThan(l.cardW);
   });
 });
+
+// Соседи по кругу сидят в верхних углах, над крайними боксами стола. Ширину стола они не
+// режут — иначе на телефоне игровая зона схлопывалась бы в щель между двумя местами.
+// Вместо этого крайние боксы уступают им по вертикали (см. seatLayout.ts).
+describe("computeLayout — стол уступает боковым соседям по вертикали", () => {
+  const W = 420;
+  const H = 760;
+  const base = { top: 80, side: 0 };
+  const withSides = { top: 80, side: 110 };
+
+  it("в игре колода съезжает ниже, освобождая угол под соседа", () => {
+    const free = computeLayout(W, H, base, true);
+    const yielded = computeLayout(W, H, withSides, true);
+    expect(yielded.deckSlot!.cy).toBeGreaterThan(free.deckSlot!.cy);
+    expect(yielded.deckSlot!.h).toBeCloseTo(free.deckSlot!.h);
+  });
+
+  it("сброс становится ниже ростом, а не съезжает целиком", () => {
+    const free = computeLayout(W, H, base, true);
+    const yielded = computeLayout(W, H, withSides, true);
+    expect(yielded.discardSlot!.h).toBeLessThan(free.discardSlot!.h);
+    // верх колонки опустился ровно на высоту соседа, низ остался на месте
+    const top = (r: { cy: number; h: number }) => r.cy - r.h / 2;
+    const bottom = (r: { cy: number; h: number }) => r.cy + r.h / 2;
+    expect(top(yielded.discardSlot!)).toBeGreaterThan(top(free.discardSlot!));
+    expect(bottom(yielded.discardSlot!)).toBeCloseTo(bottom(free.discardSlot!));
+  });
+
+  it("игровая зона в середине не трогается: соседи стоят по краям, а не над ней", () => {
+    const free = computeLayout(W, H, base, true);
+    const yielded = computeLayout(W, H, withSides, true);
+    expect(yielded.centerZone).toEqual(free.centerZone);
+  });
+
+  it("стол по ширине не режется: боковые соседи не сужают его", () => {
+    const free = computeLayout(W, H, base, true);
+    const yielded = computeLayout(W, H, withSides, true);
+    expect(yielded.discardSlot!.cx + yielded.discardSlot!.w / 2).toBeCloseTo(
+      free.discardSlot!.cx + free.discardSlot!.w / 2,
+    );
+  });
+
+  it("в раздаче делить нечего — стол просто опускается под соседей", () => {
+    const free = computeLayout(W, H, base);
+    const yielded = computeLayout(W, H, withSides);
+    expect(yielded.centerZone.cy - yielded.centerZone.h / 2).toBeGreaterThan(
+      free.centerZone.cy - free.centerZone.h / 2,
+    );
+  });
+
+  it("абсурдная высота соседей не выворачивает боксы наизнанку", () => {
+    const l = computeLayout(W, H, { top: 80, side: 5000 }, true);
+    expect(l.deckSlot!.h).toBeGreaterThan(0);
+    expect(l.discardSlot!.h).toBeGreaterThan(0);
+    expect(l.discardSlot!.cy + l.discardSlot!.h / 2).toBeLessThanOrEqual(H);
+  });
+});

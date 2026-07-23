@@ -60,14 +60,20 @@ const CARD_MAX_H = 140;
 // его крышу. Моя рука внизу — не трогается, она всегда моя.
 export interface LayoutInsets {
   top: number;
-  left: number;
-  right: number;
+  left?: number;
+  right?: number;
+  /**
+   * Сколько по вертикали занято боковыми местами (соседями по кругу). Стол по ширине они
+   * НЕ режут: на узком экране это схлопнуло бы игровую зону в щель. Вместо этого им
+   * уступают крайние боксы — колода съезжает ниже, сброс становится ниже ростом.
+   */
+  side?: number;
   // Высота панели действий внизу (HTML поверх канваса). Игровые зоны заканчиваются
   // НАД ней: кнопки не должны перекрывать руку.
   bottom?: number;
 }
 
-const NO_INSETS: LayoutInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+const NO_INSETS: LayoutInsets = { top: 0, left: 0, right: 0, side: 0, bottom: 0 };
 
 /**
  * `gameMode` — стол после «ГОУ!»: середина делится на три бокса (колода слева, игра по
@@ -93,9 +99,10 @@ export function computeLayout(
   const zoneW = Math.max(0, w * 0.86);
   const r = 18;
 
-  const freeLeft = Math.min(insets.left, w * 0.4);
-  const freeRight = Math.min(insets.right, w * 0.4);
+  const freeLeft = Math.min(insets.left ?? 0, w * 0.4);
+  const freeRight = Math.min(insets.right ?? 0, w * 0.4);
   const freeTop = Math.min(insets.top, h * 0.4);
+  const sideH = Math.min(Math.max(0, insets.side ?? 0), h * 0.3);
 
   // Нижняя полоса: одна горизонталь на всю ширину зоны, поделённая по вертикали.
   // Панель действий забирает низ экрана; клампим её вклад, чтобы даже абсурдная панель
@@ -115,7 +122,10 @@ export function computeLayout(
   // Клампы держат его живым даже при абсурдных отступах — лучше тесный центр, чем нулевой.
   const centerW = Math.max(cardW * 1.2, Math.min(zoneW, w - freeLeft - freeRight - 16));
   const centerCx = freeLeft + (w - freeLeft - freeRight) / 2;
-  const centerTop = freeTop + 8;
+  // В раздаче под боковых уходит вся крыша: колода лежит по центру, и делить ей нечего —
+  // проще опустить стол целиком. В игре так нельзя (игровая зона в середине, соседи по
+  // краям, они не пересекаются) — там уступают только крайние боксы, см. splitGameTable.
+  const centerTop = freeTop + 8 + (gameMode ? 0 : sideH);
   const centerBottom = bandCy - bandH / 2 - 8;
   const centerH = Math.max(cardH * 1.2, Math.min(centerBottom - centerTop, h * 0.42));
   const centerCy = centerTop + Math.max(centerH / 2, (centerBottom - centerTop) / 2);
@@ -141,14 +151,18 @@ export function computeLayout(
 
   // Игровой стол шире «центра»: боксы колоды и сброса уезжают к самым краям свободной
   // области, освобождая середину под веер. Центр же остаётся зоной игры.
+  // Поля по краям — от КАРТЫ, а не константа: стопка колоды рисуется со сдвигом влево-вниз
+  // (нижняя карта выглядывает из-под верхней, см. deckStack.ts), и при поле в пару пикселей
+  // этот «хвост» свисал за край экрана.
+  const bandPad = Math.max(8, cardW * 0.35);
   const gameBand: RoundedRect = {
     cx: (freeLeft + (w - freeRight)) / 2,
     cy: centerZone.cy,
-    w: Math.max(centerZone.w, w - freeLeft - freeRight - 8),
+    w: Math.max(centerZone.w, w - freeLeft - freeRight - 2 * bandPad),
     h: centerZone.h,
     r,
   };
-  const table = splitGameTable(gameBand, cardW, cardH);
+  const table = splitGameTable(gameBand, cardW, cardH, sideH);
   return {
     centerZone: table.play,
     deckSlot: table.deck,
@@ -185,6 +199,7 @@ function splitGameTable(
   band: RoundedRect,
   cardW: number,
   cardH: number,
+  sideH = 0,
 ): { deck: RoundedRect; play: RoundedRect; discard: RoundedRect } {
   const gap = Math.max(6, cardW * 0.12);
   const wantDeck = cardW * SLOT_PAD;
@@ -198,13 +213,23 @@ function splitGameTable(
   const deckH = Math.min(band.h, Math.max(cardH * SLOT_PAD, cardH));
 
   const left = band.cx - band.w / 2;
-  const deck: RoundedRect = { cx: left + deckW / 2, cy: band.cy, w: deckW, h: deckH, r: band.r };
+  const top = band.cy - band.h / 2;
+  const bottom = band.cy + band.h / 2;
+
+  // Крайние боксы уступают верх боковым местам — они стоят ровно над ними. Уступают
+  // по-разному, потому что и устроены по-разному: колода — компактный бокс, ей достаточно
+  // съехать ниже; сброс — колонка во всю высоту, ему остаётся стать ниже ростом.
+  const deckCy = Math.min(band.cy + sideH / 2, bottom - deckH / 2);
+  const discardH = Math.max(cardH, band.h - sideH);
+  const discardCy = Math.min(top + sideH + discardH / 2, bottom - discardH / 2);
+
+  const deck: RoundedRect = { cx: left + deckW / 2, cy: deckCy, w: deckW, h: deckH, r: band.r };
   const play: RoundedRect = { cx: left + deckW + gap + playW / 2, cy: band.cy, w: playW, h: band.h, r: band.r };
   const discard: RoundedRect = {
     cx: left + deckW + gap + playW + gap + discardW / 2,
-    cy: band.cy,
+    cy: discardCy,
     w: discardW,
-    h: band.h, // во всю высоту стола
+    h: discardH,
     r: band.r,
   };
   return { deck, play, discard };

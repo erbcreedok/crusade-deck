@@ -166,6 +166,12 @@ export class RoomEngine {
   // Место игрока — прямоугольник и он же его дроп-зона.
   private seats: SeatView[] = [];
   private seatBoxes: SeatBox[] = [];
+  // Прокрутка верхней полосы мест: за столом может быть до 32 человек, а экран один.
+  // Боковые соседи прокруткой не двигаются — они закреплены (см. seatLayout.ts).
+  private seatScrollX = 0;
+  private seatScrollMax = 0;
+  private seatPan: { startX: number; startScroll: number } | null = null;
+  private seatStripHit: Container | null = null;
   private seatInsets: LayoutInsets = { top: 0, left: 0, right: 0 };
   private topInset = 0; // высота HTML-топбара над канвасом — места начинаются под ним
   private bottomInset = 0; // высота панели действий — зоны заканчиваются над ней
@@ -670,6 +676,30 @@ export class RoomEngine {
     this.syncDeckCounter();
     this.syncDiscardCounter();
 
+    // Полоса мест прокручивается пальцем, когда людей больше, чем влезает. Отдельная
+    // хит-зона, а не общий жест сцены: полоса живёт над столом, и её протяжка не должна
+    // ни начинать драг колоды, ни считаться свайпом по вееру.
+    const stripHit = new Container();
+    stripHit.eventMode = "none";
+    stripHit.cursor = "grab";
+    stripHit.zIndex = Z.deckHit;
+    stripHit.on("pointerdown", (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      this.seatPan = { startX: e.global.x, startScroll: this.seatScrollX };
+    });
+    stripHit.on("pointermove", (e: FederatedPointerEvent) => {
+      if (!this.seatPan) return;
+      this.setSeatScroll(this.seatPan.startScroll - (e.global.x - this.seatPan.startX));
+    });
+    const endPan = () => {
+      this.seatPan = null;
+    };
+    stripHit.on("pointerup", endPan);
+    stripHit.on("pointerupoutside", endPan);
+    this.world!.addChild(stripHit);
+    this.seatStripHit = stripHit;
+    this.positionSeatStripHit();
+
     // Хит-зона руки — отдельный невидимый слой над полосой handZone.
     const handHit = new Container();
     handHit.eventMode = "static";
@@ -1108,15 +1138,40 @@ export class RoomEngine {
     this.applySeats(); // пересчитает раскладку и разложит карты по новым зонам
   }
 
+  // Сдвинуть полосу мест. Клампится по факту раскладки: за край списка не уводим,
+  // иначе полоса «улетает» в пустоту и вернуть её нечем.
+  private setSeatScroll(px: number): void {
+    const next = Math.max(0, Math.min(this.seatScrollMax, px));
+    if (next === this.seatScrollX) return;
+    this.seatScrollX = next;
+    this.applySeats();
+  }
+
+  private positionSeatStripHit(): void {
+    const hit = this.seatStripHit;
+    if (!hit) return;
+    // Полоса ловит пальцы, только когда её действительно есть куда крутить.
+    if (this.seatScrollMax <= 0 || this.seatInsets.top <= 0) {
+      hit.eventMode = "none";
+      hit.hitArea = new Rectangle(0, 0, 0, 0);
+      return;
+    }
+    hit.eventMode = "static";
+    hit.hitArea = new Rectangle(0, 0, this.w, this.seatInsets.top);
+  }
+
   private applySeats(): void {
     const placed = layoutSeats(
       this.seats.map((s) => s.id),
       this.w,
       this.h,
-      { topOffset: this.topInset },
+      { topOffset: this.topInset, scrollX: this.seatScrollX },
     );
     this.seatBoxes = placed.seats;
     this.seatInsets = placed.insets;
+    this.seatScrollMax = placed.topScrollMax;
+    this.seatScrollX = Math.min(this.seatScrollX, this.seatScrollMax);
+    this.positionSeatStripHit();
     this.rebuildLayout();
     if (!this.app) return; // ещё не смонтированы — нарисуем на mount
     this.drawSeats();
@@ -2723,9 +2778,15 @@ export class RoomEngine {
     if (nw === this.w && nh === this.h) return; // без реальной смены размера — ничего не делаем (гасит ResizeObserver-петли)
     this.w = nw;
     this.h = nh;
-    const placed = layoutSeats(this.seats.map((st) => st.id), this.w, this.h, { topOffset: this.topInset });
+    const placed = layoutSeats(this.seats.map((st) => st.id), this.w, this.h, {
+      topOffset: this.topInset,
+      scrollX: this.seatScrollX,
+    });
     this.seatBoxes = placed.seats;
     this.seatInsets = placed.insets;
+    this.seatScrollMax = placed.topScrollMax;
+    this.seatScrollX = Math.min(this.seatScrollX, this.seatScrollMax);
+    this.positionSeatStripHit();
     this.rebuildLayout();
     this.baseScale = this.layout.cardH / TEX_H;
     if (this.destroyed || !this.app) return;
