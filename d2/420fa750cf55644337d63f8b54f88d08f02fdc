@@ -1,0 +1,42 @@
+client/src/game/engine/types.ts
+  s_b16a7b1f1196ad::t_53665d7a06e0be 32-34
+server/src/CardRoom.free.test.ts
+  s_b16a7b1f1196ad::t_ea9d57f2945b3d 299-352
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_5f1b61ffa784c8 632-635,3119
+  s_b16a7b1f1196ad::t_d657f5973fde10 1255-1257,1813-1814
+  s_b16a7b1f1196ad::t_bc75f511be5c2b 975,1628,1823,1845,2332,2461,2487-2496,3177,3290,3305-3306,3309,3350,3355
+  s_b16a7b1f1196ad::t_53665d7a06e0be 107,283-284,293-294
+  s_b16a7b1f1196ad::t_1736130906241f 220-221,266,611-627,972-974,2218-2219,2221,2296,2298-2299,2319-2331,2650,2656
+  s_b16a7b1f1196ad::t_648d18435f5d24 733-737,1273,1276,1874,1938,2252
+  s_b16a7b1f1196ad::t_f0eea951ac1481 206-209,728-732,738-746,886-895
+  s_b16a7b1f1196ad::t_59f59c84db5cf5 219,963-967,1620-1627,1887,1994-2001,2654
+  s_b16a7b1f1196ad::t_d70da74a402c15 976,1629,2333
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_67c30cfcc18336 351,356,368,379,466,654
+  s_b16a7b1f1196ad::t_e67d6220463861 397-461
+client/src/game/engineProps.ts
+  s_b16a7b1f1196ad::t_5b144707c6cffa 7,23-24,42-45,88,103-104
+client/src/RoomScreen.tsx
+  s_b16a7b1f1196ad::t_5b144707c6cffa 18,67-70,115-116,118-119,121,123-124,165,186,192,206-207,215-227,361,377-378
+server/src/messages/handMessages.ts
+  s_b16a7b1f1196ad::t_ea9d57f2945b3d 125-139
+client/src/game/RoomCanvas.tsx
+  s_b16a7b1f1196ad::t_5b144707c6cffa 55,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "d2420fa750cf55644337d63f8b54f88d08f02fdc",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
