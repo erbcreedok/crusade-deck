@@ -3,6 +3,7 @@ import {
   collectHands,
   dealCardTo,
   takeTopCard,
+  takeCardAt,
   takeAllCards,
   discardCard,
   collectOrder,
@@ -125,6 +126,33 @@ describe("takeTopCard", () => {
   it("исходная колода не мутируется", () => {
     const src = [...deck];
     takeTopCard(src);
+    expect(src).toEqual(deck);
+  });
+});
+
+describe("takeCardAt", () => {
+  const deck = ["6♣", "K♦", "A♠"];
+
+  it("снимает карту с указанной позиции", () => {
+    expect(takeCardAt(deck, 0)).toEqual({ deck: ["K♦", "A♠"], card: "6♣" });
+    expect(takeCardAt(deck, 1)).toEqual({ deck: ["6♣", "A♠"], card: "K♦" });
+  });
+
+  it("верх колоды — частный случай последней позиции", () => {
+    expect(takeCardAt(deck, deck.length - 1)).toEqual(takeTopCard(deck));
+  });
+
+  it("позиция вне колоды — брать нечего", () => {
+    expect(takeCardAt(deck, -1)).toBeNull();
+    expect(takeCardAt(deck, 3)).toBeNull();
+    expect(takeCardAt(deck, 1.5)).toBeNull();
+    expect(takeCardAt(deck, Number.NaN)).toBeNull();
+    expect(takeCardAt([], 0)).toBeNull();
+  });
+
+  it("исходная колода не мутируется", () => {
+    const src = [...deck];
+    takeCardAt(src, 1);
     expect(src).toEqual(deck);
   });
 });

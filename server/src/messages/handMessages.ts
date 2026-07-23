@@ -5,6 +5,7 @@ import {
   dealCardTo,
   discardCard,
   takeAllCards,
+  takeCardAt,
   takeTopCard,
 } from "../handRules.js";
 import {
@@ -54,18 +55,28 @@ export function registerHandMessages(room: MessageRoom): void {
     room.broadcast("card_moved", { moves: [{ card, from: "deck", to }] });
   });
 
-  // Режим свободы: игрок сам тянет верхнюю карту со стола. Разрешено ЛЮБОМУ за столом —
-  // ролей тут нет, дилер такой же игрок.
+  // Режим свободы: игрок сам тянет карту со стола. Разрешено ЛЮБОМУ за столом — ролей тут
+  // нет, дилер такой же игрок.
+  //
+  // Без index — верхняя карта (драг по закрытой колоде). С index — карта на этой позиции:
+  // так тянут из раскрытого веера. Позиция, а не идентификатор карты: хозяин того, что
+  // лежит на позиции, — сервер.
+  //
+  // ЧЕСТНО про «вслепую»: state.deck едет клиентам ЦЕЛИКОМ, поэтому слепота здесь —
+  // свойство интерфейса, а не защита. Клиент технически знает порядок колоды и может
+  // выбрать позицию с нужной картой. Настоящее сокрытие потребует слать наружу только
+  // длину колоды и обезличенные позиции — это отдельная большая работа, и она не сделана.
   //
   // Конфликт двух одновременных «тянучек» решается порядком прихода сообщений: Colyseus
-  // обрабатывает их последовательно, поэтому первый снимает верхнюю карту, второй —
-  // следующую (или не получает ничего на опустевшей колоде). Никакой очереди и никаких
+  // обрабатывает их последовательно, поэтому первый снимает свою карту, второй — из уже
+  // изменившейся колоды (или не получает ничего на опустевшей). Никакой очереди и никаких
   // блокировок для этого не нужно — только не заводить здесь асинхронности.
-  room.onMessage("take_card", (client) => {
+  room.onMessage("take_card", (client, message: { index?: number }) => {
     const player = state.players.get(client.sessionId);
     if (!player || !state.freeMode) return;
     if (state.deckLocation !== "center") return; // колода унесена со стола — тянуть неоткуда
-    const out = takeTopCard(state.deck.toArray());
+    const deck = state.deck.toArray();
+    const out = message?.index === undefined ? takeTopCard(deck) : takeCardAt(deck, message.index);
     if (!out) return;
     writeDeck(state, out.deck);
     state.faceUp.delete(out.card);

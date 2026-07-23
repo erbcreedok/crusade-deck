@@ -127,6 +127,40 @@ describe("CardRoom: режим свободы", () => {
     expect(fx.moves).toEqual([{ card: top, from: "deck", to: player.sessionId }]);
   });
 
+  it("take_card с позицией берёт карту из середины колоды", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    const player = await server().connectTo(room, { name: "Bob" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+
+    const before = [...room.state.deck];
+    waiter = room.waitForMessage("take_card");
+    player.send("take_card", { index: 5 });
+    await waiter;
+
+    expect(room.state.players.get(player.sessionId)!.hand.toArray()).toEqual([before[5]]);
+    expect([...room.state.deck]).toEqual(before.filter((_, i) => i !== 5));
+  });
+
+  it("мусорная позиция ничего не берёт", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+
+    for (const index of [-1, 36, 2.5, Number.NaN, "пять" as unknown as number]) {
+      waiter = room.waitForMessage("take_card");
+      dealer.send("take_card", { index });
+      await waiter;
+    }
+
+    expect(room.state.deck.length).toBe(36);
+    expect(room.state.players.get(dealer.sessionId)!.hand.length).toBe(0);
+  });
+
   it("двое тянут одновременно — карты РАЗНЫЕ, состав колоды сходится", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });

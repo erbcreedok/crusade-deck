@@ -48,6 +48,16 @@ export function takeTopCard(deck: readonly string[]): DealResult | null {
   return { deck: next, card };
 }
 
+// Снять карту с УКАЗАННОЙ позиции колоды — так игрок тянет карту из раскрытого веера.
+// Позиция, а не идентификатор карты: что лежит на позиции, решает сервер, а не клиент.
+// Мусорный индекс (дробный, отрицательный, за границей) — не берём ничего.
+export function takeCardAt(deck: readonly string[], index: number): DealResult | null {
+  if (!Number.isInteger(index) || index < 0 || index >= deck.length) return null;
+  const next = [...deck];
+  const [card] = next.splice(index, 1);
+  return { deck: next, card: card! };
+}
+
 // Забрать со стола ВСЮ оставшуюся колоду разом. Карты ложатся в руку сверху вниз — ровно
 // так же, как если бы игрок вытянул их по одной верхними (см. takeTopCard).
 export function takeAllCards(deck: readonly string[]): { deck: string[]; cards: string[] } | null {
