@@ -2380,6 +2380,14 @@ export class RoomEngine {
       this.updateVisibility();
       this.drawSeats();
       this.drawZones();
+    } else if (this.cardDrag.loose) {
+      // Свёрнутая рука: тянем ВЕРХНЮЮ карту, остальные лежат как лежали — веер НЕ
+      // раскрывается. Ровно как снятие верхней с колоды или кучки зоны: общая механика,
+      // раскрытие — это отдельный жест (тап), а не побочный эффект драга.
+      this.hoverZone = pickDropTarget(p.x, p.y, this.layout);
+      this.aimPlayHover(p.x, p.y);
+      v.body.setTarget({ x: p.x, y: p.y, rot: 0, scale: DRAG_SCALE });
+      this.drawZones();
     } else {
       this.hoverZone = pickDropTarget(p.x, p.y, this.layout);
       this.aimPlayHover(p.x, p.y);
@@ -2797,10 +2805,13 @@ export class RoomEngine {
     // Раскрытая рука отдаёт карту под пальцем, сложенная — ВЕРХНЮЮ (ту, что видна поверх
     // шеренги). Из сложенной так быстрее достать единственную карту, а заодно видно, что
     // под ней, — и всё это не раскрывая веер, который виден всему столу.
+    //
+    // Верх шеренги — ПРАВАЯ карта: z руки растёт слева направо (см. handRow.ts), поэтому
+    // сверху лежит последняя, а не нулевая. Индекс 0 брал бы нижнюю, почти скрытую.
     this.cardPress = {
       id: e.pointerId,
       ...this.pressPoint(e),
-      index: this.handFocused ? this.nearestHandFanIndex(e.global.x) : 0,
+      index: this.handFocused ? this.nearestHandFanIndex(e.global.x) : this.hand.length - 1,
       canGrab: true,
       fromHand: true,
       pile: "deck", // рука — не стопка доски, поле не используется
@@ -3423,11 +3434,16 @@ export class RoomEngine {
   private stepDraggedCard(): void {
     const d = this.cardDrag;
     if (!d) return;
-    if (!this.dealDrag || this.deckFanned) {
+    // Веер раздвигается за пальцем ТОЛЬКО когда карту тянут ИЗ веера: раскрытая рука или
+    // раскрытый веер доски. Из стопки и из свёрнутой шеренги за пальцем идёт одна верхняя
+    // карта, остальные лежат как лежали — общая механика с колодой и кучкой зоны, где
+    // раскрытие это отдельный жест, а не побочный эффект драга. Раньше здесь стояло
+    // «!dealDrag → раздвинуть», и любой драг из шеренги её раскрывал.
+    const fromFan = !d.loose && (this.dealDrag ? this.deckFanned : true);
+    if (fromFan) {
       this.applyCardDragTargets();
       return;
     }
-    // Раздача со стопки: за пальцем идёт только верхняя карта, кирпич не трогаем.
     d.v.body.setTarget({ x: d.x, y: d.y, rot: 0, scale: DRAG_SCALE });
   }
 

@@ -942,7 +942,36 @@ describe("RoomEngine: драг по сложенной руке", () => {
     const slot = (await import("./layout")).computeLayout(390, 800, undefined, true).discardSlot!;
     dragFromRow(app, slot.cx, slot.cy);
 
-    expect(discarded).toEqual(["2♦"]); // именно та карта, что лежит поверх шеренги
+    // Верх шеренги — ПРАВАЯ карта (z растёт слева направо), то есть последняя в руке.
+    expect(discarded).toEqual(["4♦"]);
+  });
+
+  // Тянем верхнюю — остальные карты стоят как стояли. Веер НЕ раскрывается, ровно как при
+  // снятии верхней с колоды или кучки зоны: раскрытие — отдельный жест, а не эффект драга.
+  it("драг верхней карты не раздвигает шеренгу веером", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setFreeMode(true);
+    const faces = ["2♦", "3♦", "4♦", "5♦"];
+    engine.setHand(faces);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    // Позиции НЕтянущихся карт до жеста (верхняя — правая, её и потянем).
+    const rest = faces.slice(0, -1);
+    const before = rest.map((f) => pixi.__liveSprites().find((s: any) => s.label === f)!.x);
+
+    const handHit = findByZ(app.stage, 10_100);
+    handHit.__emit("pointerdown", { pointerId: 41, global: { x: 195, y: 700 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 41, global: { x: 220, y: 675 } });
+    for (let i = 0; i < 8; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 41, global: { x: 195, y: 400 } });
+    for (let i = 0; i < 12; i++) app.ticker.__advance(16);
+
+    // Пока карта в драге, остальные не разъехались веером — стоят на прежних местах.
+    const during = rest.map((f) => pixi.__liveSprites().find((s: any) => s.label === f)!.x);
+    during.forEach((x, i) => expect(Math.abs(x - before[i]!)).toBeLessThan(3));
+
+    app.stage.__emit("pointerup", { pointerId: 41, global: { x: 195, y: 400 } });
   });
 
   it("драг по сложенной руке не раскрывает её всему столу", async () => {
