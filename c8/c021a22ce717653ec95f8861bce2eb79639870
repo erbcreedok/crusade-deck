@@ -1,0 +1,35 @@
+client/src/game/fan.test.ts
+  s_6b17180413249b::t_7f7a7ba7484de5 281-282
+  s_6b17180413249b::t_48fc6f8b3c2abd 310,316-321
+  s_6b17180413249b::t_296f80177e15a7 322-323
+client/src/game/anim/config.ts
+  s_6b17180413249b::t_61fd8ae2c0e442 95-98
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_ba191dbfa29cfb 4477
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_ba79140362b959 985-994
+client/src/game/handRow.test.ts
+  s_6b17180413249b::t_16a347e8201cf8 15,18
+client/src/game/fan.ts
+  s_6b17180413249b::t_802736ad8a92fb 162
+  s_6b17180413249b::t_3b5e16dd2cd1e5 154-158
+  s_6b17180413249b::t_17dbddfef4d348 108-120,124-125
+client/src/game/handRow.ts
+  s_6b17180413249b::t_f1ce1a82964815 9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c8c021a22ce717653ec95f8861bce2eb79639870",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
