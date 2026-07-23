@@ -2442,7 +2442,10 @@ export class RoomEngine {
         : deckFan
           ? this.deckFanTarget(vi)
           : this.deckFanTarget(vi);
-      c.body.setTarget({ x: t.x, y: t.y, rot: t.rot, scale: 1 });
+      // Масштаб — свой веерный (fanCardScale), а НЕ 1: соседи не должны ужиматься, пока
+      // тянут карту. Место под неё освобождает раздвиг (fanSpreadPinned), а не сжатие;
+      // раньше здесь стояло scale:1, и веер заметно мельчал на старте драга.
+      c.body.setTarget({ x: t.x, y: t.y, rot: t.rot, scale: t.scale ?? 1 });
       k++;
     }
   }

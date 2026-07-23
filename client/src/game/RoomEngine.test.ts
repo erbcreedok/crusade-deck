@@ -982,6 +982,23 @@ describe("RoomEngine: веер руки — глиссандо и тени", () 
     expect((engine as any).cardDrag).not.toBeNull(); // сразу драг
   });
 
+  // При драге карта растёт (DRAG_SCALE), но СОСЕДИ не должны ужиматься: место освобождает
+  // раздвиг, а не сжатие. Раньше им ставили scale:1, и веер мельчал на старте драга.
+  it("на старте драга соседние карты веера не уменьшаются", async () => {
+    const { engine, app } = await focusedHand(["2♦", "3♦", "4♦"]);
+    const fanScale = (await import("./deckFan")).fanCardScale(3);
+    pressHand(app, handXs(engine)[1]!); // тянем среднюю
+    for (let i = 0; i < 10; i++) app.ticker.__advance(16);
+
+    const drag = (engine as any).cardDrag;
+    expect(drag).not.toBeNull();
+    for (const c of (engine as any).hand) {
+      if (c === drag.v) continue;
+      expect(c.body.scaleVal).toBeCloseTo(fanScale, 5); // соседи держат веерный масштаб
+    }
+    expect(drag.v.body.scaleVal).toBeGreaterThan(fanScale); // а тянущаяся крупнее
+  });
+
   // Правая (последняя) карта лежит сверху — перед ней соседей нет, тянется свободно даже
   // в тесном вееере, без проверки расстояния.
   it("последняя карта тесного веера тянется без раздвига", async () => {
