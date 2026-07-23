@@ -117,6 +117,7 @@ import { playPile, playPileIndex } from "./engine/boardPile";
 import { CLEAR_PLAY_LABEL, clearPlayButton, hitsClearPlay } from "./engine/clearPlayButton";
 import { flattenPlay, type PlaySlot } from "./playFlat";
 import { pickPlayCell, playGrid, type PlayGrid } from "./playGrid";
+import { playHoverAdjust } from "./playHover";
 import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./engine/cardTextures";
 import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
@@ -232,6 +233,9 @@ export class RoomEngine {
   // Прокрутка зоны. Появляется, только когда кучки перестали влезать даже сжатыми в пол
   // (см. playGrid): сначала мельчаем, и лишь потом листаем.
   private playScroll = 0;
+  // На какую кучку сейчас примеривается карта в драге. Кучки лежат плотно, и без ответа
+  // стола не видно, попадёшь ты в кучку или начнёшь новую рядом (см. playHover.ts).
+  private playHover: number | null = null;
   private layout: RoomLayout = computeLayout(1, 1);
   private w = 1;
   private h = 1;
@@ -1097,6 +1101,28 @@ export class RoomEngine {
     return this.playPile.cards;
   }
 
+  /**
+   * На какую кучку примеривается карта в драге. Кучки едут к новым местам ПРУЖИНОЙ, а не
+   * прыжком: подъём и отступ должны читаться как реакция стола, а не как подмена кадра.
+   */
+  private setPlayHover(stack: number | null): void {
+    if (stack === this.playHover) return;
+    this.playHover = stack;
+    this.playCards.forEach((c, i) => c.body.setTarget(this.playRestTarget(i)));
+    this.wake();
+  }
+
+  /**
+   * Куда целится карта, которую сейчас тащат: индекс кучки под пальцем или null — «мимо
+   * всех, будет новая». Считается только для чужой карты в игре: своя рука и раздача к
+   * зоне отношения не имеют.
+   */
+  private aimPlayHover(x: number, y: number): void {
+    if (!this.freeMode || !this.cardDrag?.fromHand) return this.setPlayHover(null);
+    const zone = pickDropTarget(x, y, this.layout)?.zone;
+    this.setPlayHover(zone === "center" ? pickPlayCell(this.playGridNow(), x, y) : null);
+  }
+
   /** Сетка зоны на текущую раскладку. Дёшево и без состояния — считается по месту. */
   private playGridNow(): PlayGrid {
     return playGrid(
@@ -1120,9 +1146,16 @@ export class RoomEngine {
     if (this.boardFan === playPile(slot.stack)) return this.deckFanTarget(slot.within);
     const cell = grid.cells[slot.stack]!;
     // Масштаб карты в зоне задаёт сетка: чем больше кучек, тем мельче карта (см. playGrid).
-    const zs = grid.cardW / this.layout.cardW;
+    // Поверх неё ложится ответ стола на драг: наведённая кучка приподнята, соседи отступили.
+    const hov = playHoverAdjust(grid, this.playHover, slot.stack);
+    const zs = (grid.cardW / this.layout.cardW) * hov.scale;
     const so = stackOffset(slot.within, Math.max(1, slot.of), true);
-    return { x: cell.cx + so.dx * zs, y: cell.cy + so.dy * zs, rot: this.restJitter[i] ?? 0, scale: zs };
+    return {
+      x: cell.cx + hov.dx + so.dx * zs,
+      y: cell.cy + hov.dy + so.dy * zs,
+      rot: this.restJitter[i] ?? 0,
+      scale: zs,
+    };
   }
 
   // Кучка показывает только верхушку — как колода и сброс. Раскрытая веером показывает всё.
@@ -1651,6 +1684,7 @@ export class RoomEngine {
   private cancelCardDrag(dragged: CardVisual): void {
     this.cardDrag = null;
     this.hoverZone = null;
+    this.setPlayHover(null);
     this.returnCardHome(dragged);
     this.drawZones();
     this.onDragChange?.(false);
@@ -1685,11 +1719,13 @@ export class RoomEngine {
     if (d.loose) {
       d.v.body.setTarget({ x, y, rot: 0, scale: DRAG_SCALE });
       this.hoverZone = pickDropTarget(x, y, this.layout);
+      this.aimPlayHover(x, y);
       this.drawZones();
       return;
     }
     d.insertAt = d.fromHand ? this.insertHandIndexAt(x) : this.insertDeckIndexAt(x);
     this.hoverZone = pickDropTarget(x, y, this.layout);
+    this.aimPlayHover(x, y);
     this.applyCardDragTargets();
     this.drawZones();
   }
@@ -2295,6 +2331,7 @@ export class RoomEngine {
       this.drawZones();
     } else {
       this.hoverZone = pickDropTarget(p.x, p.y, this.layout);
+      this.aimPlayHover(p.x, p.y);
       this.applyCardDragTargets();
       this.drawZones();
     }
@@ -2343,6 +2380,9 @@ export class RoomEngine {
     this.cardDrag = null;
     this.dealDrag = false;
     this.hoverZone = null;
+    // Ответ стола гаснет ДО того, как карта ляжет: кучки успевают вернуться на свои места
+    // ровно тем же движением, каким расступались.
+    this.setPlayHover(null);
     this.setHoverSeat(null);
     if (this.deckHit) this.deckHit.cursor = this.deckCursor();
 
@@ -3561,10 +3601,15 @@ export class RoomEngine {
       }
       // Каждая кучка зоны — своя стопка, значит своя тень. Раскрытую пропускаем: её
       // карты уже в вееере, и тень им кладёт общая ветка веера ниже.
+      //
+      // Покойный масштаб кучки — тот, что дала сетка. Наведённая кучка поднята НАД ним, и
+      // её тень уходит дальше сама собой: считать её отдельно не нужно, подъём и есть
+      // превышение над покоем.
+      const restScale = this.playGridNow().cardW / this.layout.cardW;
       this.playStacks.forEach((_, k) => {
         const pile = playPile(k);
         if (this.boardFan === pile) return;
-        this.pushPileShadow(specs, this.pileCards(pile), this.pileZBase(pile));
+        this.pushPileShadow(specs, this.pileCards(pile), this.pileZBase(pile), restScale);
       });
 
       // Раскрытый веер: тени через одну-две, чтобы не сложиться в полосу.
@@ -3607,7 +3652,13 @@ export class RoomEngine {
   }
 
   /** Тень собранной стопки — одна, под нижней картой (по ней видно всю пачку). */
-  private pushPileShadow(out: ShadowCaster[], cards: CardVisual[], z: number): void {
+  /**
+   * `restScale` — масштаб, на котором эта стопка ЛЕЖИТ в покое. Подъём тени считается как
+   * превышение над ним, поэтому у кучек зоны он свой: они и так мельче обычной стопки (их
+   * размер задаёт сетка), и мерить их подъём общей меркой стола значило бы, что кучка
+   * отбрасывает тень «вглубь стола» просто за то, что она мелкая.
+   */
+  private pushPileShadow(out: ShadowCaster[], cards: CardVisual[], z: number, restScale?: number): void {
     const base = cards[0];
     if (!base || this.shuffleAnim || this.scrambleAnim) return; // разлетелись — общей тени нет
     // Именно спрайт: он уже включает и тряску отбоя, и idle-«дыхалку».
@@ -3616,7 +3667,7 @@ export class RoomEngine {
       y: base.sprite.y,
       rot: base.sprite.rotation,
       scale: base.sprite.scale.x,
-      lift: liftOf(base.body.scaleVal / this.pileScale()),
+      lift: liftOf(base.body.scaleVal / (restScale ?? this.pileScale())),
       z: z - 1, // строго ПОД своей стопкой, иначе тень накроет собственные карты
     });
   }
@@ -3701,6 +3752,9 @@ export class RoomEngine {
 
   private createCardVisual(card: string): CardVisual {
     const sprite = new Sprite(this.backTex!);
+    // Имя спрайта — сама карта. Pixi им не пользуется, зато в инспекторе сцены и в тестах
+    // видно, ЧТО за прямоугольник поехал не туда (тени зовутся "shadow" по той же причине).
+    sprite.label = card;
     sprite.anchor.set(0.5);
     const body = new CardBody();
     body.tiltScale = this.profile.tilt ? 1 : 0;

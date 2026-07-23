@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 793 tests
+cd client && npm test && npx tsc --noEmit   # 802 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -165,6 +165,12 @@ zero-sized rect — so hit-testing and painting both drop it without a special c
   - Stacks of the zone are ordinary board piles named `play:N` (`engine/boardPile.ts`), so
     the whole board-fan mechanism came for free: a tap opens a stack at `boardFanAnchor`,
     exactly where the deck and the discard open.
+  - While a card is being dragged over the zone the table ANSWERS (`playHover.ts`): the
+    stack under the finger lifts and grows (so its shadow travels further on its own —
+    lift IS the excess over the resting scale), and the immediate neighbours step aside,
+    opening its edges. Highlighting a border wouldn't do: the dragged card covers the very
+    stack it's aiming at. Hit-testing stays on the UNSHIFTED grid, so the feedback can't
+    make the target oscillate under a still finger.
   - The grid picks the column count that makes the card biggest. When space runs out the
     order of concessions is fixed: shrink the card down to `PLAY_MIN_SCALE`, and only then
     scroll. The other way round, a player would be scrolling the table at ten stacks while

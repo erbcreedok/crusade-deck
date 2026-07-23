@@ -686,6 +686,52 @@ describe("RoomEngine: игральная зона", () => {
     expect(opened).toContain("play:1");
   });
 
+  // Кучки лежат плотно, и по силуэту карты в драге не понять, попадёшь ты в кучку или
+  // начнёшь новую рядом. Стол отвечает движением: наведённая поднимается, соседи отступают.
+  it("карта над кучкой поднимает её и отодвигает соседей, а после дропа всё встаёт назад", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♦"], ["3♦"], ["4♦"]]);
+    engine.setHand(["5♦", "6♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const { computeLayout } = await import("./layout");
+    const { playGrid } = await import("./playGrid");
+    const layout = computeLayout(390, 800, undefined, true);
+    const grid = playGrid(layout.centerZone, layout.cardW, layout.cardH, 3);
+    /** Спрайт карты по её номиналу: движок зовёт спрайты именами карт. */
+    const cardAt = (face: string): any => pixi.__liveSprites().find((sp: any) => sp.label === face);
+
+    const target = grid.cells[1]!;
+    const neighbourBefore = { ...grid.cells[2]! };
+    /** Насколько сосед отстоит от наведённой кучки — по нему и видно, отступил ли он. */
+    const gapFromTarget = (x: number, y: number) => Math.hypot(x - target.cx, y - target.cy);
+    const gapBefore = gapFromTarget(neighbourBefore.cx, neighbourBefore.cy);
+
+    // Тащим карту из руки и ЗАВИСАЕМ над средней кучкой, не отпуская палец.
+    const handHit = findByZ(app.stage, 10_100);
+    const start = { x: 195, y: 700 };
+    handHit.__emit("pointerdown", { pointerId: 21, global: start, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 21, global: { x: start.x + 20, y: start.y - 20 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    app.stage.__emit("pointermove", { pointerId: 21, global: { x: target.cx, y: target.cy } });
+    for (let i = 0; i < 30; i++) app.ticker.__advance(16);
+
+    const hovered = cardAt("3♦");
+    const neighbour = cardAt("4♦");
+    expect(hovered).toBeTruthy();
+    expect(hovered.y).toBeLessThan(target.cy); // приподнялась
+    expect(hovered.scale.x).toBeGreaterThan(neighbour.scale.x); // и подросла
+    // Сосед отступил ОТ неё — в какую сторону, зависит от того, как легла сетка.
+    expect(gapFromTarget(neighbour.x, neighbour.y)).toBeGreaterThan(gapBefore + 0.5);
+
+    // Отпустили — стол успокаивается: соседи возвращаются на свои места.
+    app.stage.__emit("pointerup", { pointerId: 21, global: { x: target.cx, y: target.cy } });
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+    const back = cardAt("4♦");
+    expect(gapFromTarget(back.x, back.y)).toBeCloseTo(gapBefore, 0);
+  });
+
   it("кнопка «В СБРОС» уносит зону целиком", async () => {
     const { engine, app } = await inGame();
     engine.setPlay([["2♦"], ["3♦"]]);
