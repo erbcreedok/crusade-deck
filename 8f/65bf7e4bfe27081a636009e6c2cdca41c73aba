@@ -1,0 +1,39 @@
+client/src/game/layout.test.ts
+  s_b16a7b1f1196ad::t_31b14ab40c05b3 223,229-231,236-252
+  s_b16a7b1f1196ad::t_a69d625531b941 253
+client/src/game/RoomEngine.ts
+  s_b16a7b1f1196ad::t_f4e4433d2c3e83 3245-3247
+  s_b16a7b1f1196ad::t_6eeb332cfeb4cd 99,769-775,777-783,2599,2601-2602,3504-3506
+  s_b16a7b1f1196ad::t_b788d52f3fd6de 100,112,116,126,309-312,593,595-597,2750-2751,3203-3215,3217-3232,3234-3244,3248-3265
+client/src/game/engine/shadowPass.test.ts
+  s_b16a7b1f1196ad::t_bfb5784a3ebec5 2,55-94
+  s_b16a7b1f1196ad::t_69e4d8738be26d 95
+client/src/game/engine/types.ts
+  s_b16a7b1f1196ad::t_b788d52f3fd6de 35-40
+client/src/game/layout.ts
+  s_b16a7b1f1196ad::t_25f52915cb2f7a 142-151,170-173,190-191,194-198,201-202,204,206-207
+client/src/game/RoomEngine.test.ts
+  s_b16a7b1f1196ad::t_7c22cc6e568a5a 879-882,884,894-905,908,917-918,921-923,940-946
+  s_b16a7b1f1196ad::t_9f46e8d0a6fb5d 926,930-931,935-936,939
+client/src/game/engine/shadowPass.ts
+  s_b16a7b1f1196ad::t_bfb5784a3ebec5 1-2,4-9,54-89,92-93
+  s_b16a7b1f1196ad::t_9ac7cefe16af81 94
+client/src/game/engine/constants.ts
+  s_b16a7b1f1196ad::t_6eeb332cfeb4cd 62-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8f65bf7e4bfe27081a636009e6c2cdca41c73aba",
+  "prompts": {},
+  "sessions": {
+    "s_b16a7b1f1196ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "debd0b2f-e69c-40d7-8706-0b088e5023a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
