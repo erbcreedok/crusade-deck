@@ -96,6 +96,9 @@ import {
   DRAG_SCALE,
   DRAG_SHADOW_LIFT,
   FAN_SHADOW_LIFT,
+  FINGER_TOUCH_PX,
+  GRAB_SLIVER_CAP,
+  HAND_SHADOW_LIFT,
   SHADOW_ALPHA,
   SHADOW_COLOR,
   SHADOW_LABEL,
@@ -2263,12 +2266,24 @@ export class RoomEngine {
     });
   }
 
-  // Достаточно ли видна карта, чтобы её взять. Считаем по фактическим позициям спрайтов:
-  // в зажатом веере полоска карты — пара пикселей, тащить нечего, сначала раздвинь тыком
-  // или ховером (они и дают нужный зазор).
+  /**
+   * Минимальная видимая полоска карты, при которой её можно ВЫТЯНУТЬ. Порог — размер
+   * пальца (FINGER_TOUCH_PX), но не больше доли карты: см. константы. Пока полоска у́же —
+   * драг не начинается, сначала глиссандо/тык раздвигают веер под пальцем.
+   */
+  private grabSliverPx(): number {
+    return Math.min(FINGER_TOUCH_PX, this.layout.cardW * GRAB_SLIVER_CAP);
+  }
+
+  // Достаточно ли видна карта веера ДОСКИ, чтобы её взять. По фактическим x спрайтов: в
+  // зажатом вееере полоска — пара пикселей, тащить нечего, сначала раздвинь тыком/ховером.
   private canGrabAt(index: number): boolean {
-    const xs = this.fanCards.map((c) => c.sprite.x);
-    return visibleSliver(xs, index) >= this.layout.cardW * anim.cardDrag.minGrabSliver;
+    return visibleSliver(this.fanCards.map((c) => c.sprite.x), index) >= this.grabSliverPx();
+  }
+
+  // То же для веера СВОЕЙ руки — стопка другая, а правило одно: у́же пальца не вытянуть.
+  private canGrabHandAt(index: number): boolean {
+    return visibleSliver(this.hand.map((c) => c.sprite.x), index) >= this.grabSliverPx();
   }
 
   private insertHandIndexAt(x: number): number {
@@ -2809,11 +2824,17 @@ export class RoomEngine {
     //
     // Верх шеренги — ПРАВАЯ карта: z руки растёт слева направо (см. handRow.ts), поэтому
     // сверху лежит последняя, а не нулевая. Индекс 0 брал бы нижнюю, почти скрытую.
+    // Раскрытый веер: карту под пальцем можно вытянуть, ТОЛЬКО если её полоска шире пальца
+    // (canGrabHandAt). Иначе жест уходит в глиссандо — веер раздвигается под пальцем, и на
+    // следующее касание, когда зазор подрос, карта уже тянется. Сложенная шеренга отдаёт
+    // верхнюю всегда (одна видимая карта, целиться не в кого).
+    const focused = this.handFocused;
+    const nearest = focused ? this.nearestHandFanIndex(e.global.x) : this.hand.length - 1;
     this.cardPress = {
       id: e.pointerId,
       ...this.pressPoint(e),
-      index: this.handFocused ? this.nearestHandFanIndex(e.global.x) : this.hand.length - 1,
-      canGrab: true,
+      index: nearest,
+      canGrab: focused ? this.canGrabHandAt(nearest) : true,
       fromHand: true,
       pile: "deck", // рука — не стопка доски, поле не используется
       samples: this.startSamples(e),
@@ -2824,8 +2845,27 @@ export class RoomEngine {
   private handleHandTap(e: FederatedPointerEvent): void {
     this.tapStartedOnDeck = false;
     if (this.dragHappened) return;
+    // Рука УЖЕ раскрыта и это тач — тык раздвигает веер под пальцем (как у колоды), чтобы
+    // из слитых карт выбрать нужную, не вытягивая её сразу. На мыши раздвигает ховер.
+    if (this.handFocused && e.pointerType !== "mouse") this.pokeHandFan(e.global.x);
     // Тап по руке выделяет HAND_ID (фокус → веер). Колоду на столе не трогаем.
     this.onDeckTap?.(HAND_ID);
+  }
+
+  // Локальный раздвиг веера руки у точки тыка — близнец pokeDeckFan для стопок доски.
+  private pokeHandFan(x: number): void {
+    if (!this.handFocused || this.hand.length < 2) return;
+    const p = anim.fan.wiggle.poke;
+    const pi = this.nearestHandFanIndex(x);
+    if (this.poke && Math.abs(pi - this.poke.target) <= p.cards) {
+      this.poke.target = pi;
+      this.poke.t = Math.min(this.poke.t, p.in);
+      this.wake();
+      return;
+    }
+    this.poke = { index: pi, target: pi, t: 0 };
+    this.reKickWaveAt(pi, this.hand.length);
+    this.wake();
   }
 
   private nearestHandFanIndex(x: number): number {
@@ -3765,6 +3805,30 @@ export class RoomEngine {
         }
       }
 
+      // Своя рука: тени как у веера доски — под картами, но по разреженным индексам,
+      // чтобы в тесном вееере не сложиться в сплошную полосу. Работает и для шеренги, и
+      // для раскрытого веера: fanShadowIndices берёт по фактическим x спрайтов.
+      {
+        const skip = lifted ? this.hand.indexOf(lifted) : -1;
+        const idx = fanShadowIndices({
+          xs: this.hand.map((c) => c.sprite.x),
+          cardW: this.layout.cardW,
+          skip: skip >= 0 ? skip : undefined,
+        });
+        for (const i of idx) {
+          const c = this.hand[i]!;
+          if (!c.sprite.visible) continue;
+          specs.push({
+            x: c.sprite.x,
+            y: c.sprite.y,
+            rot: c.sprite.rotation,
+            scale: c.sprite.scale.x,
+            lift: HAND_SHADOW_LIFT,
+            z: Z.handCards - 1,
+          });
+        }
+      }
+
       // Карта в руке у игрока — выше всех, и тень уходит дальше всех.
       if (lifted) {
         specs.push({
@@ -4314,14 +4378,27 @@ export class RoomEngine {
 
   // «Глиссандо»: палец ведут по зажатому вееру — раскрытие едет за ним и НЕ перезапускается
   // (в отличие от тыка), сколько бы карт палец ни прошёл. Тачевый аналог ховера мышью.
+  // Ведение пальцем по вееру раздвигает его под пальцем («гармошка»). Работает и для веера
+  // колоды на столе, и для СВОЕЙ раскрытой руки — раньше только для колоды, и рука
+  // раздвигаться перестала, из-за чего в тесном вееере нельзя было выбрать карту.
   private glissandoTo(x: number): void {
-    if (!this.deckFanned || this.deckCount < 2) return;
-    this.deckPointer = true; // при двух веерах волна остаётся на колоде
+    const live = this.liveFan();
+    let pi: number;
+    let count: number;
+    if (live === "hand" && this.hand.length >= 2) {
+      pi = this.nearestHandFanIndex(x);
+      count = this.hand.length;
+    } else if (this.deckFanned && this.deckCount >= 2) {
+      this.deckPointer = true; // при двух веерах волна остаётся на колоде
+      pi = this.nearestFanIndex(x);
+      count = this.cards.length;
+    } else {
+      return;
+    }
     const p = anim.fan.wiggle.poke;
-    const pi = this.nearestFanIndex(x);
     if (!this.poke) {
       this.poke = { index: pi, target: pi, t: p.in };
-      this.reKickWaveAt(pi);
+      this.reKickWaveAt(pi, count);
     } else {
       this.poke.target = pi;
       this.poke.t = Math.min(this.poke.t, p.in); // держим открытым, пока ведут

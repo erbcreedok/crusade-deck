@@ -942,6 +942,62 @@ describe("RoomEngine: игральная зона", () => {
   });
 });
 
+describe("RoomEngine: веер руки — глиссандо и тени", () => {
+  /** Раскрытая рука с faces, устоявшаяся. */
+  async function focusedHand(faces: string[]) {
+    const r = await mountEngine();
+    r.engine.setSelfId("me");
+    r.engine.setFreeMode(true);
+    r.engine.setHand(faces);
+    r.engine.setSelectedDecks(["hand"]); // фокус → веер
+    for (let i = 0; i < 80 && r.app.ticker.started; i++) r.app.ticker.__advance(16);
+    return r;
+  }
+  const handXs = (engine: any) => (engine as any).hand.map((c: any) => c.sprite.x);
+  /** Нажать на веер руки в точке x и слегка увести палец (жест, а не тап). */
+  function pressHand(app: any, x: number): void {
+    const hit = findByZ(app.stage, 10_100);
+    hit.__emit("pointerdown", { pointerId: 51, global: { x, y: 720 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 51, global: { x: x + 12, y: 714 } });
+    for (let i = 0; i < 18; i++) app.ticker.__advance(16);
+  }
+
+  // Тесный веер: карту нельзя вытянуть, палец сначала раздвигает соседей (глиссандо).
+  it("в тесном вееере руки ведение раздвигает карты, а не вытягивает их", async () => {
+    const { engine, app } = await focusedHand(Array.from({ length: 12 }, (_, i) => `${(i % 9) + 2}♦x${i}`));
+    const before = handXs(engine);
+    pressHand(app, before[6]!); // палец у средней карты
+
+    expect((engine as any).cardDrag).toBeNull(); // карту НЕ потащили
+    const after = handXs(engine);
+    // Веер разъехался под пальцем: соседи средней карты отошли заметно дальше.
+    const spread = Math.abs(after[8]! - after[4]!) - Math.abs(before[8]! - before[4]!);
+    expect(spread).toBeGreaterThan(10);
+  });
+
+  // Просторный веер: полоска карты шире пальца — тянется сразу, без глиссандо.
+  it("в просторном вееере руки карта вытягивается сразу", async () => {
+    const { engine, app } = await focusedHand(["2♦", "3♦", "4♦"]);
+    pressHand(app, handXs(engine)[1]!);
+    expect((engine as any).cardDrag).not.toBeNull(); // сразу драг
+  });
+
+  // Порог вытягивания — размер пальца, а не доля карты; на телефоне упирается в долю.
+  it("порог захвата не превышает размера пальца", async () => {
+    const { engine } = await focusedHand(["2♦", "3♦", "4♦"]);
+    expect((engine as any).grabSliverPx()).toBeLessThanOrEqual(44 + 1e-6);
+  });
+
+  it("карты руки отбрасывают тень — свой слой под ними", async () => {
+    const { engine, app } = await focusedHand(["2♦", "3♦", "4♦", "5♦"]);
+    void engine;
+    const handShadow = findByZ(app.stage, 3)
+      .children.filter((c: any) => c.label === "shadow" && c.visible)
+      .some((f: any) => f.zIndex === 1999); // Z.handCards - 1
+    expect(handShadow).toBe(true);
+  });
+});
+
 describe("RoomEngine: драг по сложенной руке", () => {
   /** Нажать на сложенную руку и увести палец в точку (x,y). */
   function dragFromRow(app: any, x: number, y: number): void {
