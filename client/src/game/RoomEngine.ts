@@ -324,6 +324,9 @@ export class RoomEngine {
   private reject: { t: number; dur: number; dirX: number; dirY: number } | null = null;
   // Если отбой относится к одной карте (а не ко всей колоде) — трясём только её.
   private rejectCard: CardVisual | null = null;
+  // Карта, которая летит обратно в стопку после промаха мимо всех зон. Пока летит —
+  // она не «лежит» в колоде: см. topDetached.
+  private homingCard: CardVisual | null = null;
   private shake = { dx: 0, dy: 0, rot: 0 }; // текущее смещение тряски отбоя (общее для колоды)
 
   private restJitter: number[] = [];
@@ -725,6 +728,11 @@ export class RoomEngine {
     }
 
     this.deckPile.reconcile(newOrder); // спрайты переставлены в новый порядок, тела на месте
+    // Карта могла уехать из колоды (её раздали/забрали) — ссылки на неё держать нельзя.
+    if (this.homingCard && !this.cards.includes(this.homingCard)) this.homingCard = null;
+    if (this.rejectCard && !this.cards.includes(this.rejectCard) && !this.hand.includes(this.rejectCard)) {
+      this.rejectCard = null;
+    }
 
     // Тот же набор карт, другой порядок → это растасовка: играем настоящий реордер
     // (если анимации разрешены). Иначе (раздача/первый заход/выкл) — просто уложить.
@@ -1917,7 +1925,10 @@ export class RoomEngine {
     }
     const i = Math.max(0, this.cards.indexOf(v));
     v.sprite.zIndex = i;
-    // После промаха раздачи — вся стопка снова как n карт на якоре.
+    // Карта возвращается домой ПРУЖИНОЙ и всё это время остаётся верхней в стопке.
+    // Пока она в пути, стопку рисуем как n−1 (topDetached), иначе кирпич колоды летит
+    // домой вместе с ней — со стороны это выглядит как возвращающаяся целиком колода.
+    this.homingCard = v;
     this.cards.forEach((c, j) => c.body.setTarget(this.restTarget(j)));
     this.deckBodyCount = -1;
     this.updateVisibility();
@@ -2250,7 +2261,8 @@ export class RoomEngine {
     const n = this.cards.length;
     if (n === 0) return false;
     if (this.dealDrag && this.cardDrag) return true;
-    return !!this.rejectCard && this.rejectCard === this.cards[n - 1];
+    const top = this.cards[n - 1];
+    return this.rejectCard === top || this.homingCard === top;
   }
 
   private updateVisibility(): void {
@@ -2394,6 +2406,7 @@ export class RoomEngine {
     this.cardPress = null;
     this.cardDrag = null;
     this.rejectCard = null;
+    this.homingCard = null;
     if (this.app) {
       this.app.ticker.remove(this.tick); // сперва глушим цикл, потом рушим сцену
       this.app.destroy({ removeView: true }, { children: true, texture: true }); // removeView убирает канвас из DOM
@@ -2474,6 +2487,13 @@ export class RoomEngine {
       for (const c of this.cards) c.body.step(dt);
       for (const c of this.hand) c.body.step(dt);
     } while (remaining > 0);
+
+    // Карта долетела домой — стопка снова целая (см. topDetached).
+    if (this.homingCard && this.homingCard.body.isResting()) {
+      this.homingCard = null;
+      this.deckBodyCount = -1; // кирпич перерисуется на полное число карт
+      this.updateVisibility();
+    }
   }
 
   // Лид-ин кнопочной тасовки доиграл — раскладываем по настоящему порядку.

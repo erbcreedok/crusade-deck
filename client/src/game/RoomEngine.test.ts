@@ -129,14 +129,21 @@ function findByZ(node: any, z: number): any {
   return null;
 }
 
-/** Проиграть жест «утащить верхнюю карту с колоды и бросить в точку (x,y)». */
+/**
+ * Проиграть жест «утащить верхнюю карту с колоды и бросить в точку (x,y)».
+ *
+ * Между движениями пальца обязательно крутим кадры: карта едет за пальцем ПРУЖИНОЙ, и
+ * без кадров она так и осталась бы лежать на стопке — жест проверялся бы вхолостую.
+ */
 function dragTopCardTo(app: any, engine: any, x: number, y: number): void {
   const deckHit = findByZ(app.stage, 10_000); // Z.deckHit
   const anchor = { x: 195, y: 300 };
   deckHit.__emit("pointerdown", { pointerId: 1, global: anchor, pointerType: "touch" });
   // Первый сдвиг переводит нажатие в драг, дальше карта едет за пальцем.
   app.stage.__emit("pointermove", { pointerId: 1, global: { x: anchor.x + 20, y: anchor.y + 20 } });
+  for (let i = 0; i < 6; i++) app.ticker.__advance(16);
   app.stage.__emit("pointermove", { pointerId: 1, global: { x, y } });
+  for (let i = 0; i < 25; i++) app.ticker.__advance(16); // карта доехала до пальца
   app.stage.__emit("pointerup", { pointerId: 1, global: { x, y } });
   void engine;
 }
@@ -209,6 +216,27 @@ describe("RoomEngine: карта улетает с колоды", () => {
       .__liveSprites()
       .filter((sp: any) => sp.visible && sp.zIndex < 80_000 && sp.y < 600);
     expect(onTable.length).toBeGreaterThan(0);
+  });
+
+  // Дроп мимо всех зон: карта просто летит домой. Пока она в пути, она всё ещё верхняя
+  // карта колоды — и кирпич стопки летел вместе с ней, будто возвращается вся колода.
+  it("карта, брошенная в пустоту, летит домой ОДНА — без кирпича колоды", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSelfId("me");
+    engine.setSelfDealState(true, false);
+    engine.setFreeMode(true);
+    engine.setDeck(DECK_36);
+    for (let i = 0; i < 60 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    dragTopCardTo(app, engine, 250, 420); // пустое место посреди стола
+    app.ticker.__advance(16); // карта только тронулась домой
+
+    const live = new Set(pixi.__liveSprites());
+    const cardsOnScene = findByZ(app.stage, 3).children.filter((c: any) => live.has(c) && c.visible);
+    const flying = cardsOnScene.filter((sp: any) => sp.x > 150);
+    const atSlot = cardsOnScene.filter((sp: any) => sp.x < 150);
+    expect(flying.length).toBe(1); // домой летит ровно одна карта
+    expect(atSlot.length).toBeGreaterThanOrEqual(2); // а стопка стоит на месте
   });
 
   it("эхо сервера с той же картой не плодит второй полёт", async () => {
