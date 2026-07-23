@@ -1,0 +1,88 @@
+client/src/game/playFlat.ts
+  s_6b17180413249b::t_49784d39beee48 1-34
+client/src/game/engine/zoneChrome.test.ts
+  s_6b17180413249b::t_11644446a0b2b7 13
+client/src/game/zoneLabels.test.ts
+  s_6b17180413249b::t_0cb4f8b9f8680a 27-43,46-52
+client/src/game/playGrid.test.ts
+  s_6b17180413249b::t_1add469c92c2c4 1-104
+client/src/game/engine/zoneChrome.ts
+  s_6b17180413249b::t_c67c413039c7bb 22-23,40,62-63,119-127
+client/src/room/readState.ts
+  s_6b17180413249b::t_da42588c258d82 38-39,87-95,117
+client/src/game/engine/clearPlayButton.test.ts
+  s_6b17180413249b::t_28c70859029667 1-36
+client/src/game/engine/zonePaint.ts
+  s_6b17180413249b::t_1937c66b298f46 29-30,52
+client/src/game/engine/types.ts
+  s_6b17180413249b::t_70daa40d4b2426 33-41
+client/src/game/playGrid.ts
+  s_6b17180413249b::t_82b42d419c7018 1-133
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_ad58b75860caab 578-679,683-699,701-707
+  s_6b17180413249b::t_873e532713d5c2 122-129,680-682,700
+client/src/game/engineProps.ts
+  s_6b17180413249b::t_02e9d9776b9ef6 18-19,47-52,107,116-118
+client/src/game/engine/clearPlayButton.ts
+  s_6b17180413249b::t_6a7cefd924e3ac 1-45
+client/src/game/playFlat.test.ts
+  s_6b17180413249b::t_0240dc8ec214e3 1-34
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_3fe66ede796c69 724,2621,3128-3129
+  s_6b17180413249b::t_504fbfd0554e8c 2523-2524
+  s_6b17180413249b::t_09ca4f0cd5b352 3142,3182,3383,3466-3469
+  s_6b17180413249b::t_cc7cd7cd0ca0db 257-261
+  s_6b17180413249b::t_048cd8a1dda018 220-232
+  s_6b17180413249b::t_c5dfca0ebad681 1065-1141
+  s_6b17180413249b::t_1937c66b298f46 2635
+  s_6b17180413249b::t_057c2a35c9bd09 314-315
+  s_6b17180413249b::t_444e013f08ad6f 2779-2794
+  s_6b17180413249b::t_c7bad87747a9cf 1151-1156
+  s_6b17180413249b::t_2eb5a0b646a0fa 3561-3567
+  s_6b17180413249b::t_9eee7cb37b9b2f 896-934
+  s_6b17180413249b::t_5f49744530bded 1231-1256
+  s_6b17180413249b::t_4c545c9d7b2f84 857-858
+  s_6b17180413249b::t_f3dd4ae718dd47 846-847,853
+  s_6b17180413249b::t_d075a087e03d6f 1990-2001
+  s_6b17180413249b::t_729bbe37924f1a 2547-2554
+  s_6b17180413249b::t_6ff4344776b067 690-711
+  s_6b17180413249b::t_59d63c79d7122d 2756
+  s_6b17180413249b::t_414f089517d704 2370-2373
+  s_6b17180413249b::t_06b5c1b42309b6 118
+  s_6b17180413249b::t_62e66877ed2996 233-235
+  s_6b17180413249b::t_be82a70b105cae 117,119-120
+  s_6b17180413249b::t_92b358b211901b 2433-2441
+client/src/room/useRoomState.ts
+  s_6b17180413249b::t_a648eb1b352904 26-27,50,82,120
+client/src/game/RoomCanvas.tsx
+  s_6b17180413249b::t_2b85ee72806900 85-87
+  s_6b17180413249b::t_02e9d9776b9ef6 52-54
+client/src/game/zoneLabels.ts
+  s_6b17180413249b::t_92badc75f995d9 34-43,47-48
+client/src/game/engine/boardPile.ts
+  s_6b17180413249b::t_563d7be33cce59 1-16,22-26
+  s_6b17180413249b::t_5e80d84542c519 17-21
+client/src/game/engine/boardPile.test.ts
+  s_6b17180413249b::t_1f3195b3188c3d 1-26
+client/src/RoomScreen.tsx
+  s_6b17180413249b::t_3921e69a34852d 19
+  s_6b17180413249b::t_20ebcbc66152ce 56,226-250,392
+  s_6b17180413249b::t_e08d250e9462bb 123-132,134-135
+  s_6b17180413249b::t_bcaa23ed726f23 419-421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f12196828937c1703a4a42ad62121e2fa2394db5",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
