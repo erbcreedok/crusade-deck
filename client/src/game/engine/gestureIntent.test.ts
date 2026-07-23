@@ -90,8 +90,15 @@ describe("pressIntent", () => {
     expect(pressIntent({ ...BASE, dx: 1, dy: 1 })).toBe("wait");
   });
 
-  it("раздача перебивает всё: свайпы во время неё не срабатывают", () => {
-    expect(pressIntent({ ...BASE, dealDrag: true, vy: -2000, travelUp: CARD_H })).toBe("deal");
+  it("раздача перебивает всё: свайпы во время неё не срабатывают (карту можно взять)", () => {
+    expect(pressIntent({ ...BASE, dealDrag: true, canGrab: true, vy: -2000, travelUp: CARD_H })).toBe("deal");
+  });
+
+  // Взятие из РАСКРЫТОГО веера тесной карты — сначала глиссандо (раздвинуть), как в руке.
+  // canGrab уже говорит, широкая ли полоска; узкую не вытянуть, пока не раздвинул.
+  it("раздача из тесного веера сначала раздвигает его (глиссандо), а не тащит", () => {
+    expect(pressIntent({ ...BASE, dealDrag: true, canGrab: false })).toBe("glissando");
+    expect(pressIntent({ ...BASE, dealDrag: true, canGrab: true })).toBe("deal");
   });
 
   it("бросок вниз по руке складывает руку", () => {

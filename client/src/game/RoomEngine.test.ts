@@ -688,6 +688,84 @@ describe("RoomEngine: сброс", () => {
   });
 });
 
+// Веер — общая фича: глиссандо, тык и раздвиг соседей при драге работают одинаково на
+// колоде, СБРОСЕ и кучках игральной зоны. Раньше механизм был завязан на deckFanned и жил
+// только на колоде и руке.
+describe("RoomEngine: вееры доски ведут себя одинаково", () => {
+  const deckHit = (app: any) => findByZ(app.stage, 10_000);
+
+  async function inGame() {
+    const r = await mountEngine();
+    r.engine.setSelfId("me");
+    r.engine.setFreeMode(true);
+    return r;
+  }
+
+  /** Тянем карту из раскрытого веера доски и меряем, разъехались ли соседи вокруг неё. */
+  function fanDragSpread(engine: any, app: any, cards: any[]): number {
+    const xs0 = cards.map((c: any) => c.sprite.x);
+    const mid = Math.floor(cards.length / 2);
+    const cx = xs0[mid];
+    const y = (engine as any).layout.boardFanAnchor.y;
+    deckHit(app).__emit("pointerdown", { pointerId: 61, global: { x: cx, y }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 61, global: { x: cx + 14, y: y - 6 } });
+    for (let i = 0; i < 14; i++) app.ticker.__advance(16);
+    const xs1 = cards.map((c: any) => c.sprite.x);
+    const gap = (a: number[]) => Math.abs(a[mid + 2] - a[mid - 2]);
+    app.stage.__emit("pointerup", { pointerId: 61, global: { x: cx + 14, y: y - 6 } });
+    return gap(xs1) - gap(xs0);
+  }
+
+  /** Тесный веер: ведение пальцем раздвигает карты (глиссандо), драг НЕ начинается. */
+  function tightFanGlissando(engine: any, app: any, cards: any[]): { spread: number; grabbed: boolean } {
+    const xs0 = cards.map((c: any) => c.sprite.x);
+    const mid = Math.floor(cards.length / 2);
+    const cx = xs0[mid];
+    const y = (engine as any).layout.boardFanAnchor.y;
+    deckHit(app).__emit("pointerdown", { pointerId: 62, global: { x: cx, y }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 62, global: { x: cx + 10, y: y - 4 } });
+    for (let i = 0; i < 16; i++) app.ticker.__advance(16);
+    const grabbed = (engine as any).cardDrag !== null;
+    const xs1 = cards.map((c: any) => c.sprite.x);
+    const gap = (a: number[]) => Math.abs(a[mid + 2] - a[mid - 2]);
+    app.stage.__emit("pointerup", { pointerId: 62, global: { x: cx + 10, y: y - 4 } });
+    return { spread: gap(xs1) - gap(xs0), grabbed };
+  }
+
+  it("тесный веер СБРОСА раздвигается ведением пальца (глиссандо) — как колода", async () => {
+    const { engine, app } = await inGame();
+    engine.setDiscard(Array.from({ length: 16 }, (_, i) => `${(i % 9) + 2}♣s${i}`)); // тесно
+    engine.setBoardFan("discard");
+    for (let i = 0; i < 120 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const r = tightFanGlissando(engine, app, (engine as any).discardCards);
+    expect(r.grabbed).toBe(false); // карту не потащили — сначала раздвинули
+    expect((engine as any).poke).not.toBeNull(); // тык/глиссандо активен
+    expect(r.spread).toBeGreaterThan(3);
+  });
+
+  it("тесный веер кучки игральной ЗОНЫ раздвигается ведением пальца", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([Array.from({ length: 16 }, (_, i) => `${(i % 9) + 2}♦p${i}`)]);
+    engine.setBoardFan("play:0");
+    for (let i = 0; i < 120 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const r = tightFanGlissando(engine, app, (engine as any).playCards);
+    expect(r.grabbed).toBe(false);
+    expect((engine as any).poke).not.toBeNull();
+    expect(r.spread).toBeGreaterThan(3);
+  });
+
+  it("сила раздвига настраивается одним числом на веер (anim.fan.spread)", async () => {
+    const { spread } = (await import("./anim/config")).anim.fan;
+    expect(spread.deck).toBeGreaterThan(0);
+    expect(spread.hand).toBeGreaterThan(0);
+    expect(spread.board).toBeGreaterThan(0);
+    // Рука и доска настроены отдельно от колоды — иначе «настраивается» было бы неправдой.
+    expect(spread.hand).not.toBe(spread.deck);
+  });
+});
+
 describe("RoomEngine: игральная зона", () => {
   /** Утащить карту из раскрытой руки в точку (x,y). */
   function dragHandCardTo(app: any, x: number, y: number): void {

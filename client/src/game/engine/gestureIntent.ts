@@ -85,8 +85,10 @@ export type PressIntent =
 
 export function pressIntent(c: PressContext): PressIntent {
   if (!movedEnough(c.dx, c.dy)) return "wait";
-  // Раздача верхней карты — сразу в драг, никакие свайпы её не перебивают.
-  if (c.dealDrag) return "deal";
+  // Раздача/взятие: со стопки (canGrab всегда true) — сразу в драг. Но из РАСКРЫТОГО веера
+  // тесную карту сначала раздвигаем глиссандо, как в руке, — веер везде ведёт себя
+  // одинаково. canGrab уже учитывает, широкая ли полоска у карты под пальцем.
+  if (c.dealDrag) return c.canGrab ? "deal" : "glissando";
   if (c.fromHand && c.canCollapse && isCollapseSwipe(c.vx, c.vy, c.travelDown, c.cardH)) {
     return "collapse-hand";
   }

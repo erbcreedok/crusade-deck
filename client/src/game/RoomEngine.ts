@@ -1746,9 +1746,9 @@ export class RoomEngine {
     // Своя рука подсвечивается как обычная дроп-зона hand.
     this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
 
-    if (this.deckFanned) {
-      // Веер колоды раступается перед картой (дырка по x), как рука при реордере.
-      if (this.inDeckFanArea(x, y)) this.cardDrag!.insertAt = this.insertDeckIndexAt(x);
+    if (this.cardDrag && this.boardFan === this.cardDrag.pile) {
+      // Раскрытый веер доски (колода/сброс/зона) раступается перед картой (дырка по x).
+      if (this.inDeckFanArea(x, y)) this.cardDrag.insertAt = this.insertDeckIndexAt(x);
       this.applyCardDragTargets();
     } else {
       this.cardDrag!.v.body.setTarget({ x, y, rot: 0, scale: DRAG_SCALE });
@@ -1821,6 +1821,9 @@ export class RoomEngine {
         this.beginCardDrag();
         return;
       case "glissando":
+        // Глиссандо — это жест, а не тап: гасим тап, иначе на pointerup веер доски в игре
+        // свернулся бы (handleDeckTap toggle), едва его раздвинули.
+        this.dragHappened = true;
         this.glissandoTo(e.global.x);
     }
   }
@@ -2428,9 +2431,8 @@ export class RoomEngine {
     const stack = d.fromHand ? this.hand : this.pileCards(d.pile);
     const n = stack.length;
     // На просторном веере (мало карт) amp=0: только дырка слота. Иначе сосед улетает
-    // за следующую карту (визуально 2_31 вместо превью 213).
-    const amp = fanDragSpreadAmp(sp.amp, this.fanRevealScaleNow());
-    const deckFan = this.dealDrag && this.deckFanned;
+    // за следующую карту (визуально 2_31 вместо превью 213). Сила — по типу веера.
+    const amp = fanDragSpreadAmp(sp.amp, this.fanRevealScaleNow()) * this.fanSpreadScale(this.dragFanKind(d));
     let k = 0;
     for (const c of stack) {
       if (c === d.v) continue;
@@ -2440,11 +2442,8 @@ export class RoomEngine {
       // Раздвиг с прибитыми краями: у пивота шире, дальше плотнее, общая ширина та же.
       const spread = amp > 0 ? fanSpreadPinned(slot, n, d.insertAt, sp.cards, amp) : 0;
       const vi = Math.max(0, Math.min(n - 1, slot + spread));
-      const t = d.fromHand
-        ? this.handFanTarget(vi)
-        : deckFan
-          ? this.deckFanTarget(vi)
-          : this.deckFanTarget(vi);
+      // Веер руки кладёт карты своей геометрией; веер доски (колода/сброс/зона) — своей.
+      const t = d.fromHand ? this.handFanTarget(vi) : this.deckFanTarget(vi);
       // Масштаб — свой веерный (fanCardScale), а НЕ 1: соседи не должны ужиматься, пока
       // тянут карту. Место под неё освобождает раздвиг (fanSpreadPinned), а не сжатие;
       // раньше здесь стояло scale:1, и веер заметно мельчал на старте драга.
@@ -3497,7 +3496,10 @@ export class RoomEngine {
     // карта, остальные лежат как лежали — общая механика с колодой и кучкой зоны, где
     // раскрытие это отдельный жест, а не побочный эффект драга. Раньше здесь стояло
     // «!dealDrag → раздвинуть», и любой драг из шеренги её раскрывал.
-    const fromFan = !d.loose && (this.dealDrag ? this.deckFanned : true);
+    // Раздвигаем соседей, когда карту тянут ИЗ раскрытого веера — колоды, сброса или
+    // кучки зоны. Раньше здесь стояло deckFanned (только колода), и веер сброса/зоны при
+    // драге не расступался. Из закрытой стопки/шеренги за пальцем идёт одна карта.
+    const fromFan = !d.loose && (this.dealDrag ? this.boardFan === d.pile : true);
     if (fromFan) {
       this.applyCardDragTargets();
       return;
@@ -4211,6 +4213,23 @@ export class RoomEngine {
     return fanCardScale(this.fanCount);
   }
 
+  /** Множитель силы раздвига по типу веера (см. anim.fan.spread). */
+  private fanSpreadScale(kind: "deck" | "hand" | "board"): number {
+    return anim.fan.spread[kind];
+  }
+
+  /** Тип веера, из которого тянут карту: колода / рука / прочая стопка доски. */
+  private dragFanKind(d: { fromHand: boolean; pile: BoardPile }): "deck" | "hand" | "board" {
+    if (d.fromHand) return "hand";
+    return d.pile === "deck" ? "deck" : "board";
+  }
+
+  /** Тип ЖИВОГО веера (для глиссандо/тыка): рука / колода / прочая стопка доски. */
+  private liveFanKind(): "deck" | "hand" | "board" {
+    if (this.liveFan() === "hand") return "hand";
+    return this.boardFan === "deck" ? "deck" : "board";
+  }
+
   /**
    * Веер доски раскрывается по центру игровой зоны (boardFanAnchor) — одно место для всех
    * стопок стола, где бы сами стопки ни лежали.
@@ -4263,18 +4282,22 @@ export class RoomEngine {
 
   // Какой веер сейчас «живой» для ховера/волны. Колода и рука могут быть открыты вместе:
   // приоритет у того, над которым палец/мышь (deckPointer / press по колоде).
-  private liveFan(): "deck" | "hand" | null {
+  // Какой веер сейчас «живой» для глиссандо/тыка/волны. "board" — ЛЮБАЯ раскрытая стопка
+  // доски (колода, сброс, кучка зоны): механизм у них общий, отличается только сила
+  // раздвига (см. fanSpreadScale). "hand" — своя раскрытая рука. Рука и веер доски могут
+  // быть открыты вместе; приоритет у того, над которым палец/мышь.
+  private liveFan(): "board" | "hand" | null {
     if (this.shuffleAnim || this.scrambleAnim || this.splashAnim || this.cardDrag) {
       return null;
     }
     {
       const handLive = this.handFocused && this.hand.length > 1;
-      // dealDrag без cardDrag — ещё не драг; ховер/peek веера колоды не глушим.
-      const deckLive = this.deckFanned && this.deckCount > 1 && !(this.dealDrag && this.cardDrag);
-      const onDeck = this.deckPointer || (!!this.cardPress && !this.cardPress.fromHand);
-      if (deckLive && onDeck) return "deck";
+      // dealDrag без cardDrag — ещё не драг; ховер/peek веера доски не глушим.
+      const boardLive = !!this.boardFan && this.fanCount > 1 && !(this.dealDrag && this.cardDrag);
+      const onBoard = this.deckPointer || (!!this.cardPress && !this.cardPress.fromHand);
+      if (boardLive && onBoard) return "board";
       if (handLive) return "hand";
-      if (deckLive) return "deck";
+      if (boardLive) return "board";
       return null;
     }
   }
@@ -4282,14 +4305,10 @@ export class RoomEngine {
   // Теснота текущего живого веера (0..1).
   private fanCrowd(): number {
     const w = anim.fan.wiggle;
-    const live = this.liveFan();
-    if (live === "hand") {
-      return fanCrowd(this.handCount, this.handFanGeom().width, this.layout.cardW, anim.fan.widthFactor, w.gap, w.ramp);
-    }
-    if (live === "deck") {
-      return fanCrowd(this.deckCount, this.deckFanGeom().width, this.layout.cardW, anim.fan.widthFactor, w.gap, w.ramp);
-    }
-    return fanCrowd(this.deckCount, this.deckFanGeom().width, this.layout.cardW, anim.fan.widthFactor, w.gap, w.ramp);
+    // Веер доски (любая стопка) считает тесноту по своему числу карт и своей геометрии.
+    const count = this.liveFan() === "hand" ? this.handCount : this.fanCount;
+    const width = this.liveFan() === "hand" ? this.handFanGeom().width : this.deckFanGeom().width;
+    return fanCrowd(count, width, this.layout.cardW, anim.fan.widthFactor, w.gap, w.ramp);
   }
 
   // Индекс карты веера, ближайшей по x к точке тыка (по текущим позициям спрайтов).
@@ -4297,7 +4316,7 @@ export class RoomEngine {
     return nearestIndexByX(this.fanCards.map((c) => c.sprite.x), x);
   }
 
-  // Тык по вееру колоды: даже если рука тоже открыта — волна идёт по колоде.
+  // Тык по вееру ДОСКИ (любой стопки): даже если рука тоже открыта — волна идёт по доске.
   private pokeDeckFan(x: number): void {
     if (!this.boardFan || this.fanCount < 2) return;
     this.deckPointer = true;
@@ -4310,7 +4329,7 @@ export class RoomEngine {
       return;
     }
     this.poke = { index: pi, target: pi, t: 0 };
-    this.reKickWaveAt(pi, this.cards.length);
+    this.reKickWaveAt(pi, this.fanCount);
     this.wake();
   }
 
@@ -4398,10 +4417,10 @@ export class RoomEngine {
     if (live === "hand" && this.hand.length >= 2) {
       pi = this.nearestHandFanIndex(x);
       count = this.hand.length;
-    } else if (this.deckFanned && this.deckCount >= 2) {
-      this.deckPointer = true; // при двух веерах волна остаётся на колоде
+    } else if (this.boardFan && this.fanCount >= 2) {
+      this.deckPointer = true; // при двух веерах волна остаётся на доске
       pi = this.nearestFanIndex(x);
-      count = this.cards.length;
+      count = this.fanCount;
     } else {
       return;
     }
@@ -4416,16 +4435,16 @@ export class RoomEngine {
     this.wake();
   }
 
-  // Ховер мышью над веером колоды в центре.
+  // Ховер мышью над раскрытым веером ДОСКИ (любой стопки) в центре.
   private onDeckHover(e: FederatedPointerEvent): void {
     if (e.pointerType !== "mouse") return;
-    if (!this.deckFanned || this.deckCount < 2) {
+    if (!this.boardFan || this.fanCount < 2) {
       this.deckPointer = false;
       return;
     }
     this.deckPointer = true;
     const idx = this.nearestFanIndex(e.global.x);
-    if (this.hoverTarget === 0 || this.liveFan() !== "deck") this.reKickWaveAt(idx, this.cards.length);
+    if (this.hoverTarget === 0 || this.liveFan() !== "board") this.reKickWaveAt(idx, this.fanCount);
     this.hoverIndex = idx;
     this.hoverTarget = 1;
     this.wake();
@@ -4484,35 +4503,35 @@ export class RoomEngine {
     if (env <= 0) return 0;
     const scale = this.fanRevealScaleNow();
     if (scale <= 0) return 0;
-    return fanSpreadShift(i, index, p.cards, p.amp, env, p.rightBias) * scale;
+    // Сила раздвига под пальцем — по типу веера (колода толкает сильнее, см. anim.fan.spread).
+    return fanSpreadShift(i, index, p.cards, p.amp, env, p.rightBias) * scale * this.fanSpreadScale(this.liveFanKind());
   }
 
   private fanRevealScaleNow(): number {
-    // Во время deal-драга liveFan() глушит "deck" — считаем тесноту веера колоды напрямую.
-    if (this.dealDrag && this.deckFanned) {
-      const step = fanStep(this.cards.length, this.deckFanGeom().width, anim.fan.widthFactor);
+    // Во время deal-драга liveFan() глушит веер доски — считаем его тесноту напрямую.
+    if (this.dealDrag && this.boardFan) {
+      const step = fanStep(this.fanCount, this.deckFanGeom().width, anim.fan.widthFactor);
       return fanRevealScale(step, this.layout.cardW, anim.fan.wiggle.gap, anim.fan.maxStepIdle);
     }
     const live = this.liveFan();
     if (!live) return 0;
-    const count = live === "hand" ? this.hand.length : this.cards.length;
-    const width =
-      live === "hand" ? this.handFanGeom().width : this.deckFanGeom().width;
+    const count = live === "hand" ? this.hand.length : this.fanCount;
+    const width = live === "hand" ? this.handFanGeom().width : this.deckFanGeom().width;
     const step = fanStep(count, width, anim.fan.widthFactor);
     return fanRevealScale(step, this.layout.cardW, anim.fan.wiggle.gap, anim.fan.maxStepIdle);
   }
 
   // Бегущая волна + локальный поке: двигает только карты ЖИВОГО веера (колода или рука).
-  private applyFanWave(live: "deck" | "hand"): void {
-    const stack = live === "hand" ? this.hand : this.cards;
+  private applyFanWave(live: "board" | "hand"): void {
+    // Веер доски — какая стопка сейчас раскрыта (fanCards), не обязательно колода.
+    const stack = live === "hand" ? this.hand : this.fanCards;
     const n = Math.max(2, stack.length);
     const w = anim.fan.wiggle;
     const waveScale = this.fanCrowdNow * w.amp * this.fanEnergy;
     for (let i = 0; i < stack.length; i++) {
       const wave = waveScale * Math.sin(w.cycles * Math.PI * 2 * (i / (n - 1)) - this.fanWavePhase);
       const vi = Math.max(0, Math.min(n - 1, i + wave + this.pokeShiftAt(i)));
-      const t =
-        live === "hand" ? this.handFanTarget(vi) : this.deckFanTarget(vi);
+      const t = live === "hand" ? this.handFanTarget(vi) : this.deckFanTarget(vi);
       stack[i]!.body.setTarget({ x: t.x, y: t.y, rot: t.rot });
     }
   }
