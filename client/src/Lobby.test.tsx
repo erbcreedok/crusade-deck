@@ -85,4 +85,15 @@ describe("Lobby — версия сборки", () => {
     expect(label?.textContent).toBe(formatVersion());
     expect(label?.textContent).toContain(BUILD_INFO.build);
   });
+
+  // Угол ЭКРАНА, а не панели: панель — то, ради чего экран открыли, служебной строке в
+  // ней не место. Класс проверяем потому, что вся раскладка держится на нём.
+  it("подпись висит в углу экрана, а не внутри панели", () => {
+    vi.mocked(fetchLastRoom).mockResolvedValue(null);
+    const { container } = render(<Lobby accountId="acc-1" onRename={vi.fn()} onJoined={vi.fn()} />);
+
+    const label = container.querySelector(".pixel-version")!;
+    expect(label.classList.contains("pixel-version-corner")).toBe(true);
+    expect(label.closest(".pixel-panel")).toBeNull();
+  });
 });

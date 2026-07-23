@@ -262,16 +262,32 @@ textarea {
 }
 
 /* Подпись версии: служебная строка, читается только когда её ищут глазами. Поэтому
-   мелкая и приглушённая — спорить с содержимым экрана она не должна. */
+   мелкая, приглушённая и прижата вправо — спорить с содержимым экрана она не должна. */
 .pixel-version {
   font-family: "VT323", monospace;
-  font-size: 15px;
-  text-align: center;
+  font-size: 12px;
+  text-align: right;
   color: var(--panel-border);
-  opacity: 0.75;
-  margin: 12px 0 0;
+  opacity: 0.6;
+  margin: 10px 0 0;
   letter-spacing: 1px;
   user-select: text;
+}
+
+/* Версия на главном экране живёт в углу САМОГО ЭКРАНА, а не в панели: панель — это то,
+   ради чего экран открыли, и служебной строке в ней не место. Отступы через
+   env(safe-area-inset-*), иначе на айфоне подпись уезжает под скруглённый угол и под
+   индикатор жеста «домой». pointer-events: none — угол экрана остаётся кликабельным
+   насквозь, а сам текст всё равно можно выделить (см. user-select ниже). */
+.pixel-version-corner {
+  position: fixed;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(6px, env(safe-area-inset-bottom));
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .pixel-error {

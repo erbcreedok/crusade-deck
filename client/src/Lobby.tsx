@@ -183,9 +183,11 @@ export function Lobby({
 
         {error && <p className="pixel-error">{error}</p>}
 
-        {/* Версия внизу главного экрана: по скриншоту сразу видно, залился ли деплой. */}
-        <p className="pixel-version">{formatVersion()}</p>
       </div>
+
+      {/* Версия в углу ЭКРАНА, а не панели: по скриншоту видно, залился ли деплой, но
+          на глаза она не лезет. */}
+      <p className="pixel-version pixel-version-corner">{formatVersion()}</p>
     </div>
   );
 }
