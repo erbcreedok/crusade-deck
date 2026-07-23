@@ -24,6 +24,38 @@ describe("CardRoom: режим свободы", () => {
     expect(room.state.deck.length).toBe(36); // в отличие от start_game — карты остались на столе
   });
 
+  // Смена режима стола в ЛЮБУЮ сторону сворачивает веер колоды: в игре колода уезжает в
+  // свой слот, и оставшийся раскрытым веер повис бы в стороне маленькой «гармошкой».
+  it("«ГОУ!» сворачивает веер колоды", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    let waiter = room.waitForMessage("set_deck_fanned");
+    dealer.send("set_deck_fanned", { open: true });
+    await waiter;
+    expect(room.state.deckFanned).toBe(true);
+
+    waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+
+    expect(room.state.deckFanned).toBe(false);
+  });
+
+  it("«Перераздача» тоже сворачивает веер колоды", async () => {
+    const room = await server().createRoom("card_room", { deckType: "36" });
+    const dealer = await server().connectTo(room, { name: "Alice" });
+    let waiter = room.waitForMessage("go");
+    dealer.send("go", {});
+    await waiter;
+    room.state.deckFanned = true; // кто-то раскрыл веер до сбора
+
+    waiter = room.waitForMessage("collect_hands");
+    dealer.send("collect_hands");
+    await waiter;
+
+    expect(room.state.deckFanned).toBe(false);
+  });
+
   it("клич go_shout уходит ВСЕМ за столом, включая нажавшего", async () => {
     const room = await server().createRoom("card_room", { deckType: "36" });
     const dealer = await server().connectTo(room, { name: "Alice" });

@@ -27,6 +27,10 @@ export function registerRoomMessages(room: MessageRoom): void {
     if (!player?.isDealer) return;
     state.freeMode = true;
     state.phase = "playing";
+    // Смена режима стола сворачивает веер колоды: в игре колода уезжает в свой слот, и
+    // раскрытый веер повис бы «гармошкой» в стороне. Обратный переход (collect_hands)
+    // делает то же самое — правило одно на оба направления.
+    state.deckFanned = false;
     // Клич — чистое украшение: состояния в нём нет (правда едет схемой). Поэтому повторное
     // нажатие при уже включённой свободе просто подгоняет стол ещё раз.
     room.broadcast("go_shout", {});
