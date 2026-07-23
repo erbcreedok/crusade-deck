@@ -11,7 +11,7 @@ import {
   type Ticker,
 } from "pixi.js";
 import { CardBody, type CardTargets } from "./CardBody";
-import { computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
+import { boardSlotWidth, computeLayout, type RoomLayout, type LayoutInsets } from "./layout";
 import { dropZoneRegions, pickDropTarget, pickDealTarget, pickSeat, type DropZone, type DropTarget } from "./dropZones";
 import { layoutSeats, type SeatBox } from "./seatLayout";
 import { dragModeFor, type DragMode } from "./dragMode";
@@ -1165,7 +1165,13 @@ export class RoomEngine {
       this.seats.map((s) => s.id),
       this.w,
       this.h,
-      { topOffset: this.topInset, scrollX: this.seatScrollX },
+      {
+        topOffset: this.topInset,
+        scrollX: this.seatScrollX,
+        // Место соседа — того же размера, что слоты колоды и сброса: у края стола они
+        // стоят одной колонкой (см. layout.boardSlotWidth).
+        sideW: boardSlotWidth(this.w, this.h, this.bottomInset),
+      },
     );
     this.seatBoxes = placed.seats;
     this.seatInsets = placed.insets;
@@ -2781,6 +2787,7 @@ export class RoomEngine {
     const placed = layoutSeats(this.seats.map((st) => st.id), this.w, this.h, {
       topOffset: this.topInset,
       scrollX: this.seatScrollX,
+      sideW: boardSlotWidth(this.w, this.h, this.bottomInset),
     });
     this.seatBoxes = placed.seats;
     this.seatInsets = placed.insets;

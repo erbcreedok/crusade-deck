@@ -79,6 +79,29 @@ describe("layoutSeats — боковые места это СОСЕДИ, и их
     expect(insets.side).toBeGreaterThan(0);
   });
 
+  // Сосед стоит у края одной колонкой со слотом колоды и слотом сброса — ширина у всех
+  // троих общая, и задаёт её колода (см. layout.boardSlotWidth).
+  it("место соседа берёт ширину, которую дали снаружи", () => {
+    const { seats } = layoutSeats(many, W, H, { sideW: 60 });
+    for (const s of seats.filter((x) => x.side !== "top")) {
+      expect(s.rect.w).toBeCloseTo(60 - 6); // минус зазор между рамками
+    }
+  });
+
+  it("оба бока одной ширины и прижаты к краям", () => {
+    const { seats } = layoutSeats(many, W, H, { sideW: 60 });
+    const left = seats.find((s) => s.side === "left")!;
+    const right = seats.find((s) => s.side === "right")!;
+    expect(left.rect.w).toBe(right.rect.w);
+    expect(left.rect.cx).toBeCloseTo(W - right.rect.cx);
+  });
+
+  it("абсурдная ширина снаружи не съедает экран целиком", () => {
+    const { seats } = layoutSeats(many, W, H, { sideW: 10_000 });
+    const side = seats.find((s) => s.side === "left")!;
+    expect(side.rect.w).toBeLessThanOrEqual(W / 3);
+  });
+
   it("двоих в бока не сажаем: полоса не должна опустеть", () => {
     const { seats } = layoutSeats(ids(2), SEAT_MIN_W, H); // в ряд влезает один
     expect(seats.every((s) => s.side === "top")).toBe(true);

@@ -55,6 +55,33 @@ const CARD_RATIO = 0.7; // ширина / высота игральной кар
 const CARD_MIN_H = 48;
 const CARD_MAX_H = 140;
 
+// Карта масштабируется от меньшей стороны канваса, с потолком/полом. Но есть второй
+// ограничитель: полоса руки должна вместить карту с кнопкой и при этом не съесть
+// пол-экрана. На узком/низком экране режем именно КАРТУ — иначе полоса раздувалась
+// до трети экрана просто потому, что «так положено по высоте карты».
+function cardHeight(w: number, h: number, freeBottom: number): number {
+  const byScreen = Math.min(w, h) * 0.16;
+  const byHandBand = ((h - freeBottom) * HAND_H_SHARE) / HAND_H_RATIO;
+  return clamp(Math.min(byScreen, byHandBand), CARD_MIN_H, CARD_MAX_H);
+}
+
+/**
+ * Ширина ЛЮБОГО бокового элемента стола: слота колоды, слота сброса и места соседа.
+ *
+ * Число одно на всех и намеренно: колода, сброс и сосед стоят одной колонкой у края, и
+ * разнобой в их ширинах читается как случайность, а не как разметка. Эталон — колода:
+ * она единственная, чей размер продиктован содержимым (в неё кладут карту), остальные
+ * равняются на неё. Сброс держит эту ширину и пустым — бокс размечает стол, а не
+ * показывает, сколько в нём карт.
+ *
+ * Живёт здесь, а не в seatLayout, потому что считается от КАРТЫ, а карта — забота
+ * раскладки стола. Посадка мест просто спрашивает это число (см. RoomEngine.applySeats).
+ */
+export function boardSlotWidth(w: number, h: number, bottomInset = 0): number {
+  const freeBottom = Math.min(Math.max(0, bottomInset), h * 0.5);
+  return cardHeight(w, h, freeBottom) * CARD_RATIO * SLOT_PAD;
+}
+
 // Сколько по краям занято чужими местами (посадка «П», см. seatLayout.ts). Центр стола
 // ужимается ровно на это: боковые колонки сужают его по ширине, верхняя полоса опускает
 // его крышу. Моя рука внизу — не трогается, она всегда моя.
@@ -86,13 +113,7 @@ export function computeLayout(
   gameMode = false,
 ): RoomLayout {
   const freeBottomRaw = Math.min(Math.max(0, insets.bottom ?? 0), h * 0.5);
-  // Карта масштабируется от меньшей стороны канваса, с потолком/полом. Но есть второй
-  // ограничитель: полоса руки должна вместить карту с кнопкой и при этом не съесть
-  // пол-экрана. На узком/низком экране режем именно КАРТУ — иначе полоса раздувалась
-  // до трети экрана просто потому, что «так положено по высоте карты».
-  const byScreen = Math.min(w, h) * 0.16;
-  const byHandBand = ((h - freeBottomRaw) * HAND_H_SHARE) / HAND_H_RATIO;
-  const cardH = clamp(Math.min(byScreen, byHandBand), CARD_MIN_H, CARD_MAX_H);
+  const cardH = cardHeight(w, h, freeBottomRaw);
   const cardW = cardH * CARD_RATIO;
 
   // Зоны занимают почти всю ширину (≥80%) — удобнее целиться и дропать.
@@ -179,12 +200,9 @@ export function computeLayout(
 }
 
 // Ширина боковых слотов: стопка карт с запасом. В игре стопки лежат обычным размером
-// (deckScale(true) === 1), поэтому слоту хватает карты плюс поля.
+// (deckScale(true) === 1), поэтому слоту хватает карты плюс поля. Сброс раньше был поуже
+// колоды — теперь ширина у боковых элементов стола общая, см. boardSlotWidth.
 const SLOT_PAD = 1.25;
-// Сброс — колонка ВО ВСЮ ВЫСОТУ стола и поуже колоды: в него целятся картой, и высокая
-// узкая мишень удобнее квадратной. Заодно раскрытый веер, даже подойдя вплотную, не
-// закрывает её целиком — сверху и снизу колонка остаётся видна.
-const DISCARD_PAD = 1.05;
 // Игровая зона всегда шире слотов — это главный бокс стола, туда будут ложиться карты.
 const PLAY_MIN_RATIO = 1.15;
 
@@ -202,13 +220,14 @@ function splitGameTable(
   sideH = 0,
 ): { deck: RoundedRect; play: RoundedRect; discard: RoundedRect } {
   const gap = Math.max(6, cardW * 0.12);
-  const wantDeck = cardW * SLOT_PAD;
-  const wantDiscard = cardW * DISCARD_PAD;
-  // Что останется игре, если взять слоты желаемого размера. Не хватает — режем слоты.
+  const want = cardW * SLOT_PAD;
+  // Что останется игре, если взять слоты желаемого размера. Не хватает — режем слоты,
+  // но ОБА одинаково: ширина у колоды и сброса общая и остаётся общей в любой тесноте.
   const free = band.w - 2 * gap;
-  const shrink = Math.min(1, free / (wantDeck + wantDiscard + cardW * PLAY_MIN_RATIO));
-  const deckW = Math.max(cardW, wantDeck * shrink);
-  const discardW = Math.max(cardW * 0.8, wantDiscard * shrink);
+  const shrink = Math.min(1, free / (2 * want + cardW * PLAY_MIN_RATIO));
+  const slotW = Math.max(cardW, want * shrink);
+  const deckW = slotW;
+  const discardW = slotW;
   const playW = Math.max(cardW * 1.05, free - deckW - discardW);
   const deckH = Math.min(band.h, Math.max(cardH * SLOT_PAD, cardH));
 

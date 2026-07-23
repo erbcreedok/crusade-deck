@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeLayout, type RoundedRect, recommendedHandHeight } from "./layout";
+import { boardSlotWidth, computeLayout, type RoundedRect, recommendedHandHeight } from "./layout";
 
 function inside(r: RoundedRect, w: number, h: number) {
   return r.cx - r.w / 2 >= -1 && r.cx + r.w / 2 <= w + 1 && r.cy - r.h / 2 >= -1 && r.cy + r.h / 2 <= h + 1;
@@ -247,8 +247,33 @@ describe("computeLayout — игровой стол", () => {
       const game = computeLayout(w, h, undefined, true);
       expect(game.discardSlot!.h).toBe(game.centerZone.h);
       expect(game.discardSlot!.h).toBeGreaterThan(game.deckSlot!.h);
-      expect(game.discardSlot!.w).toBeLessThan(game.deckSlot!.w);
     }
+  });
+
+  // Колода, сброс и место соседа стоят у края одной колонкой. Разнобой в их ширинах
+  // читается как случайность, а не как разметка, — поэтому число на всех одно, и эталон
+  // ему задаёт колода: только её размер продиктован содержимым.
+  it("боковые боксы стола одной ширины, и это ширина колоды", () => {
+    for (const [w, h] of sizes) {
+      const game = computeLayout(w, h, undefined, true);
+      expect(game.discardSlot!.w).toBe(game.deckSlot!.w);
+      expect(boardSlotWidth(w, h)).toBeCloseTo(game.deckSlot!.w);
+    }
+  });
+
+  it("ширина держится и с панелью действий внизу — её учитывают оба счёта", () => {
+    for (const [w, h] of sizes) {
+      const game = computeLayout(w, h, { top: 0, bottom: 90 }, true);
+      expect(boardSlotWidth(w, h, 90)).toBeCloseTo(game.deckSlot!.w);
+    }
+  });
+
+  it("пустой сброс держит ту же ширину: бокс размечает стол, а не считает карты", () => {
+    // Ширина слота вообще не зависит от содержимого — считать её нечем, кроме карты.
+    const a = computeLayout(390, 780, undefined, true);
+    const b = computeLayout(390, 780, undefined, true);
+    expect(a.discardSlot!.w).toBe(b.discardSlot!.w);
+    expect(a.discardSlot!.w).toBe(a.deckSlot!.w);
   });
 
   it("веер доски раскрывается в игровой зоне, а не над слотом колоды", () => {
