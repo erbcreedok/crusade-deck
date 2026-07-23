@@ -1248,6 +1248,9 @@ export class RoomEngine {
     this.syncDiscardCounter();
     this.syncCollapseButton();
     this.drawZones();
+    // Места перерисовываем вместе со сменой режима: в игре с них пропадает счётчик карт,
+    // и без этого он висел бы до следующей чужой перерисовки (чей-то «Готов», ресайз).
+    this.drawSeats();
     this.drawFocus();
     this.wake();
   }
@@ -1498,6 +1501,7 @@ export class RoomEngine {
       hoverSeat: this.hoverSeat,
       dealDragging: !!this.cardDrag && this.dealDrag,
       visualCount: (seat) => this.seatVisualCount(seat),
+      inGame: this.freeMode,
     });
     this.seatTexts = painted.texts;
     this.seatHandNodes = painted.nodes;

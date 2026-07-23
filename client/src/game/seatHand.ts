@@ -45,6 +45,15 @@ export interface SeatHandArgs {
   tableCardH: number;
   /** доля от размера карты стола; по умолчанию anim.deck.seatScale */
   seatScale?: number;
+  /**
+   * Показывать ли счётчик карт под чужой рукой.
+   *
+   * В РАЗДАЧЕ он нужен: дилер раздаёт и должен видеть, сколько кому ушло. В ИГРЕ число
+   * карт на руках — часть игровой информации, и выкладывать её на стол цифрой значит
+   * решать за правила, которых ещё нет. Видно то же, что видно за настоящим столом:
+   * сколько карт человек держит, читается по самой руке.
+   */
+  showCounter?: boolean;
 }
 
 // Запас под имя сверху и счётчик снизу внутри рамки места.
@@ -53,6 +62,7 @@ const COUNTER_PAD = 0.2;
 
 export function layoutSeatHand(args: SeatHandArgs): SeatHandLayout {
   const kind = seatHandKind(args.count, args.handFanned);
+  const showCounter = args.showCounter ?? true;
   const scale = args.seatScale ?? anim.deck.seatScale;
   const cardW = args.tableCardW * scale;
   const cardH = args.tableCardH * scale;
@@ -91,10 +101,9 @@ export function layoutSeatHand(args: SeatHandArgs): SeatHandLayout {
       cardW,
       cardH,
       cards,
-      counter: {
-        x: cx,
-        y: topCard.y + cardH / 2 + ext.h * scale * 0.5 + Math.max(8, cardH * 0.22),
-      },
+      counter: showCounter
+        ? { x: cx, y: topCard.y + cardH / 2 + ext.h * scale * 0.5 + Math.max(8, cardH * 0.22) }
+        : null,
     };
   }
 
@@ -119,6 +128,8 @@ export function layoutSeatHand(args: SeatHandArgs): SeatHandLayout {
     cardW,
     cardH,
     cards,
-    counter: { x: cx, y: Math.min(bottom - 4, maxBottom + Math.max(8, cardH * 0.2)) },
+    counter: showCounter
+      ? { x: cx, y: Math.min(bottom - 4, maxBottom + Math.max(8, cardH * 0.2)) }
+      : null,
   };
 }

@@ -1463,4 +1463,28 @@ describe("RoomEngine: перерисовки без падений", () => {
     // Три карты руки соседа — это три дополнительных спрайта на его месте.
     expect(pixi.__liveSprites().length).toBeGreaterThanOrEqual(3);
   });
+
+  // Число карт на руках — игровая информация: в раздаче его показываем (дилер следит,
+  // сколько кому ушло), в игре места молчат, как и за настоящим столом.
+  it("счётчик карт на чужом месте виден в раздаче и пропадает в игре", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSeats([seat]);
+    app.ticker.__advance(16);
+    expect(allTexts(app.stage)).toContain("3");
+
+    engine.setFreeMode(true);
+    app.ticker.__advance(16);
+    expect(allTexts(app.stage)).not.toContain("3");
+  });
+
+  it("в игре молчит и пустое место: ни карт, ни прочерка", async () => {
+    const { engine, app } = await mountEngine();
+    engine.setSeats([{ ...seat, handCount: 0, hand: [] }]);
+    app.ticker.__advance(16);
+    expect(allTexts(app.stage)).toContain("—");
+
+    engine.setFreeMode(true);
+    app.ticker.__advance(16);
+    expect(allTexts(app.stage)).not.toContain("—");
+  });
 });

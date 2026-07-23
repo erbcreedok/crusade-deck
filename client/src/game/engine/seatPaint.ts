@@ -30,6 +30,12 @@ export interface SeatPaintDeps {
   dealDragging: boolean;
   /** Сколько карт ПОКАЗЫВАТЬ (схема уже новая, а призраки ещё летят). */
   visualCount: (seat: SeatView) => number;
+  /**
+   * Комната в ИГРЕ. Тогда числа карт на чужих местах не показываем совсем: за настоящим
+   * столом их тоже никто не объявляет, а в раздаче счётчик нужен — дилер следит, сколько
+   * кому ушло.
+   */
+  inGame: boolean;
 }
 
 /** Всё, что нарисовали: движок держит ссылки, чтобы убрать это на следующей перерисовке. */
@@ -82,12 +88,14 @@ export function paintSeats(seats: readonly SeatView[], boxes: readonly SeatBox[]
       handFanned: seat.handFanned,
       tableCardW: d.cardW,
       tableCardH: d.cardH,
+      showCounter: !d.inGame,
     });
     if (handLayout.kind !== "empty") {
       const node = paintSeatHand(seat, handLayout, visualCount, d);
       if (node) out.nodes.push(node);
-    } else {
-      // Вне раздачи (или пустая рука) — текстовый счётчик, как раньше.
+    } else if (!d.inGame) {
+      // Пустая рука в раздаче — текстовый счётчик вместо карт («—», когда ноль).
+      // В игре места молчат: ни карт, ни числа.
       const count = new Text({
         text: visualCount > 0 ? `🂠 ${visualCount}` : "—",
         style: { fontFamily: PIXEL_FONT, fontSize, fill: COLORS.seatCount, letterSpacing: 1 },

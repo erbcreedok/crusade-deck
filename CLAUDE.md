@@ -26,7 +26,7 @@ rules can later be layered as configuration.
 
 ```bash
 cd server && npm test && npx tsc --noEmit   # 222 tests
-cd client && npm test && npx tsc --noEmit   # 828 tests
+cd client && npm test && npx tsc --noEmit   # 831 tests
 cd client && npx vite build                 # production build
 ```
 
@@ -276,6 +276,14 @@ A hard split that must not blur when adding new deck-related mechanics:
   dealer only decides tied votes, two regular players always outweigh them. The client
   must show the SAME weight (`client/src/game/voteWeight.ts`) — it used to display 1.5,
   so the banner's progress bar disagreed with the actual outcome.
+- **Card counts on other players' seats show only while DEALING.** The dealer needs them
+  to see who got how many; in game the number of cards in a hand is game information, and
+  putting it on the table as a figure decides for rules that don't exist yet. In game a
+  seat shows what a real table shows — the hand itself, and nothing else (an empty seat
+  loses its «—» too). The flag reaches the paint through `SeatPaintDeps.inGame` and
+  `layoutSeatHand({ showCounter })`; the cards themselves are laid out identically either
+  way. Note `setFreeMode` has to repaint the seats for this, otherwise the counter hangs
+  around until some unrelated redraw.
 - **Ready state gates dealing** — the server won't accept `deal_card` for a player with
   `isReady === false` (except the dealer, who is always ready). This is intentional,
   even though it diverges from the very first task description ("don't care if they're

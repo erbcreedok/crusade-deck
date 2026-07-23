@@ -51,4 +51,15 @@ describe("layoutSeatHand", () => {
     expect(L.cards[0]!.x).toBeLessThan(L.cards[3]!.x);
     expect(L.counter).not.toBeNull();
   });
+
+  // В раздаче число нужно дилеру, в игре это игровая информация — за настоящим столом её
+  // тоже никто не объявляет. Карты при этом рисуются как рисовались.
+  it("без счётчика — карты те же, а числа под рукой нет", () => {
+    for (const handFanned of [false, true]) {
+      const on = layoutSeatHand({ ...base, count: 5, handFanned });
+      const off = layoutSeatHand({ ...base, count: 5, handFanned, showCounter: false });
+      expect(off.counter).toBeNull();
+      expect(off.cards).toEqual(on.cards);
+    }
+  });
 });
