@@ -558,11 +558,6 @@ export class RoomEngine {
     // кнопки панели, и не должна прятаться под стопкой.
     this.focusG = new Graphics();
     this.focusG.zIndex = Z.focus;
-    // Тёплая подсветка наведённого стека — ПОД картами (Z.shadows..Z.cards), на месте его
-    // тени: тень гаснет, свет проступает. world сортирует детей по zIndex.
-    this.playFocusG = new Graphics();
-    this.playFocusG.zIndex = Z.shadows + 0.5;
-    this.playFocusG.eventMode = "none";
     this.zoneLayer = new Graphics();
     this.zoneLayer.zIndex = Z.zones;
     this.shadowLayer = new Container();
@@ -571,15 +566,17 @@ export class RoomEngine {
     this.cardLayer.zIndex = Z.cards;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
     this.world.sortableChildren = true;
-    this.world.addChild(
-      this.tableG,
-      this.seatLayer,
-      this.zoneLayer,
-      this.shadowLayer,
-      this.playFocusG,
-      this.cardLayer,
-      this.focusG,
-    );
+    this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer, this.focusG);
+
+    // Тёплая подсветка наведённого стека живёт ВНУТРИ cardLayer: тени карт тоже здесь (на
+    // z = база−1), а сами карты — на z ≥ база. Значит «ниже карт, но выше теней» — это ровно
+    // z = −0.5 внутри этого слоя. Отдельным слоем в world так не встать: тени спрятаны в
+    // cardLayer, и любой слой под ним прячет и свет. Геометрию берём со спрайта карты один в
+    // один (как тень), поэтому подложка точно совпадает с картой.
+    this.playFocusG = new Graphics();
+    this.playFocusG.zIndex = -0.5;
+    this.playFocusG.eventMode = "none";
+    this.cardLayer.addChild(this.playFocusG);
   }
 
   // Надписи поверх стола: подписи зон «водяным» текстом и крупное «низяяя» при отбое.
@@ -1202,9 +1199,34 @@ export class RoomEngine {
    * зоне отношения не имеют.
    */
   private aimPlayHover(x: number, y: number): void {
-    if (!this.freeMode || !this.cardDrag?.fromHand) return this.setPlayHover(null);
+    // Ховер по стекам зоны — для драга из ЛЮБОГО места (рука, колода, сброс, другой стек):
+    // резолвер и так роняет карту в конкретный стек из любого источника, не хватало только
+    // визуального фидбека. Исключение — открытый веер доски: он занял центр, зона выключена
+    // (тогда дроп в неё запрещён, см. resolveDrop), значит и подсвечивать стеки нельзя.
+    if (!this.freeMode || !this.cardDrag || this.boardFan) {
+      this.playHoverLinger = 0;
+      return this.setPlayHover(null);
+    }
     const zone = pickDropTarget(x, y, this.layout)?.zone;
-    this.setPlayHover(zone === "center" ? pickPlayCell(this.playGridNow(), x, y) : null);
+    const raw = zone === "center" ? pickPlayCell(this.playGridNow(), x, y) : null;
+    // Над стеком — мгновенно берём фокус себе (и вход, и переключение стек→стек): новый
+    // стек всегда перебивает залипшую задержку прежнего.
+    if (raw !== null) {
+      this.playHoverLinger = 0;
+      return this.setPlayHover(raw);
+    }
+    // Палец ушёл в ЗАЗОР между стеками, но ещё над зоной: не гасим стек сразу — заводим
+    // короткий обратный отсчёт, чтобы при быстром переносе не мигало «стек → зона → стек».
+    // Снимет ховер по нулю в stepPlayFocus (или следующий стек — мгновенно, веткой выше).
+    // Отсчёт от frameDt, а не от performance.now(): так он идёт по тому же клоку, что и
+    // рендер (и корректно тикает под фейковым тикером в тестах).
+    if (zone === "center" && this.playHover !== null) {
+      if (this.playHoverLinger <= 0) this.playHoverLinger = anim.play.hoverLingerMs / 1000;
+      return;
+    }
+    // Вышли из зоны целиком (сброс/рука/мимо стола) — гасим без задержки.
+    this.playHoverLinger = 0;
+    this.setPlayHover(null);
   }
 
   /**
@@ -1216,6 +1238,13 @@ export class RoomEngine {
   private aimZoneAndStacks(x: number, y: number): void {
     this.aimPlayHover(x, y); // ставит this.playHover: индекс стека или null
     const target = pickDropTarget(x, y, this.layout);
+    // Центр под открытым веером доски выключен — веер владеет им, карта уходит в его ПОРЯДОК,
+    // а не в зону. Значит это не «низя» (дроп по факту есть), а полная инертность: ни бокс,
+    // ни стеки не реагируют. Держим то же правило, что и hoverZoneFor.
+    if (target?.zone === "center" && this.boardFan) {
+      this.hoverZone = null;
+      return;
+    }
     this.hoverZone = target?.zone === "center" && this.playHover !== null ? null : target;
   }
 
@@ -1555,9 +1584,6 @@ export class RoomEngine {
 
   // Место игрока: прямоугольник с именем, числом карт и метками (дилер/готов/бот/пауза).
   // Во время драга колоды место подсвечивается как дроп-зона — бросок отдаёт колоду ему.
-  // Рамка фокуса вокруг выделенной колоды: небольшая подсветка, чтобы было видно,
-  // к чему относятся кнопки панели.
-  private playFocusAt: { cx: number; cy: number } | null = null;
 
   /**
    * Тёплая подсветка фокуса наведённого стека игровой зоны. Проступает плавно и БЫСТРО
@@ -1565,11 +1591,55 @@ export class RoomEngine {
    * Точку запоминаем, пока стек под пальцем, чтобы подсветка успела ПЛАВНО угаснуть, когда
    * палец ушёл, а не пропала рывком.
    */
+  // Геометрия наведённой карты один-в-один со спрайтом: центр, поворот и НАСТОЯЩИЙ размер
+  // (ширина спрайта = TEX_W×масштаб — то же, чем меряется тень). Оттого подложка совпадает
+  // с картой, а не висит крошечным квадратом.
+  private playFocusAt: { cx: number; cy: number; w: number; h: number; rot: number } | null = null;
+
+  // > 0 — секунды остатка задержки: стек держит фокус «по инерции» после ухода пальца в
+  // зазор между стеками. Дошло до нуля — stepPlayFocus гасит ховер (см. aimPlayHover, вар. 1).
+  private playHoverLinger = 0;
+
   private stepPlayFocus(frameDt: number): void {
+    // Отложенный выход из стека: палец завис в зазоре — досчитываем и снимаем ховер. Если бы
+    // ждали pointermove, зависший в зазоре палец держал бы стек подсвеченным вечно.
+    if (this.playHoverLinger > 0) {
+      this.playHoverLinger -= frameDt;
+      if (this.playHoverLinger <= 0) {
+        this.playHoverLinger = 0;
+        this.setPlayHover(null);
+        // Палец всё ещё над зоной (в зазоре) — теперь её зовёт бокс (новый стек). hoverZone
+        // пересчитываем по последней точке драга: pointermove мог не прийти (палец стоит).
+        if (this.cardDrag) {
+          const t = pickDropTarget(this.cardDrag.x, this.cardDrag.y, this.layout);
+          this.hoverZone = this.boardFan && t?.zone === "center" ? null : t;
+          this.drawZones();
+        }
+      }
+    }
     const active = !!this.cardDrag && this.playHover !== null;
     if (active) {
-      const cell = this.playGridNow().cells[this.playHover!];
-      if (cell) this.playFocusAt = { cx: cell.cx, cy: cell.cy };
+      // Верхняя карта наведённого стека: свет едет за ней, когда она поднимается на ховере.
+      const cards = this.pileCards(playPile(this.playHover!));
+      const top = cards[cards.length - 1];
+      if (top) {
+        const s = top.sprite.scale.x;
+        this.playFocusAt = {
+          cx: top.sprite.x,
+          cy: top.sprite.y,
+          w: TEX_W * s,
+          h: TEX_H * s,
+          rot: top.sprite.rotation,
+        };
+      } else {
+        // Пустая ячейка (новый стек ещё не создан) — светим по размеру ячейки сетки.
+        const cell = this.playGridNow().cells[this.playHover!];
+        const grid = this.playGridNow();
+        if (cell) {
+          const s = grid.cardW / this.layout.cardW;
+          this.playFocusAt = { cx: cell.cx, cy: cell.cy, w: TEX_W * s, h: TEX_H * s, rot: 0 };
+        }
+      }
     }
     const target = active ? 1 : 0;
     this.playFocusEnv += (target - this.playFocusEnv) * Math.min(1, frameDt * 18);
@@ -1577,19 +1647,39 @@ export class RoomEngine {
     this.drawPlayFocus();
   }
 
+  /**
+   * Тёплая подложка под наведённой картой — как её тень, но не смещена и светлая. Лежит
+   * ВНУТРИ cardLayer ниже карт и выше теней (z = −0.5), совпадает с картой по размеру и
+   * повороту и чуть выступает за край (envelope), поэтому из-под карты проступает тёплый
+   * ободок-свечение. Рисуем в локальных координатах повёрнутого Graphics — так поворот
+   * карты повторяется точно.
+   */
   private drawPlayFocus(): void {
     const g = this.playFocusG;
     if (!g) return;
     g.clear();
     const at = this.playFocusAt;
-    if (!at || this.playFocusEnv < 0.002) return;
+    if (!at || this.playFocusEnv < 0.002) {
+      g.visible = false;
+      return;
+    }
+    g.visible = true;
+    g.position.set(at.cx, at.cy);
+    g.rotation = at.rot;
     const env = this.playFocusEnv;
-    const w = this.layout.cardW * 1.3; // чуть шире карты — свет спадает ореолом за края
-    const h = this.layout.cardH * 1.3;
-    const x = at.cx - w / 2;
-    const y = at.cy - h / 2;
-    g.roundRect(x, y, w, h, 16).fill({ color: 0xffe08a, alpha: 0.28 * env });
-    g.roundRect(x, y, w, h, 16).stroke({ width: 3, color: 0xffe9a8, alpha: 0.9 * env });
+    const r = Math.max(6, at.w * 0.1);
+    // Несколько заливок от карты наружу: у края плотный тёплый свет, дальше мягкий ореол.
+    // Внутренняя (envelope 1.05) даёт видимый ободок, внешние — свечение вокруг.
+    const rims = [
+      { grow: 0.28, alpha: 0.1 },
+      { grow: 0.16, alpha: 0.22 },
+      { grow: 0.05, alpha: 0.5 },
+    ];
+    for (const rim of rims) {
+      const w = at.w * (1 + rim.grow);
+      const h = at.h * (1 + rim.grow);
+      g.roundRect(-w / 2, -h / 2, w, h, r).fill({ color: 0xffd766, alpha: rim.alpha * env });
+    }
   }
 
   private drawFocus(): void {
@@ -1837,6 +1927,7 @@ export class RoomEngine {
   private cancelCardDrag(dragged: CardVisual): void {
     this.cardDrag = null;
     this.hoverZone = null;
+    this.playHoverLinger = 0;
     this.setPlayHover(null);
     this.returnCardHome(dragged);
     this.drawZones();
@@ -1861,13 +1952,19 @@ export class RoomEngine {
     // Ховерим и неготовых — чтобы показать «Неа»; принять или отбить решает дроп.
     const seatHit = pickSeat(x, y, this.seatBoxes);
     this.setHoverSeat(seatHit && seatHit !== this.selfId ? seatHit : null);
-    // Зоны загораются под картой из веера доски: сброс/зона/рука зовут к себе, колода — низя.
-    this.hoverZone = this.freeMode
-      ? this.hoverZoneFor(this.resolveDrop(x, y, this.cardDrag?.pile))
-      : ((): DropTarget | null => {
-          const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds(), this.freeMode);
-          return to === this.selfId ? { zone: "hand" } : null;
-        })();
+    if (this.freeMode) {
+      // Взятие карты С КОЛОДЫ (или её веера) в свободе целится в те же места, что и карта из
+      // руки: сброс, свою руку и КОНКРЕТНЫЙ стек зоны. Стеки должны реагировать так же —
+      // подсвечиваться и толкать соседей, — поэтому зовём общий aimPlayHover. Над стеком бокс
+      // гасим (светится стек). aimPlayHover сам выключается под открытым веером доски.
+      this.aimPlayHover(x, y);
+      const target = this.hoverZoneFor(this.resolveDrop(x, y, this.cardDrag?.pile));
+      this.hoverZone = target?.zone === "center" && this.playHover !== null ? null : target;
+    } else {
+      this.setPlayHover(null);
+      const to = pickDealTarget(x, y, this.seatBoxes, this.layout, this.selfId, this.dealReadyIds(), this.freeMode);
+      this.hoverZone = to === this.selfId ? { zone: "hand" } : null;
+    }
 
     if (this.cardDrag && this.boardFan === this.cardDrag.pile) {
       // Раскрытый веер доски (колода/сброс/зона) раступается перед картой (дырка по x).
@@ -2664,6 +2761,7 @@ export class RoomEngine {
     this.cardDrag = null;
     this.dealDrag = false;
     this.hoverZone = null;
+    this.playHoverLinger = 0;
     // Ответ стола гаснет ДО того, как карта ляжет: кучки успевают вернуться на свои места
     // ровно тем же движением, каким расступались.
     this.setPlayHover(null);

@@ -907,13 +907,63 @@ describe("RoomEngine: игральная зона", () => {
     expect((engine as any).playHover).toBe(1);
     expect((engine as any).hoverZone).toBeNull(); // бокс не светится
 
-    // Вне стеков (ячейка «сюда новую»): бокс зовёт к себе, стек не выбран.
+    // Вне стеков (ячейка «сюда новую»): стек отпускается не сразу — держится короткую
+    // задержку (linger), поэтому ждём дольше неё (>130мс), и только потом бокс зовёт к себе.
     app.stage.__emit("pointermove", { pointerId: 5, global: { x: g.addCell.cx, y: g.addCell.cy } });
-    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    for (let i = 0; i < 12; i++) app.ticker.__advance(16);
     expect((engine as any).playHover).toBeNull();
     expect((engine as any).hoverZone).toEqual({ zone: "center" });
 
     app.stage.__emit("pointerup", { pointerId: 5, global: { x: g.addCell.cx, y: g.addCell.cy } });
+  });
+
+  // Сглаживание ховера (вариант 1): вход в стек мгновенный; выход в ЗАЗОР между стеками —
+  // с короткой задержкой; новый стек под пальцем перебивает задержку сразу; выход из зоны
+  // целиком — мгновенный. Так при быстром переносе стек→стек не мигает «стек → зона → стек».
+  it("ховер стека держится в зазоре, но мгновенно перебивается соседним стеком", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♣"], ["3♣"], ["4♣"]]);
+    engine.setHand(["9♦", "10♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const { playGrid } = await import("./playGrid");
+    const g = playGrid((engine as any).layout.centerZone, (engine as any).layout.cardW, (engine as any).layout.cardH, 3);
+    const hit = findByZ(app.stage, 10_100);
+    hit.__emit("pointerdown", { pointerId: 7, global: { x: 195, y: 700 }, pointerType: "touch" });
+    // Старт драга движением ВВЕРХ (как в соседнем тесте): так первый сэмпл скорости не
+    // читается свайпом-вниз (в тестах сэмплы на wall-clock, дельта времени ≈0 → скорость
+    // огромна, важно только направление). Дальше зазор берём ГОРИЗОНТАЛЬНО — тоже не свайп.
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: 215, y: 680 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+
+    // Зазор — ровно посередине между стеками 0 и 1 (они в одной строке, y общий): pickPlayCell
+    // там возвращает null, но это всё ещё центр зоны — то самое место, где включается linger.
+    const gapX = (g.cells[0]!.cx + g.cells[1]!.cx) / 2;
+    const rowY = g.cells[0]!.cy;
+
+    // На стек 0 — фокус берётся сразу.
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: g.cells[0]!.cx, y: rowY } });
+    app.ticker.__advance(16);
+    expect((engine as any).playHover).toBe(0);
+
+    // Ушли в зазор и подождали МЕНЬШЕ задержки — стек ещё держится.
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: gapX, y: rowY } });
+    app.ticker.__advance(16); // 16мс < 130мс
+    expect((engine as any).playHover).toBe(0);
+
+    // Быстрый переход на стек 1 — перебивает залипшую задержку сразу (не ждём 130мс).
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: g.cells[1]!.cx, y: rowY } });
+    app.ticker.__advance(16); // 16мс ≪ 130мс — задержка ещё не истекла бы
+    expect((engine as any).cardDrag).not.toBeNull(); // драг жив (не свайп-даун)
+    expect((engine as any).playHover).toBe(1);
+
+    // Ушли в зазор и подождали ДОЛЬШЕ задержки — фокус снят.
+    app.stage.__emit("pointermove", { pointerId: 7, global: { x: gapX, y: rowY } });
+    for (let i = 0; i < 12; i++) app.ticker.__advance(16); // >130мс
+    expect((engine as any).playHover).toBeNull();
+
+    app.stage.__emit("pointerup", { pointerId: 7, global: { x: gapX, y: rowY } });
   });
 
   // Наведённый стек получает тёплую подсветку фокуса, проступающую плавно; уводишь палец —
@@ -937,8 +987,11 @@ describe("RoomEngine: игральная зона", () => {
     for (let i = 0; i < 15; i++) app.ticker.__advance(16);
     expect((engine as any).playFocusEnv).toBeGreaterThan(0.5);
 
-    // Ушли со стека — начал гаснуть, но НЕ мгновенно (плавно).
-    app.stage.__emit("pointermove", { pointerId: 6, global: { x: g.addCell.cx, y: g.addCell.cy } });
+    // Ушли ИЗ зоны целиком (выше её верхнего края) — фокус снимается сразу, а свет гаснет
+    // НЕ мгновенно (плавно). Выход в зазор между стеками не годится: там ховер держится
+    // задержкой (linger) и свет ещё не начал бы гаснуть.
+    const cz = (engine as any).layout.centerZone;
+    app.stage.__emit("pointermove", { pointerId: 6, global: { x: cz.cx, y: cz.cy - cz.h } });
     for (let i = 0; i < 3; i++) app.ticker.__advance(16);
     const mid = (engine as any).playFocusEnv;
     expect(mid).toBeGreaterThan(0.05);
