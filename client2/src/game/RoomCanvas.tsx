@@ -1,0 +1,125 @@
+import { useEffect, useRef } from "react";
+import { RoomEngine } from "./RoomEngine";
+import { resolveProfile } from "./anim/animationSettings";
+import { seatsSignature } from "./seats";
+import { applyAllToEngine, type EngineProps } from "./engineProps";
+import { useEngineEffect } from "./useEngineEffect";
+
+// Тонкий React-хост движка стола: монтирует его один раз и потом только пересылает
+// пропсы сеттерами. Своей логики и своего состояния здесь нет — вся картинка живёт в
+// RoomEngine (см. CLAUDE.md, «Table architecture»).
+export function RoomCanvas(props: EngineProps) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const engineRef = useRef<RoomEngine | null>(null);
+
+  // Свежие пропсы для монтирования: пока идёт await init, они успевают уехать.
+  const latest = useRef(props);
+  latest.current = props;
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    const engine = new RoomEngine();
+    engineRef.current = engine;
+    const rect = wrap.getBoundingClientRect();
+    void engine.mount(wrap, rect.width, rect.height).then(() => {
+      // Нас успели размонтировать (StrictMode монтирует эффект дважды) — сцены уже нет.
+      if (engineRef.current !== engine) return;
+      applyAllToEngine(engine, latest.current);
+    });
+
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries[0].contentRect;
+      engine.resize(cr.width, cr.height);
+    });
+    ro.observe(wrap);
+
+    return () => {
+      ro.disconnect();
+      engine.destroy();
+      engineRef.current = null;
+    };
+  }, []);
+
+  // ——— состояние стола ———
+  // Списки карт и мест сравниваем по подписи: RoomScreen пересобирает эти массивы на
+  // каждый патч состояния, и сравнение по ссылке дёргало бы движок вхолостую.
+  const e = engineRef;
+  useEngineEffect(e, (en) => en.setDeck(props.deck), [props.deck.join(",")]);
+  useEngineEffect(e, (en) => en.setHand(props.hand), [props.hand.join(",")]);
+  useEngineEffect(e, (en) => en.setDiscard(props.discard), [props.discard.join(",")]);
+  // Ключ по составу зоны целиком: кучек может стать больше или меньше, и сравнение по
+  // длине списка пропустило бы переезд карты из кучки в кучку.
+  useEngineEffect(e, (en) => en.setPlay(props.play), [props.play.map((s) => s.join(",")).join("|")]);
+  useEngineEffect(e, (en) => en.setSeats(props.seats), [seatsSignature(props.seats)]);
+  useEngineEffect(e, (en) => en.setSelectedDecks(props.selectedDecks), [props.selectedDecks.join(",")]);
+  useEngineEffect(e, (en) => en.setFreeMode(props.freeMode), [props.freeMode]);
+  useEngineEffect(e, (en) => en.setBoardFan(props.boardFan), [props.boardFan]);
+  useEngineEffect(e, (en) => en.setCanDeal(props.canDeal), [props.canDeal]);
+  useEngineEffect(e, (en) => en.setSelfId(props.selfId), [props.selfId]);
+  useEngineEffect(
+    e,
+    (en) => en.setSelfDealState(props.selfReady, props.selfIsDealer),
+    [props.selfReady, props.selfIsDealer],
+  );
+  useEngineEffect(e, (en) => en.setTopInset(props.topInset), [props.topInset]);
+  useEngineEffect(e, (en) => en.setBottomInset(props.bottomInset), [props.bottomInset]);
+  useEngineEffect(e, (en) => en.setFourColor(props.fourColor), [props.fourColor]);
+  useEngineEffect(e, (en) => en.setCardBack(props.cardBack), [props.cardBack]);
+  useEngineEffect(e, (en) => en.setFaceStyle(props.faceStyle), [props.faceStyle]);
+  useEngineEffect(e, (en) => en.setCardFacing(props.facing), [props.facing]);
+  // Право раздавать и быть источником правды для колоды — одно и то же условие.
+  useEngineEffect(e, (en) => en.setAuthoritative(props.canDeal), [props.canDeal]);
+  useEngineEffect(
+    e,
+    (en) => en.setAnimationProfile(resolveProfile(props.animation)),
+    [props.animation.level, props.animation.speed, props.animation.shadows],
+  );
+
+  // ——— жесты стола наверх ———
+  useEngineEffect(e, (en) => en.setOnDeckTap(props.onDeckTap), [props.onDeckTap]);
+  useEngineEffect(e, (en) => en.setOnEmptyTap(props.onEmptyTap), [props.onEmptyTap]);
+  useEngineEffect(e, (en) => en.setOnDealCard(props.onDealCard), [props.onDealCard]);
+  useEngineEffect(e, (en) => en.setOnDiscardCard(props.onDiscardCard), [props.onDiscardCard]);
+  useEngineEffect(e, (en) => en.setOnTakeDiscard(props.onTakeDiscard), [props.onTakeDiscard]);
+  useEngineEffect(e, (en) => en.setOnPlayCard(props.onPlayCard), [props.onPlayCard]);
+  useEngineEffect(e, (en) => en.setOnTakePlay(props.onTakePlay), [props.onTakePlay]);
+  useEngineEffect(e, (en) => en.setOnClearPlay(props.onClearPlay), [props.onClearPlay]);
+  useEngineEffect(e, (en) => en.setOnMoveCard(props.onMoveCard), [props.onMoveCard]);
+  useEngineEffect(e, (en) => en.setOnBoardFanChange(props.onBoardFanChange), [props.onBoardFanChange]);
+  useEngineEffect(e, (en) => en.setOnDeckFanChange(props.onDeckFanChange), [props.onDeckFanChange]);
+  useEngineEffect(e, (en) => en.setOnCardReorder(props.onCardReorder), [props.onCardReorder]);
+  useEngineEffect(e, (en) => en.setOnShuffleChange(props.onShuffleChange), [props.onShuffleChange]);
+  useEngineEffect(e, (en) => en.setOnFanChange(props.onFanChange), [props.onFanChange]);
+  useEngineEffect(e, (en) => en.setOnFanCollapse(props.onFanCollapse), [props.onFanCollapse]);
+  useEngineEffect(e, (en) => en.setOnDeckFx(props.onDeckFx), [props.onDeckFx]);
+  useEngineEffect(e, (en) => en.setOnDragChange(props.onDragChange), [props.onDragChange]);
+
+  // ——— разовые события: «сыграй это» ———
+  useEngineEffect(e, (en) => props.shuffleSignal > 0 && en.shuffleAll(), [props.shuffleSignal]);
+  useEngineEffect(
+    e,
+    (en) => props.noticeSignal && en.showRejectNotice(props.noticeSignal.text),
+    [props.noticeSignal],
+  );
+  useEngineEffect(e, (en) => props.shoutSignal && en.playShout(), [props.shoutSignal]);
+  useEngineEffect(
+    e,
+    (en) => props.tauntSignal && en.playTaunt(props.tauntSignal.kind, props.tauntSignal.from),
+    [props.tauntSignal],
+  );
+  useEngineEffect(e, (en) => props.incomingFx && en.playFx(props.incomingFx), [props.incomingFx]);
+  useEngineEffect(
+    e,
+    (en) => props.collectSignal && en.playCollectAnim(props.collectSignal.order, props.collectSignal.counts),
+    [props.collectSignal],
+  );
+  useEngineEffect(
+    e,
+    (en) => props.cardMovedSignal && en.playCardMoved(props.cardMovedSignal.moves),
+    [props.cardMovedSignal],
+  );
+
+  return <div className="room-canvas" ref={wrapRef} />;
+}

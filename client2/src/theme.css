@@ -1,0 +1,1036 @@
+:root {
+  --felt: #173d2d;
+  --felt-dark: #0f2e22;
+  --panel-bg: #3a2a1d;
+  --panel-bg-light: #4a3627;
+  --panel-border: #f2c14e;
+  --ink: #f5ead0;
+  --ink-dim: #cdb98f;
+  --accent-gold: #f2c14e;
+  --accent-red: #e0483f;
+  --shadow-black: #0b0704;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--felt);
+  color: var(--ink);
+  font-family: "VT323", monospace;
+  font-size: 20px;
+  -webkit-font-smoothing: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#root {
+  overflow: hidden;
+}
+
+.pixel-bg-layer {
+  position: fixed;
+  inset: -10% -10%;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.pixel-bg-clubs {
+  background: url("/bg-clubs.svg") repeat;
+  background-size: 72px 72px;
+  animation: drift-clubs 90s linear infinite;
+}
+
+.pixel-bg-diamonds {
+  z-index: -1;
+  background: url("/bg-diamonds.svg") repeat;
+  background-size: 340px 340px;
+  animation: drift-diamonds 140s linear infinite;
+}
+
+/* Фон комнаты: серо-зелёный, контрастнее менюшного — чтобы стол читался как
+   другое место, а не как то же самое меню. */
+.pixel-bg-clubs.pixel-bg--game {
+  background-image: url("/bg-clubs-slate.svg");
+}
+
+/* Золотые искры на сером сукне слишком крикливы — приглушаем. */
+.pixel-bg-diamonds.pixel-bg--game {
+  opacity: 0.55;
+  filter: grayscale(0.5) brightness(0.85);
+}
+
+@keyframes drift-clubs {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 720px 432px;
+  }
+}
+
+@keyframes drift-diamonds {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -680px 340px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-bg-clubs,
+  .pixel-bg-diamonds {
+    animation: none;
+  }
+}
+
+.pixel-bg-clubs.motion-paused,
+.pixel-bg-diamonds.motion-paused {
+  animation: none;
+}
+
+.pixel-screen {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.pixel-panel {
+  width: 100%;
+  max-width: 380px;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--panel-bg);
+  border: 4px solid var(--shadow-black);
+  box-shadow:
+    0 0 0 4px var(--panel-border),
+    8px 8px 0 rgba(0, 0, 0, 0.55);
+  padding: 22px 20px 26px;
+  image-rendering: pixelated;
+}
+
+.pixel-title {
+  font-family: "Press Start 2P", monospace;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin: 0 0 20px;
+  color: var(--accent-gold);
+  text-shadow: 2px 2px 0 var(--shadow-black);
+  text-align: center;
+}
+
+.pixel-label {
+  font-family: "VT323", monospace;
+  font-size: 1.1rem;
+  color: var(--ink-dim);
+  display: block;
+  margin: 14px 0 6px;
+}
+
+.pixel-input {
+  width: 100%;
+  font-family: "VT323", monospace;
+  font-size: 1.3rem;
+  background: #1c120b;
+  color: var(--ink);
+  border: none;
+  box-shadow:
+    inset 2px 2px 0 #000,
+    inset -2px -2px 0 rgba(255, 255, 255, 0.08);
+  padding: 8px 10px;
+  outline: none;
+}
+
+.pixel-input:focus {
+  box-shadow:
+    inset 2px 2px 0 #000,
+    inset -2px -2px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 2px var(--accent-gold);
+}
+
+.pixel-btn {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: #2b1810;
+  background: var(--accent-gold);
+  border: none;
+  padding: 14px 16px;
+  cursor: pointer;
+  box-shadow:
+    inset -4px -4px 0 rgba(0, 0, 0, 0.3),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.35),
+    4px 4px 0 var(--shadow-black);
+  transition: none;
+}
+
+.pixel-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow:
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.35),
+    1px 1px 0 var(--shadow-black);
+}
+
+.pixel-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pixel-btn-secondary {
+  background: var(--panel-bg-light);
+  color: var(--ink);
+}
+
+.pixel-btn-full {
+  width: 100%;
+}
+
+.pixel-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pixel-btn-row .pixel-btn {
+  flex: 1;
+}
+
+.suit-toggle-row {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.suit-toggle {
+  flex: 1;
+  text-align: center;
+  font-family: "VT323", monospace;
+  font-size: 1.15rem;
+  padding: 10px 6px;
+  background: #1c120b;
+  color: var(--ink-dim);
+  border: 2px solid var(--shadow-black);
+  cursor: pointer;
+  user-select: none;
+}
+
+.suit-toggle.active {
+  background: var(--accent-gold);
+  color: #2b1810;
+  box-shadow: 0 0 0 2px var(--shadow-black);
+}
+
+.pixel-divider {
+  border: none;
+  border-top: 2px dashed var(--panel-border);
+  opacity: 0.5;
+  margin: 20px 0;
+}
+
+/* Подпись версии: служебная строка, читается только когда её ищут глазами. Поэтому
+   мелкая, приглушённая и прижата вправо — спорить с содержимым экрана она не должна. */
+.pixel-version {
+  font-family: "VT323", monospace;
+  font-size: 12px;
+  text-align: right;
+  color: var(--panel-border);
+  opacity: 0.6;
+  margin: 10px 0 0;
+  letter-spacing: 1px;
+  user-select: text;
+}
+
+/* Версия на главном экране живёт в углу САМОГО ЭКРАНА, а не в панели: панель — это то,
+   ради чего экран открыли, и служебной строке в ней не место. Отступы через
+   env(safe-area-inset-*), иначе на айфоне подпись уезжает под скруглённый угол и под
+   индикатор жеста «домой». pointer-events: none — угол экрана остаётся кликабельным
+   насквозь, а сам текст всё равно можно выделить (см. user-select ниже). */
+.pixel-version-corner {
+  position: fixed;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(6px, env(safe-area-inset-bottom));
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pixel-error {
+  font-family: "VT323", monospace;
+  color: var(--accent-red);
+  font-size: 1.05rem;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.pixel-invite-code {
+  color: var(--accent-red);
+}
+
+.player-list {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  padding: 8px 6px;
+  border-bottom: 2px dashed rgba(242, 193, 78, 0.25);
+}
+
+.player-row:last-child {
+  border-bottom: none;
+}
+
+.player-row .suit-diamond {
+  color: var(--accent-red);
+}
+
+.player-name {
+  flex: 1;
+}
+
+.player-row.disconnected {
+  opacity: 0.45;
+}
+
+.pixel-loading {
+  font-family: "Press Start 2P", monospace;
+  color: var(--accent-gold);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+/* --- Table (round-table game screen) --- */
+
+/* Полностью статичный стол: канвас заполняет весь экран (absolute inset:0), а вся
+   обвязка (топбар, баннер голосования, нижние кнопки) — оверлеи поверх него, вне
+   потока. Никакой контент не меняет размер канваса → ResizeObserver срабатывает
+   лишь на реальный ресайз экрана. */
+.table-screen {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.table-topbar {
+  position: absolute;
+  z-index: 5;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  /* Константная высота: бейджи не переносятся на вторую строку и не двигают стол.
+     Лишнее уезжает в горизонтальную прокрутку внутри самой шапки. */
+  height: var(--topbar-h);
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* бейджи некликабельны — не перехватывают драг колоды под ними */
+  pointer-events: none;
+}
+
+.table-topbar::-webkit-scrollbar {
+  display: none;
+}
+
+.table-badge {
+  flex: 0 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-family: "VT323", monospace;
+  font-size: clamp(13px, 3.6vw, 18px);
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--panel-bg);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  padding: 0 10px;
+}
+
+.table-oval {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 12px 0;
+}
+
+/* Игровое поле — единый WebGL-канвас во весь экран. Вся обвязка лежит оверлеями
+   поверх, поэтому её появление/смена НЕ меняет размер канваса: стол статичен и
+   пересчитывается лишь при реальном ресайзе экрана. */
+.room-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Кнопка полного ремоунта канваса: неприметная, в нижнем левом углу, всегда доступна.
+   z-index выше панели действий (8), чтобы оставаться кликабельной поверх неё. */
+.canvas-reload {
+  position: absolute;
+  z-index: 9;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: max(8px, env(safe-area-inset-left));
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-family: "VT323", monospace;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--ink-dim);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.canvas-reload:active {
+  opacity: 0.85;
+}
+
+.room-canvas > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Стол ловит жесты сам: без этого браузер на телефоне сначала думает, не скролл ли
+     это, а после касания досылает синтетический клик — он прилетал уже ПОСЛЕ драга и
+     считался тапом (раскрывал веер посреди перетаскивания карты). */
+  touch-action: none;
+}
+
+.table-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 84px;
+}
+
+.seat-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--accent-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Press Start 2P", monospace;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+.seat-me .seat-avatar {
+  box-shadow: 0 0 0 2px var(--accent-red);
+}
+
+.seat-crown {
+  position: absolute;
+  top: -16px;
+  font-size: 0.9rem;
+}
+
+.seat-ready-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #666;
+  border: 2px solid var(--shadow-black);
+}
+
+.seat-ready-dot.ready {
+  background: #6bbf59;
+}
+
+.seat-name {
+  font-family: "VT323", monospace;
+  font-size: 1.05rem;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 84px;
+}
+
+.seat-offline {
+  font-family: "VT323", monospace;
+  font-size: 0.85rem;
+  color: var(--accent-red);
+}
+
+.seat-disconnected {
+  opacity: 0.45;
+}
+
+/* Абсолютный оверлей у нижнего края — вне потока, чтобы динамическая высота набора
+   кнопок не «дёргала» размер канваса/стола. Пустые области бара кликов не ловят
+   (pointer-events: none), ловят только сами кнопки. */
+/* Панель действий: ПОСТОЯННЫЙ каркас из трёх кнопок одинакового размера. Высота
+   вынесена в переменную — её же меряет RoomScreen и отдаёт канвасу как нижний
+   отступ, чтобы игровые зоны заканчивались НАД панелью, а не под ней. */
+:root {
+  --action-btn-h: 56px;
+  /* Шапка комнаты: высота КОНСТАНТНА, а не «сколько получилось из контента».
+     Ту же величину RoomScreen отдаёт канвасу верхним отступом. */
+  --topbar-h: 40px;
+  --action-btn-w: clamp(96px, 30vw, 200px);
+  --action-bar-pad: 12px;
+}
+
+.action-bar {
+  position: absolute;
+  /* Выше шапки и баннеров: пока меню открыто, его пункты должны быть кликабельны. */
+  z-index: 8;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  padding: var(--action-bar-pad);
+  padding-bottom: calc(var(--action-bar-pad) + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.action-btn {
+  pointer-events: auto;
+  /* Размер фиксирован: кнопка не растёт от длины подписи и не прыгает между кадрами. */
+  width: var(--action-btn-w);
+  height: var(--action-btn-h);
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border: 3px solid var(--shadow-black);
+  border-radius: 0;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  font-family: "Press Start 2P", monospace;
+  /* Мелкий экран не должен ломать вёрстку: шрифт сжимается по clamp, а слишком
+     длинный текст сокращается в самом компоненте (см. shortenLabel). */
+  font-size: clamp(8px, 2.6vw, 12px);
+  line-height: 1.3;
+  letter-spacing: 0.5px;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.35), inset 3px 3px 0 rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.action-btn-main {
+  background: var(--accent-gold);
+  color: #2b1c0c;
+}
+
+.action-btn-menu {
+  width: var(--action-btn-h); /* квадратный: это иконка, а не подпись */
+  font-size: clamp(14px, 4vw, 20px);
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Меню гамбургера — «веер» как у папки в доке macOS: пункты выпрыгивают вверх от
+   самой кнопки и занимают ровно столько места, сколько нужно. Экран не закрывается:
+   затемнение едва заметное, стол под ним остаётся виден. */
+.action-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Ниже веера, но выше всего остального внутри панели действий. */
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+}
+
+.action-menu-anchor {
+  position: relative;
+  display: flex;
+  pointer-events: none; /* сама обёртка кликов не ловит — только кнопка и пункты */
+}
+
+.action-fan {
+  position: absolute;
+  z-index: 2; /* поверх подложки — они соседи в одном стековом контексте */
+  /* Растёт вверх ровно от гамбургера и по его правому краю. */
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(78vw, 340px);
+  pointer-events: auto;
+}
+
+.action-fan-item {
+  /* Ширина по содержимому — пункты «выпирают», а не тянутся во всю ширину. */
+  width: max-content;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border), 4px 4px 0 rgba(0, 0, 0, 0.45);
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  font-family: "VT323", monospace;
+  font-size: clamp(15px, 4vw, 20px);
+  text-align: right;
+  white-space: nowrap;
+  cursor: pointer;
+  transform-origin: bottom right;
+  animation: fan-pop 150ms ease-out backwards;
+}
+
+/* Выпрыгивание: снизу вверх, с лёгким перелётом — как раскрытие веера в доке. */
+@keyframes fan-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.action-fan-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.action-fan-empty {
+  margin: 0;
+  padding: 6px 12px;
+  background: var(--panel-bg);
+  border: 2px solid var(--shadow-black);
+  color: var(--ink-dim);
+  font-family: "VT323", monospace;
+  white-space: nowrap;
+}
+
+.seat-hand-count {
+  font-family: "VT323", monospace;
+  font-size: 1rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .seat {
+    width: 64px;
+  }
+
+  .seat-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+
+  .seat-name {
+    font-size: 0.9rem;
+    max-width: 64px;
+  }
+
+  .table-badge {
+    font-size: 0.85rem;
+  }
+}
+
+/* --- Profile modal --- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.menu-fab {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 50;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--accent-gold);
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.menu-toggle-row {
+  display: block;
+  width: 100%;
+  font-family: "VT323", monospace;
+  font-size: 1.15rem;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pixel-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pixel-panel-header .pixel-title {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.pixel-icon-btn {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  font-family: "VT323", monospace;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pixel-icon-spacer {
+  visibility: hidden;
+  cursor: default;
+}
+
+.seg-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.seg-btn {
+  flex: 1;
+  font-family: "VT323", monospace;
+  font-size: 1.05rem;
+  background: var(--panel-bg-light);
+  color: var(--ink-dim);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.seg-btn-active {
+  background: var(--accent-gold);
+  color: #2b1d0a;
+}
+
+/* Подменю рубашки — живой канвас-грид карт (см. CardBackCanvas/cardBackPicker). Канвас
+   сам задаёт свою высоту; хост только не мешает и держит его во всю ширину панели. */
+.back-canvas {
+  width: 100%;
+  touch-action: none; /* драг карт не должен прокручивать страницу под пальцем */
+}
+
+.back-canvas canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* Заглушка значка рубашки, пока картинка печётся (или нет WebGL): прямоугольник в фон. */
+.back-ph {
+  border: 2px solid var(--shadow-black);
+}
+
+/* Значок текущей рубашки в строке «Рубашка ›». */
+.menu-row-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-row-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-dim);
+}
+
+.back-chip {
+  width: 18px;
+  height: 26px;
+  border-radius: 2px;
+  image-rendering: pixelated;
+}
+
+.back-chip.back-ph {
+  border-width: 1px;
+}
+
+.pixel-btn-danger {
+  background: var(--accent-red);
+  color: #2b0d0a;
+}
+
+.recovery-code {
+  font-family: "VT323", monospace;
+  font-size: 1.3rem;
+  color: var(--accent-gold);
+  background: #1c120b;
+  padding: 8px 10px;
+  text-align: center;
+  letter-spacing: 1px;
+  margin: 4px 0;
+  word-break: break-all;
+}
+
+.pixel-hint {
+  font-family: "VT323", monospace;
+  font-size: 0.95rem;
+  color: var(--ink-dim);
+  margin: 4px 0 14px;
+}
+
+/* --- Seat context menu --- */
+
+.seat-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-bg);
+  border: 2px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border), 4px 4px 0 rgba(0, 0, 0, 0.5);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 20;
+  width: max-content;
+}
+
+.seat-menu-item {
+  font-family: "VT323", monospace;
+  font-size: 1rem;
+  background: var(--panel-bg-light);
+  color: var(--ink);
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.seat-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.seat-menu-danger {
+  color: var(--accent-red);
+}
+
+/* --- Proposal / voting banner --- */
+
+/* Оверлей поверх канваса, по центру под топбаром — не влияет на размер стола. */
+.proposal-banner {
+  position: absolute;
+  z-index: 6;
+  top: max(64px, calc(env(safe-area-inset-top) + 56px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92%, 460px);
+  background: var(--panel-bg);
+  border: 3px solid var(--shadow-black);
+  box-shadow: 0 0 0 2px var(--panel-border);
+  padding: 10px 14px;
+}
+
+.proposal-text {
+  font-family: "VT323", monospace;
+  font-size: 1.2rem;
+  margin: 0 0 4px;
+  text-align: center;
+}
+
+.proposal-countdown {
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.proposal-tally {
+  font-family: "VT323", monospace;
+  font-size: 1rem;
+  color: var(--ink-dim);
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.pixel-btn-voted {
+  box-shadow:
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 3px var(--accent-red);
+}
+
+/* --- Public room list --- */
+
+.public-room-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.public-room-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 1.05rem;
+}
+
+/* --- Hand (карты рендерятся на Pixi/WebGL внутри, см. Hand.tsx) --- */
+
+.hand {
+  width: 100%;
+  margin-bottom: 8px;
+  line-height: 0; /* canvas внутри не должен добавлять лишний inline-отступ */
+}
+
+/* Подсказка «добавить на домашний экран» / «открой в браузере» — плашка внизу экрана над
+   нижним краем. Вне комнаты, самоскрывается (см. InstallPrompt.tsx). */
+.install-prompt {
+  position: fixed;
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 60;
+  margin: 0 auto;
+  max-width: 380px;
+  padding: 14px 16px 16px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  border: 3px solid var(--shadow-black);
+  box-shadow:
+    0 0 0 3px var(--panel-border),
+    6px 6px 0 var(--shadow-black);
+}
+.install-title {
+  margin: 0 0 6px;
+  color: var(--accent-gold);
+  font-size: 0.95rem;
+  text-shadow: 1px 1px 0 var(--shadow-black);
+}
+.install-text {
+  margin: 0 0 10px;
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.install-text:last-child {
+  margin-bottom: 0;
+}
+.install-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  color: var(--ink-dim);
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* Быстрый вход недавними аккаунтами на экране входа: кнопка имени + крестик «забыть». */
+.recent-account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.recent-account-btn {
+  flex: 1;
+  text-align: left;
+}
