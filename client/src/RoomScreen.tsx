@@ -413,7 +413,10 @@ export function RoomScreen({
       </button>
 
       <RoomCanvas
-        key={canvasKey}
+        // Смена ЛЮБОЙ настройки графики пересобирает канвас целиком (как кнопка ⟳): свежий
+        // движок применяет настройку с чистого листа, без риска залипшего состояния. Плюс
+        // ручной счётчик canvasKey от кнопки ремоунта.
+        key={`${canvasKey}|${animation.level}|${animation.speed}|${animation.shadows}|${fourColor}|${cardBack}|${faceStyle}`}
         deck={deck}
         hand={myHand}
         discard={discard}
