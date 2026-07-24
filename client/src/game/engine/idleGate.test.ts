@@ -19,6 +19,7 @@ const QUIET: EngineActivity = {
   collapseBusy: false,
   idle: false,
   fanWiggle: false,
+  playFocus: false,
   cardsResting: true,
   handResting: true,
 };

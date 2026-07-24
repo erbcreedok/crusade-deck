@@ -916,6 +916,38 @@ describe("RoomEngine: игральная зона", () => {
     app.stage.__emit("pointerup", { pointerId: 5, global: { x: g.addCell.cx, y: g.addCell.cy } });
   });
 
+  // Наведённый стек получает тёплую подсветку фокуса, проступающую плавно; уводишь палец —
+  // она так же плавно гаснет (переход тень→свет). Пока идёт переход, цикл не спит.
+  it("подсветка фокуса стека проступает и гаснет плавно, цикл не засыпает под ней", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♣"], ["3♣"], ["4♣"]]);
+    engine.setHand(["9♦", "10♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const { playGrid } = await import("./playGrid");
+    const g = playGrid((engine as any).layout.centerZone, (engine as any).layout.cardW, (engine as any).layout.cardH, 3);
+    const hit = findByZ(app.stage, 10_100);
+    hit.__emit("pointerdown", { pointerId: 6, global: { x: 195, y: 700 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 6, global: { x: 215, y: 680 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+
+    // Над стеком — свет проступил.
+    app.stage.__emit("pointermove", { pointerId: 6, global: { x: g.cells[1]!.cx, y: g.cells[1]!.cy } });
+    for (let i = 0; i < 15; i++) app.ticker.__advance(16);
+    expect((engine as any).playFocusEnv).toBeGreaterThan(0.5);
+
+    // Ушли со стека — начал гаснуть, но НЕ мгновенно (плавно).
+    app.stage.__emit("pointermove", { pointerId: 6, global: { x: g.addCell.cx, y: g.addCell.cy } });
+    for (let i = 0; i < 3; i++) app.ticker.__advance(16);
+    const mid = (engine as any).playFocusEnv;
+    expect(mid).toBeGreaterThan(0.05);
+    expect(mid).toBeLessThan(0.9);
+    expect(app.ticker.started).toBe(true); // цикл не уснул посреди перехода
+
+    app.stage.__emit("pointerup", { pointerId: 6, global: { x: g.addCell.cx, y: g.addCell.cy } });
+  });
+
   it("на каждую карту зоны ровно один спрайт, дубликатов нет", async () => {
     const { engine, app } = await inGame();
     const cardCount = () => pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length;

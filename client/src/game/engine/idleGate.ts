@@ -38,6 +38,8 @@ export interface EngineActivity {
   /** Все карты колоды и руки доехали до своих целей (пружины успокоились). */
   cardsResting: boolean;
   handResting: boolean;
+  /** Подсветка фокуса наведённого стека игровой зоны ещё проявляется/гаснет. */
+  playFocus: boolean;
 }
 
 /** Можно ли усыпить рендер-цикл прямо сейчас. */
@@ -59,6 +61,7 @@ export function canSleep(a: EngineActivity): boolean {
     !a.collapseBusy &&
     !a.idle &&
     !a.fanWiggle &&
+    !a.playFocus &&
     a.cardsResting &&
     a.handResting
   );

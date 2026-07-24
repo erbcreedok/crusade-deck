@@ -216,6 +216,8 @@ export class RoomEngine {
   // без фокуса — узкий спокойный веер на 80% ширины.
   private handFocused = false;
   private focusG: Graphics | null = null; // рамка фокуса вокруг выделенного
+  private playFocusG: Graphics | null = null; // тёплая подсветка наведённого стека зоны
+  private playFocusEnv = 0; // 0..1 плавное появление подсветки фокуса (переход тень→свет)
 
   // Колода на столе и своя рука — одна и та же вещь с разной раскладкой (см. CardPile).
   private deckPile = new CardPile({
@@ -556,6 +558,11 @@ export class RoomEngine {
     // кнопки панели, и не должна прятаться под стопкой.
     this.focusG = new Graphics();
     this.focusG.zIndex = Z.focus;
+    // Тёплая подсветка наведённого стека — ПОД картами (Z.shadows..Z.cards), на месте его
+    // тени: тень гаснет, свет проступает. world сортирует детей по zIndex.
+    this.playFocusG = new Graphics();
+    this.playFocusG.zIndex = Z.shadows + 0.5;
+    this.playFocusG.eventMode = "none";
     this.zoneLayer = new Graphics();
     this.zoneLayer.zIndex = Z.zones;
     this.shadowLayer = new Container();
@@ -563,7 +570,16 @@ export class RoomEngine {
     this.cardLayer = new Container();
     this.cardLayer.zIndex = Z.cards;
     this.cardLayer.sortableChildren = true; // чересполосица половин в риффле
-    this.world.addChild(this.tableG, this.seatLayer, this.zoneLayer, this.shadowLayer, this.cardLayer, this.focusG);
+    this.world.sortableChildren = true;
+    this.world.addChild(
+      this.tableG,
+      this.seatLayer,
+      this.zoneLayer,
+      this.shadowLayer,
+      this.playFocusG,
+      this.cardLayer,
+      this.focusG,
+    );
   }
 
   // Надписи поверх стола: подписи зон «водяным» текстом и крупное «низяяя» при отбое.
@@ -1541,6 +1557,41 @@ export class RoomEngine {
   // Во время драга колоды место подсвечивается как дроп-зона — бросок отдаёт колоду ему.
   // Рамка фокуса вокруг выделенной колоды: небольшая подсветка, чтобы было видно,
   // к чему относятся кнопки панели.
+  private playFocusAt: { cx: number; cy: number } | null = null;
+
+  /**
+   * Тёплая подсветка фокуса наведённого стека игровой зоны. Проступает плавно и БЫСТРО
+   * (env ~0.2с), заменяя собой тень из-под стека (её syncShadows в это время не рисует).
+   * Точку запоминаем, пока стек под пальцем, чтобы подсветка успела ПЛАВНО угаснуть, когда
+   * палец ушёл, а не пропала рывком.
+   */
+  private stepPlayFocus(frameDt: number): void {
+    const active = !!this.cardDrag && this.playHover !== null;
+    if (active) {
+      const cell = this.playGridNow().cells[this.playHover!];
+      if (cell) this.playFocusAt = { cx: cell.cx, cy: cell.cy };
+    }
+    const target = active ? 1 : 0;
+    this.playFocusEnv += (target - this.playFocusEnv) * Math.min(1, frameDt * 18);
+    if (Math.abs(this.playFocusEnv - target) < 0.002) this.playFocusEnv = target;
+    this.drawPlayFocus();
+  }
+
+  private drawPlayFocus(): void {
+    const g = this.playFocusG;
+    if (!g) return;
+    g.clear();
+    const at = this.playFocusAt;
+    if (!at || this.playFocusEnv < 0.002) return;
+    const env = this.playFocusEnv;
+    const w = this.layout.cardW * 1.3; // чуть шире карты — свет спадает ореолом за края
+    const h = this.layout.cardH * 1.3;
+    const x = at.cx - w / 2;
+    const y = at.cy - h / 2;
+    g.roundRect(x, y, w, h, 16).fill({ color: 0xffe08a, alpha: 0.28 * env });
+    g.roundRect(x, y, w, h, 16).stroke({ width: 3, color: 0xffe9a8, alpha: 0.9 * env });
+  }
+
   private drawFocus(): void {
     const g = this.focusG;
     if (!g) return;
@@ -3458,6 +3509,9 @@ export class RoomEngine {
     this.seatLayer = null;
     this.seatG = null;
     this.focusG = null;
+    this.playFocusG = null;
+    this.playFocusAt = null;
+    this.playFocusEnv = 0;
     this.collapseBtn = null;
     this.deckCollapseBtn = null;
     this.handCounter = null;
@@ -3509,6 +3563,7 @@ export class RoomEngine {
     this.stepDraggedCard();
     this.stepFlipAnim(frameDt);
     this.stepOverlays(frameDt);
+    this.stepPlayFocus(frameDt);
     this.syncScene(frameDt);
     this.maybeSleep();
   }
@@ -3822,6 +3877,7 @@ export class RoomEngine {
           this.deckCollapseReveal !== (this.deckCollapseWantShow ? 1 : 0),
         idle: this.idleRunning(),
         fanWiggle: this.fanWiggling,
+        playFocus: this.playFocusEnv > 0.002,
         cardsResting: this.cards.every((c) => c.body.isResting()),
         handResting:
           this.hand.every((c) => c.body.isResting()) &&
@@ -3932,6 +3988,8 @@ export class RoomEngine {
       this.playStacks.forEach((_, k) => {
         const pile = playPile(k);
         if (this.boardFan === pile) return;
+        // Наведённый стек светится фокусом — тень из-под него не рисуем (переход тень→свет).
+        if (k === this.playHover && this.playFocusEnv > 0.5) return;
         const cards = this.pileCards(pile);
         // Две тени на кучку: под нижней картой и под верхней. Кучка разъезжается на пятую
         // часть ширины и треть высоты, и один силуэт оставил бы половину стопки висеть
