@@ -25,6 +25,7 @@ function renderMenu(overrides: Partial<Parameters<typeof AppMenu>[0]> = {}) {
       onSetCardBack={vi.fn()}
       room={null}
       onLeaveRoom={vi.fn()}
+      onLogout={vi.fn()}
       {...overrides}
     />
   );

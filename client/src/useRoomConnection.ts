@@ -9,6 +9,7 @@ import {
   pushRoomUrl,
   saveActiveRoom,
 } from "./roomRoute";
+import { sessionEntry } from "./sessionEntry";
 
 // Соединение с комнатой и адресная строка как одно целое: куда мы хотим попасть
 // (targetCode), живое соединение (room) и синхронизация того и другого с URL.
@@ -27,7 +28,13 @@ export interface RoomConnection {
 
 export function useRoomConnection(accountId?: string, accountName?: string): RoomConnection {
   const [room, setRoom] = useState<Room | null>(null);
-  const [targetCode, setTargetCode] = useState<string | null>(() => parseRoomCode() ?? loadActiveRoom());
+  const [targetCode, setTargetCode] = useState<string | null>(() => {
+    // Переход по ссылке переноса приземляет в мейн-меню под своим юзером — не подхватываем
+    // чужую (оставшуюся в этом браузере) активную комнату. Свою последнюю комнату юзер
+    // увидит кнопкой в лобби (она с сервера, по accountId).
+    if (sessionEntry().transferCode) return null;
+    return parseRoomCode() ?? loadActiveRoom();
+  });
 
   // Вошли в комнату: запоминаем её код (URL + персист) для бесшовного возврата. Код
   // приходит из состояния комнаты (inviteCode) — если его ещё нет, ждём первый стейт.

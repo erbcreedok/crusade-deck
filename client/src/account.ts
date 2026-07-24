@@ -1,4 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { sessionEntry } from "./sessionEntry";
+import { addRecent, forgetRecent, loadRecent, saveRecent, type RecentAccount } from "./recentAccounts";
 
 export interface Account {
   id: string;
@@ -6,7 +8,7 @@ export interface Account {
   recoveryHash: string;
 }
 
-const STORAGE_KEY = "crusade-deck:account";
+export const STORAGE_KEY = "crusade-deck:account";
 const SERVER_URL = import.meta.env.VITE_HTTP_URL || "http://localhost:2567";
 
 function loadLocal(): Account | null {
@@ -24,8 +26,13 @@ function saveLocal(account: Account) {
 }
 
 export function useAccount() {
-  const [account, setAccount] = useState<Account | null>(() => loadLocal());
-  const [loading, setLoading] = useState(false);
+  // Ссылка переноса сессии: код уже вычищен из URL синхронно (sessionEntry). Пока он есть,
+  // стартуем в «загрузке» и НЕ показываем локальный аккаунт — сейчас восстановим нужный.
+  const transferCode = sessionEntry().transferCode;
+  const [account, setAccount] = useState<Account | null>(() => (transferCode ? null : loadLocal()));
+  const [loading, setLoading] = useState(!!transferCode);
+  const transferredRef = useRef(false);
+  const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>(() => loadRecent());
 
   const createNew = useCallback(async (name?: string) => {
     setLoading(true);
@@ -62,6 +69,17 @@ export function useAccount() {
       setLoading(false);
     }
   }, []);
+
+  // Перенос сессии: восстановить аккаунт по коду из ссылки — один раз, поверх локального.
+  // Код устарел (юзер обновил код восстановления) — откатываемся на локальный аккаунт.
+  useEffect(() => {
+    if (!transferCode || transferredRef.current) return;
+    transferredRef.current = true;
+    restore(transferCode).catch(() => {
+      setAccount(loadLocal());
+      setLoading(false);
+    });
+  }, [transferCode, restore]);
 
   const rename = useCallback(
     async (name: string) => {
@@ -104,5 +122,27 @@ export function useAccount() {
     return updated;
   }, [account]);
 
-  return { account, loading, createNew, restore, rename, regenerateCode };
+  // Выход: текущий аккаунт остаётся в «недавних» (быстрый вход по его коду), активный —
+  // забывается. Возврат на экран входа делает уже App (account стал null).
+  const logout = useCallback(() => {
+    if (account) {
+      const next = addRecent(loadRecent(), account);
+      saveRecent(next);
+      setRecentAccounts(next);
+    }
+    localStorage.removeItem(STORAGE_KEY);
+    setAccount(null);
+    setLoading(false);
+  }, [account]);
+
+  // Убрать аккаунт из быстрого доступа (крестик на экране входа).
+  const forgetAccount = useCallback((id: string) => {
+    setRecentAccounts((cur) => {
+      const next = forgetRecent(cur, id);
+      saveRecent(next);
+      return next;
+    });
+  }, []);
+
+  return { account, loading, createNew, restore, rename, regenerateCode, logout, recentAccounts, forgetAccount };
 }

@@ -9,6 +9,7 @@ import {
   type AnimationSpeed,
 } from "./game/anim/animationSettings";
 import { formatBuild } from "./version";
+import { buildTransferLink } from "./sessionEntry";
 
 const LEVEL_OPTIONS: { value: AnimationLevel; label: string }[] = [
   { value: "full", label: "Полная" },
@@ -37,6 +38,7 @@ export function AppMenu({
   onSetCardBack,
   room,
   onLeaveRoom,
+  onLogout,
   open: controlledOpen,
   onOpenChange,
   showFab = true,
@@ -54,6 +56,7 @@ export function AppMenu({
   onSetCardBack: (id: CardBackId) => void;
   room: Room | null;
   onLeaveRoom: () => void;
+  onLogout: () => void;
   // Управление снаружи: в комнате меню открывает нижний веер, и своя кнопка ☰ не нужна.
   // Без этих пропсов компонент работает как раньше — сам с собой (лобби).
   open?: boolean;
@@ -72,6 +75,7 @@ export function AppMenu({
   const [view, setView] = useState<MenuView>("main");
   const [name, setName] = useState(account.name);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
@@ -100,10 +104,28 @@ export function AppMenu({
     }
   }
 
+  // Ссылка переноса сессии: в буфер уходит `origin/#u=КОД`. Открыв её в другом браузере,
+  // человек продолжит игру за того же юзера (код читается один раз и вычищается из URL).
+  // Ссылка «жива», пока жив код восстановления, — она всегда собирается из текущего.
+  async function copyTransferLink() {
+    try {
+      await navigator.clipboard.writeText(buildTransferLink(account.recoveryHash, window.location.origin));
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      // буфер недоступен — молча, тут показать нечего
+    }
+  }
+
   function leaveRoom() {
     room?.leave();
     onLeaveRoom();
     close();
+  }
+
+  function logout() {
+    close();
+    onLogout(); // выход из комнаты и аккаунта делает App; текущий юзер уходит в быстрый доступ
   }
 
   return (
@@ -147,6 +169,12 @@ export function AppMenu({
       <>
         <button className="menu-toggle-row" onClick={() => setView("profile")}>
           👤 Профиль
+        </button>
+
+        {/* Перенос сессии в другой браузер (обход сворачивания в браузере Telegram). В комнате
+            это «перенести эту игру», в лобби — просто «ссылка для входа»; действие одно. */}
+        <button className="menu-toggle-row" onClick={copyTransferLink}>
+          {linkCopied ? "✓ Ссылка в буфере" : room ? "🔗 Перенести эту игру" : "🔗 Ссылка для входа"}
         </button>
 
         <button className="menu-toggle-row" onClick={() => setView("graphics")}>
@@ -264,6 +292,13 @@ export function AppMenu({
             Обновить код
           </button>
         </div>
+
+        {/* Выход: код уже сохранён локально, поэтому логаут безопасен — юзер остаётся кнопкой
+            быстрого входа на экране входа и вернётся одним касанием. */}
+        <hr className="pixel-divider" />
+        <button className="pixel-btn pixel-btn-danger pixel-btn-full" onClick={logout}>
+          Выйти
+        </button>
       </>
     );
   }

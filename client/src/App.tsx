@@ -11,17 +11,27 @@ import { useAnimationSettings } from "./useAnimationSettings";
 import { useFourColor } from "./useFourColor";
 import { useCardBack } from "./useCardBack";
 import { useRoomConnection } from "./useRoomConnection";
+import { sessionEntry } from "./sessionEntry";
+import { InstallPrompt } from "./InstallPrompt";
 
 // Корень приложения: аккаунт, настройки, соединение с комнатой — и выбор экрана.
 // Сама логика подключения и адресной строки живёт в useRoomConnection.
 export default function App() {
-  const { user, account, loading, createAccount, restoreAccount, renameAccount, regenerateCode } = useAuth();
+  const { user, account, loading, createAccount, restoreAccount, renameAccount, regenerateCode, logout, recentAccounts, forgetAccount } =
+    useAuth();
   const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
   const { fourColor, setFourColor } = useFourColor();
   const { cardBack, setCardBack } = useCardBack();
   const { room, targetCode, onJoined, leaveToLobby, forget } = useRoomConnection(user?.uid, account?.name);
   // Меню настроек живёт здесь: в комнате его открывает нижний веер, в лобби — своя ☰.
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Логаут закрывает и комнату: сначала выходим из неё (сокет, активная комната, адрес),
+  // потом забываем аккаунт — App показывает экран входа с текущим юзером в быстром доступе.
+  const onLogout = () => {
+    leaveToLobby();
+    logout();
+  };
 
   // Фон и Framer Motion движутся только при полной анимации; в умеренной — статичны.
   const fullMotion = animation.level === "full";
@@ -39,7 +49,12 @@ export default function App() {
           <p className="pixel-loading">Загрузка...</p>
         </div>
       ) : !user ? (
-        <AuthScreen onCreate={createAccount} onRestore={restoreAccount} />
+        <AuthScreen
+          onCreate={createAccount}
+          onRestore={restoreAccount}
+          recentAccounts={recentAccounts}
+          onForgetRecent={forgetAccount}
+        />
       ) : (
         <>
           {account && (
@@ -61,6 +76,7 @@ export default function App() {
               onSetCardBack={setCardBack}
               room={room}
               onLeaveRoom={forget}
+              onLogout={onLogout}
             />
           )}
           {room ? (
@@ -89,8 +105,12 @@ export default function App() {
               initialName={account?.name}
               onRename={renameAccount}
               onJoined={onJoined}
+              prefillCode={sessionEntry().invitePrefill ?? undefined}
             />
           )}
+          {/* Подсказка «добавить на домашний экран» — вне комнаты, самоскрывается, если уже
+              standalone или закрыта. Особенно про браузер Telegram (сворачивает жестами). */}
+          {!room && <InstallPrompt />}
         </>
       )}
     </MotionConfig>

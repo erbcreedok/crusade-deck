@@ -1,0 +1,16 @@
+{
+  "name": "Crusade Deck",
+  "short_name": "Crusade",
+  "description": "Карточный стол для компании — 2–32 игрока, 36 или 52 карты.",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#173d2d",
+  "theme_color": "#173d2d",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -940,3 +940,61 @@ textarea {
   margin-bottom: 8px;
   line-height: 0; /* canvas внутри не должен добавлять лишний inline-отступ */
 }
+
+/* Подсказка «добавить на домашний экран» / «открой в браузере» — плашка внизу экрана над
+   нижним краем. Вне комнаты, самоскрывается (см. InstallPrompt.tsx). */
+.install-prompt {
+  position: fixed;
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 60;
+  margin: 0 auto;
+  max-width: 380px;
+  padding: 14px 16px 16px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  border: 3px solid var(--shadow-black);
+  box-shadow:
+    0 0 0 3px var(--panel-border),
+    6px 6px 0 var(--shadow-black);
+}
+.install-title {
+  margin: 0 0 6px;
+  color: var(--accent-gold);
+  font-size: 0.95rem;
+  text-shadow: 1px 1px 0 var(--shadow-black);
+}
+.install-text {
+  margin: 0 0 10px;
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.install-text:last-child {
+  margin-bottom: 0;
+}
+.install-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  color: var(--ink-dim);
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* Быстрый вход недавними аккаунтами на экране входа: кнопка имени + крестик «забыть». */
+.recent-account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.recent-account-btn {
+  flex: 1;
+  text-align: left;
+}

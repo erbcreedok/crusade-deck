@@ -22,7 +22,8 @@ interface AccountUser {
 // клиент хранит их локально. Совпадает с CardRoom.onAuth на сервере, который
 // принимает accountId напрямую. См. [[feedback-no-firebase-for-local-dev]].
 function useAccountAuth() {
-  const { account, loading, createNew, restore, rename, regenerateCode } = useAccount();
+  const { account, loading, createNew, restore, rename, regenerateCode, logout, recentAccounts, forgetAccount } =
+    useAccount();
 
   const user: AccountUser | null = account
     ? {
@@ -49,9 +50,9 @@ function useAccountAuth() {
     signUpEmail: async () => {
       throw new Error("Регистрация недоступна без настроенного Firebase (client/src/firebase.ts)");
     },
-    logout: async () => {
-      localStorage.removeItem("crusade-deck:account");
-    },
+    logout,
+    recentAccounts,
+    forgetAccount,
   };
 }
 
@@ -78,6 +79,9 @@ function useFirebaseAuth() {
     signInEmail: (email: string, password: string) => signInWithEmailAndPassword(auth!, email, password),
     signUpEmail: (email: string, password: string) => createUserWithEmailAndPassword(auth!, email, password),
     logout: () => signOut(auth!),
+    // Быстрый вход по недавним аккаунтам — фича своих аккаунтов; у Firebase своя сессия.
+    recentAccounts: [] as import("./recentAccounts").RecentAccount[],
+    forgetAccount: (_id: string) => {},
     // Google/Apple/magic-link — добавляются сюда следующим шагом,
     // структура для них уже готова (просто новые функции по этому же образцу)
   };

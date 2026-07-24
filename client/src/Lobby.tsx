@@ -17,15 +17,18 @@ export function Lobby({
   initialName,
   onRename,
   onJoined,
+  prefillCode,
 }: {
   accountId?: string;
   initialName?: string;
   onRename: (name: string) => void;
   onJoined: (room: Room) => void;
+  // Новичок пришёл по ссылке-приглашению: код комнаты уже подставлен — осталось нажать «Войти».
+  prefillCode?: string;
 }) {
   const [name, setName] = useState(initialName || "Player");
   const [deckType, setDeckType] = useState<"36" | "52">("36");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(prefillCode ?? "");
   const [error, setError] = useState<string | null>(null);
   const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([]);
   const [lastRoom, setLastRoom] = useState<LastRoomInfo | null>(null);
@@ -151,6 +154,9 @@ export function Lobby({
         <hr className="pixel-divider" />
 
         <label className="pixel-label">4-значный код</label>
+        {prefillCode && (
+          <p className="pixel-hint">Тебя пригласили в комнату {prefillCode} — жми «Войти по коду».</p>
+        )}
         <input
           className="pixel-input"
           value={code}
@@ -158,7 +164,11 @@ export function Lobby({
           placeholder="0000"
           maxLength={4}
         />
-        <button className="pixel-btn pixel-btn-secondary pixel-btn-full" style={{ marginTop: 10 }} onClick={joinByCode}>
+        <button
+          className={`pixel-btn pixel-btn-full${prefillCode ? "" : " pixel-btn-secondary"}`}
+          style={{ marginTop: 10 }}
+          onClick={joinByCode}
+        >
           Войти по коду
         </button>
 
