@@ -1,0 +1,33 @@
+client/src/game/engine/idleGate.test.ts
+  s_6b17180413249b::t_8285684696bafc 22
+client/src/game/RoomEngine.ts
+  s_6b17180413249b::t_bd470185fcda6c 3880
+  s_6b17180413249b::t_a948f105e68489 3566
+  s_6b17180413249b::t_8d4a13576273c3 219-220
+  s_6b17180413249b::t_8f96fc804bbeee 561-565
+  s_6b17180413249b::t_5fcd3909b2c83b 3512-3514
+  s_6b17180413249b::t_496a8143ddb6a2 3991-3992
+  s_6b17180413249b::t_210e717b3c4a20 1560-1594
+  s_6b17180413249b::t_6ac382da1d629c 573-582
+client/src/game/RoomEngine.test.ts
+  s_6b17180413249b::t_50a78c7f22821c 919-950
+client/src/game/engine/idleGate.ts
+  s_6b17180413249b::t_f26388734bde77 64
+  s_6b17180413249b::t_718ae551ceefc8 41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "14d86dcd8152e0774e79bdbec2d9d3daef6dd63d",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
