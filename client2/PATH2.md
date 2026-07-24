@@ -37,21 +37,70 @@ playGrid). Пул — чистый (без Pixi), тестируется на ф
 
 ## План интеграции в RoomEngine (пошагово, держим тесты зелёными)
 
-1. **[сделано]** `TablePool` + юнит-тесты (this commit).
-2. `assembleTable(deck, hand, discard, play)` — из четырёх массивов состояния собрать единый
-   список слотов (playFlat уже даёт плоский порядок зоны). Чистая функция + тест.
-3. `applyTable()` в движке: один reconcile пула на все боксы. `anchor(slot)` диспетчеризует
-   в существующие `restTarget/handRestTarget/discardRestTarget/playRestTarget`.
-4. Перевести `setDeck/setHand/setDiscard/setPlay` на буферизацию + один `applyTable` (боксы
-   приходят порознь через useEngineEffect — нужен единый прогон, иначе идентичность рвётся
-   на границе, как сейчас).
+1. **[СДЕЛАНО, d5f9371]** `TablePool` + юнит-тесты.
+2. **[СДЕЛАНО, d5f9371]** `assembleTable(deck, hand, discard, play)` — единый список слотов
+   из четырёх массивов состояния + тест.
+3. **[СЛЕДУЮЩИЙ]** `applyTable()` в движке: один reconcile пула на все боксы.
+4. Перевести `setDeck/setHand/setDiscard/setPlay` на буферизацию + один `applyTable`.
 5. Удалить призрачную подсистему для ВИДИМЫХ переходов (`enqueueCardFlight` и производные
    остаются только для границы видимости — спавн/ретайр у мест).
 6. Сохранить спецанимации поверх пула: тасовка, скрамбл, переворот (flip вдоль перелёта уже
    есть в client), `collect_hands`, free-`take`; защиты `deckRev`/`set_hand_order`/драг.
-7. Переворот на границе бокса: если сторона карты в новом боксе отличается (закрытая колода
-   → открытая рука; лицо → рубашка сброса) — перелёт несёт flip (логика startFace≠faceUp
-   уже перенесена из client).
+7. Переворот на границе бокса: если сторона карты в новом боксе отличается — перелёт несёт
+   flip (логика startFace≠faceUp уже перенесена из client).
+
+## ВАЖНО: интеграция — это «всё или ничего» в рендер-пути
+
+TablePool и 4 существующих `CardPile` НЕЛЬЗЯ гонять параллельно: оба создадут спрайты на
+одни и те же карты → дубли на сцене. Значит шаг 3–4 = заменить 4 пула на 1 разом. Такую
+замену НЕЛЬЗЯ делать вслепую — компилируется и проходит структурные тесты, но анкоры и
+спецанимации встанут криво, а без устройства это не видно. Делать с проверкой на телефоне.
+
+## Рецепт шага 3–4 (конкретно)
+
+```ts
+// поле движка вместо deckPile/handPile/discardPile/playPile:
+private table = new TablePool({
+  create: (card) => this.createCardVisual(card),
+  anchor: (s) => this.anchorFor(s),          // диспетчер ниже
+  spawnAnchor: (s) => this.spawnFor(s),       // откуда влетает новая карта (место/колода)
+  onEnter: (v, s) => this.placeCard(v, s),    // z-порядок/текстура/видимость
+  onPlace: (v, s) => this.placeCard(v, s),
+  onLeave: (v, card) => this.retireCard(v, card), // ушла в чужое место → ретайр
+});
+
+private anchorFor(s: TableSlot): CardTargets {
+  if (s.box === "deck") return this.restTarget(s.within);
+  if (s.box === "hand") return this.handRestTarget(s.within);
+  if (s.box === "discard") return this.discardRestTarget(s.within);
+  if (s.box.startsWith("play:")) {
+    // playRestTarget работает по плоскому индексу — держать map слот→плоский i,
+    // либо переписать playRestTarget на (stack, within). См. playFlat/playGrid.
+  }
+}
+
+// боксы приходят порознь (useEngineEffect) — буферизуем и реконсилим ОДНИМ прогоном:
+private pending?: { deck; hand; discard; play };
+setDeck(x){ this.pending.deck = x; this.scheduleApply(); }   // и т.д. для hand/discard/play
+private scheduleApply(){ queueMicrotask(() => this.applyTable()); } // один прогон на кадр
+private applyTable(){
+  const slots = assembleTable(this.pendDeck, this.pendHand, this.pendDiscard, this.pendPlay);
+  this.table.apply(slots);
+  // + syncVisibility/counters/zones/drawSeats как сейчас делают set*-методы
+}
+```
+
+Тонкости, которые НЕЛЬЗЯ потерять при переносе (сейчас живут в set*-методах client):
+- `deckRev`/`set_hand_order`: игнор устаревших эхо и удержание своего порядка руки;
+- оптимистичный драг: своё действие уже показано, эхо не переигрывать;
+- тасовка/скрамбл/переворот колоды перехватывают setDeck ДО обычной укладки (см. ветки в
+  `setDeck` client) — на пуле это ветки в `applyTable` для бокса deck;
+- разъезд кучки (`playStackOffset`), джиттер углов (`restJitter`), масштаб зоны из сетки;
+- последовательность полёта (карта скрыта пока летит) — на пуле это `spawnAnchor` = точка
+  дропа и обычный `setTarget`, БЕЗ призрака: спрайт сам летит из руки в слот.
+
+Проверка на устройстве после шага 4: раздача, дроп в зону/сброс, реордер, тасовка,
+перераздача, свободный take, переворот — всё должно летать одним спрайтом, без «в центр».
 
 ## Риски
 
