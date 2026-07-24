@@ -1,0 +1,47 @@
+client/src/theme.css
+  s_89d5ad20619017::t_5643646dbed1be 410-411,414-416
+  s_89d5ad20619017::t_5cc92fadcfb345 412-413,417-434
+client/src/game/cardFlight.ts
+  s_89d5ad20619017::t_0931965fb1ff8c 35-37
+client/src/game/RoomEngine.ts
+  s_89d5ad20619017::t_844178ef1bb2ca 2278
+  s_89d5ad20619017::t_aa7c5cf9a9dd9e 2388
+  s_89d5ad20619017::t_e4cf2082560343 2420,2422
+  s_89d5ad20619017::t_1cd7ddb5535f71 2258
+  s_89d5ad20619017::t_c5f71d33bb4a7d 4230-4232
+  s_89d5ad20619017::t_2e1b3733e97c5d 1150
+  s_89d5ad20619017::t_cc8c353b8fc846 2287,2294-2297
+  s_89d5ad20619017::t_aa954f823a1346 2330,2333-2334
+  s_89d5ad20619017::t_1290b0770e28bb 2346
+  s_89d5ad20619017::t_b37e1679bcc7e5 1185
+  s_89d5ad20619017::t_87b3166577bcef 402-404
+  s_89d5ad20619017::t_57e53d1026211a 1180-1183
+  s_89d5ad20619017::t_3bab0bcefe9576 2421
+  s_89d5ad20619017::t_a0f620a3951c0f 2484-2501
+  s_89d5ad20619017::t_cb54d1dbaafc8d 2905
+  s_89d5ad20619017::t_a6c6e1c301aea7 2473-2474
+  s_89d5ad20619017::t_a76985d8dc6633 2454-2456,2468-2472,2475-2477
+  s_89d5ad20619017::t_22153e4f682d92 2379,2384-2387
+  s_89d5ad20619017::t_8f24849dc0144f 2245
+  s_89d5ad20619017::t_4206c9f1937f0a 2881
+  s_89d5ad20619017::t_fbfa0042dbd159 1127-1131
+client/src/RoomScreen.tsx
+  s_89d5ad20619017::t_f6d234a3d74872 405-414,416
+  s_89d5ad20619017::t_68914a1d81b052 78-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c53deb1f619a6473fb9ea59fa44c8e09d525f6fb",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
