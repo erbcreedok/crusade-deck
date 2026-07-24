@@ -23,6 +23,8 @@ function renderMenu(overrides: Partial<Parameters<typeof AppMenu>[0]> = {}) {
       onSetFourColor={vi.fn()}
       cardBack="ruby"
       onSetCardBack={vi.fn()}
+      faceStyle="symbol"
+      onSetFaceStyle={vi.fn()}
       room={null}
       onLeaveRoom={vi.fn()}
       onLogout={vi.fn()}
@@ -71,22 +73,38 @@ describe("AppMenu overlay", () => {
     expect(byText(container, "Анимации")).toBeUndefined();
 
     fireEvent.click(byText(container, "Графика"));
-    expect(byText(container, "Квадраторомб")).toBeTruthy();
-    expect(byText(container, "Мозаика")).toBeTruthy();
+    // Рубашка теперь строкой с текущим скином, а не списком — сами скины в подменю.
+    expect(byText(container, "Рубашка")).toBeTruthy();
+    expect(byText(container, "Рубин")).toBeTruthy();
     expect(container.querySelector(".pixel-title")?.textContent).toContain("Графика");
   });
 
-  it("выбор рубашки уходит наверх, текущий скин подсвечен", () => {
+  it("вид карт переключается на пипсы в Графике", () => {
+    const onSetFaceStyle = vi.fn();
+    const { container } = renderMenu({ faceStyle: "symbol", onSetFaceStyle });
+    open(container);
+    fireEvent.click(byText(container, "Графика"));
+
+    expect(byText(container, "Крупно").className).toContain("seg-btn-active");
+    fireEvent.click(byText(container, "По номиналу"));
+    expect(onSetFaceStyle).toHaveBeenCalledWith("pips");
+  });
+
+  it("рубашка — отдельное подменю с гридом, выбор применяется и возвращает наверх", () => {
     const onSetCardBack = vi.fn();
     const { container } = renderMenu({ cardBack: "ruby", onSetCardBack });
     open(container);
     fireEvent.click(byText(container, "Графика"));
+    fireEvent.click(byText(container, "Рубашка")); // строка → подменю рубашки
 
-    expect(byText(container, "Квадраторомб").className).toContain("seg-btn-active");
-    expect(byText(container, "Мозаика").className).not.toContain("seg-btn-active");
+    expect(container.querySelector(".back-grid")).toBeTruthy();
+    expect(byText(container, "Рубин").className).toContain("back-opt-active");
+    expect(byText(container, "Мозаика").className).not.toContain("back-opt-active");
 
     fireEvent.click(byText(container, "Мозаика"));
     expect(onSetCardBack).toHaveBeenCalledWith("mosaic");
+    // Клик по скину возвращает в «Графику».
+    expect(container.querySelector(".pixel-title")?.textContent).toContain("Графика");
   });
 
   it("из подраздела можно вернуться в главное меню", () => {

@@ -2,27 +2,53 @@
 // Рисует по этим числам движок (makeCardBackTexture) — сюда Pixi не заглядывает, поэтому
 // геометрия узора тестируется юнитами. Скинов пока два, список рассчитан на пополнение.
 
-export type CardBackId = "ruby" | "mosaic";
+export type CardBackId =
+  | "ruby"
+  | "mosaic"
+  | "emerald"
+  | "amethyst"
+  | "ember"
+  | "steel"
+  | "sunburst"
+  | "bubble";
 
 export interface CardBackSkin {
   id: CardBackId;
   label: string;
-  pattern: "lattice" | "mosaic"; // какой узор рисовать
+  pattern: "lattice" | "mosaic" | "dots"; // какой узор рисовать
   bg: number; // фон карты
   border: number; // рамка по краю
   inner: number; // внутренняя рамка/обводка фигур
-  ink: number[]; // палитра узора (для мозаики — по числу оттенков)
+  ink: number[]; // палитра узора (мозаика — по числу оттенков; точки/решётка — два)
 }
 
 export const CARD_BACKS: CardBackSkin[] = [
   {
     id: "ruby",
-    label: "Квадраторомб",
+    label: "Рубин",
     pattern: "lattice",
     bg: 0xf4ecd8,
     border: 0xc0392b,
     inner: 0x8e2a1f,
     ink: [0xc0392b, 0xe8574a],
+  },
+  {
+    id: "emerald",
+    label: "Изумруд",
+    pattern: "lattice",
+    bg: 0xe8f0e0,
+    border: 0x1f5c39,
+    inner: 0x184a2d,
+    ink: [0x2f7d4f, 0x3fa06a],
+  },
+  {
+    id: "amethyst",
+    label: "Аметист",
+    pattern: "lattice",
+    bg: 0xefe6f5,
+    border: 0x5a2d78,
+    inner: 0x46215e,
+    ink: [0x7b3fa0, 0x9b5fc0],
   },
   {
     id: "mosaic",
@@ -32,6 +58,42 @@ export const CARD_BACKS: CardBackSkin[] = [
     border: 0x2b6cb0,
     inner: 0x0a0f1a,
     ink: [0x14304f, 0x1d4f7c, 0x2b6cb0],
+  },
+  {
+    id: "ember",
+    label: "Угли",
+    pattern: "mosaic",
+    bg: 0x1a0e0a,
+    border: 0xe0671f,
+    inner: 0x120806,
+    ink: [0x4a1d0e, 0x7a2f14, 0xb3491f],
+  },
+  {
+    id: "steel",
+    label: "Сталь",
+    pattern: "mosaic",
+    bg: 0x0d1417,
+    border: 0x4f8f9e,
+    inner: 0x0a0f11,
+    ink: [0x1c2e33, 0x2c4a52, 0x3d6b76],
+  },
+  {
+    id: "sunburst",
+    label: "Закат",
+    pattern: "dots",
+    bg: 0x201603,
+    border: 0xffd95e,
+    inner: 0x3a2a08,
+    ink: [0xe0a63a, 0xf2c85a],
+  },
+  {
+    id: "bubble",
+    label: "Пузыри",
+    pattern: "dots",
+    bg: 0x08121f,
+    border: 0x3fc0d6,
+    inner: 0x0a1a24,
+    ink: [0x1d6c7c, 0x2f9db0],
   },
 ];
 

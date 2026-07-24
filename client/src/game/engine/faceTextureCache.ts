@@ -15,9 +15,12 @@ const WARM_INTERVAL_MS = 16;
 type Schedule = (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
 type CancelSchedule = (id: ReturnType<typeof setTimeout>) => void;
 
+/** Вариант текстуры лица помимо самой карты: палитра и вид лица. Всё, что меняет картинку. */
+type Variant = string;
+
 export interface FaceTextureCacheOptions<T> {
   /** Испечь текстуру лица карты. */
-  make: (card: string, fourColor: boolean) => T;
+  make: (card: string, fourColor: boolean, style?: string) => T;
   /** Освободить текстуру (у Pixi — tex.destroy(true)). */
   destroy: (tex: T) => void;
   /** Подмена таймера для тестов. */
@@ -28,7 +31,7 @@ export interface FaceTextureCacheOptions<T> {
 export class FaceTextureCache<T> {
   private cache = new Map<string, T>();
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private readonly make: (card: string, fourColor: boolean) => T;
+  private readonly make: (card: string, fourColor: boolean, style?: string) => T;
   private readonly destroyTex: (tex: T) => void;
   private readonly schedule: Schedule;
   private readonly cancel: CancelSchedule;
@@ -40,20 +43,23 @@ export class FaceTextureCache<T> {
     this.cancel = opts.cancel ?? ((id) => clearTimeout(id));
   }
 
-  /** Ключ учитывает четырёхцветность: одна и та же карта в двух палитрах — две текстуры. */
-  private key(card: string, fourColor: boolean): string {
-    return `${card}|${fourColor ? 1 : 0}`;
+  /**
+   * Ключ учитывает палитру И вид лица: одна карта в разных настройках — разные текстуры.
+   * Иначе смена «крупный значок ⇄ пипсы» показывала бы старую запечённую картинку.
+   */
+  private key(card: string, fourColor: boolean, style?: Variant): string {
+    return `${card}|${fourColor ? 1 : 0}|${style ?? ""}`;
   }
 
-  has(card: string, fourColor: boolean): boolean {
-    return this.cache.has(this.key(card, fourColor));
+  has(card: string, fourColor: boolean, style?: Variant): boolean {
+    return this.cache.has(this.key(card, fourColor, style));
   }
 
-  get(card: string, fourColor: boolean): T {
-    const key = this.key(card, fourColor);
+  get(card: string, fourColor: boolean, style?: Variant): T {
+    const key = this.key(card, fourColor, style);
     let tex = this.cache.get(key);
     if (!tex) {
-      tex = this.make(card, fourColor);
+      tex = this.make(card, fourColor, style);
       this.cache.set(key, tex);
     }
     return tex;
@@ -63,15 +69,15 @@ export class FaceTextureCache<T> {
    * Испечь недостающие лица порциями. Повторный вызов, пока идёт прогрев, игнорируется —
    * очередь и так дойдёт до конца, а перезапуск только сбрасывал бы прогресс.
    */
-  warm(cards: readonly string[], fourColor: boolean, alive: () => boolean = () => true): void {
+  warm(cards: readonly string[], fourColor: boolean, alive: () => boolean = () => true, style?: Variant): void {
     if (this.timer !== null) return;
-    const queue = cards.filter((c) => !this.has(c, fourColor));
+    const queue = cards.filter((c) => !this.has(c, fourColor, style));
     if (queue.length === 0) return;
     let i = 0;
     const step = (): void => {
       this.timer = null;
       if (!alive()) return;
-      for (let k = 0; k < WARM_BATCH && i < queue.length; k++, i++) this.get(queue[i]!, fourColor);
+      for (let k = 0; k < WARM_BATCH && i < queue.length; k++, i++) this.get(queue[i]!, fourColor, style);
       if (i < queue.length) this.timer = this.schedule(step, WARM_INTERVAL_MS);
     };
     this.timer = this.schedule(step, 0);

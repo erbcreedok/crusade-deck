@@ -140,7 +140,7 @@ import { CLEAR_PLAY_LABEL, clearPlayButton, hitsClearPlay } from "./engine/clear
 import { flattenPlay, type PlaySlot } from "./playFlat";
 import { pickPlayCell, playGrid, type PlayGrid } from "./playGrid";
 import { playHoverAdjust } from "./playHover";
-import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./engine/cardTextures";
+import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture, type FaceStyle } from "./engine/cardTextures";
 import { FaceTextureCache } from "./engine/faceTextureCache";
 import { handFanGeom } from "./engine/fanGeometry";
 import { paintSeats } from "./engine/seatPaint";
@@ -185,7 +185,7 @@ export class RoomEngine {
   private shadowTex: Texture | null = null;
   // Лицевые текстуры: кэш + фоновой прогрев порциями (см. faceTextureCache.ts).
   private faces = new FaceTextureCache<Texture>({
-    make: (card, fourColor) => makeCardFaceTexture(this.app!, card, fourColor),
+    make: (card, fourColor, style) => makeCardFaceTexture(this.app!, card, fourColor, (style as FaceStyle) ?? "symbol"),
     destroy: (tex) => tex.destroy(true),
   });
 
@@ -268,6 +268,7 @@ export class RoomEngine {
 
   private fourColor = false; // четырёхцветная колода (♦ оранж, ♣ голубой) для слабовидящих
   private cardBack: CardBackId = DEFAULT_CARD_BACK; // скин рубашки (меню → Графика)
+  private faceStyle: FaceStyle = "symbol"; // вид лица числовых карт: крупный значок / пипсы
   // Какая стопка ДОСКИ сейчас раскрыта веером — и раскрыта она всегда в одном месте, по
   // центру игровой зоны (layout.boardFanAnchor). Веер один на доску: колода и сброс делят
   // это место, открытие одного закрывает другой. Веер руки живёт отдельно и независимо.
@@ -1747,6 +1748,15 @@ export class RoomEngine {
     if (v === this.fourColor) return;
     this.fourColor = v;
     this.applyCardTextures(); // фейсы возьмут новый цвет (кэш по fourColor)
+    this.drawSeats();
+    this.wake();
+  }
+
+  // Вид лица числовых карт: крупный значок ⇄ пипсы по номиналу (кэш лиц ключует и по нему).
+  setFaceStyle(style: FaceStyle): void {
+    if (style === this.faceStyle) return;
+    this.faceStyle = style;
+    this.applyCardTextures();
     this.drawSeats();
     this.wake();
   }
@@ -4302,12 +4312,13 @@ export class RoomEngine {
       [...this.deckCards, ...this.handCards, ...openHands],
       this.fourColor,
       () => !this.destroyed && !!this.app,
+      this.faceStyle,
     );
   }
 
   private faceTexFor(card: string): Texture {
     if (!this.app) return this.backTex!;
-    return this.faces.get(card, this.fourColor);
+    return this.faces.get(card, this.fourColor, this.faceStyle);
   }
 
   // Колода лежит лицом вверх? Смотрим по верхней карте: от этого зависит, в какую

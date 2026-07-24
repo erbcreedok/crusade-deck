@@ -10,6 +10,7 @@ import { applyThemeColor } from "./themeColor";
 import { useAnimationSettings } from "./useAnimationSettings";
 import { useFourColor } from "./useFourColor";
 import { useCardBack } from "./useCardBack";
+import { useFaceStyle } from "./useFaceStyle";
 import { useRoomConnection } from "./useRoomConnection";
 import { sessionEntry } from "./sessionEntry";
 import { InstallPrompt } from "./InstallPrompt";
@@ -22,6 +23,7 @@ export default function App() {
   const { settings: animation, setLevel, setSpeed, setShadows } = useAnimationSettings();
   const { fourColor, setFourColor } = useFourColor();
   const { cardBack, setCardBack } = useCardBack();
+  const { faceStyle, setFaceStyle } = useFaceStyle();
   const { room, targetCode, onJoined, leaveToLobby, forget } = useRoomConnection(user?.uid, account?.name);
   // Меню настроек живёт здесь: в комнате его открывает нижний веер, в лобби — своя ☰.
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -77,6 +79,8 @@ export default function App() {
               onSetFourColor={setFourColor}
               cardBack={cardBack}
               onSetCardBack={setCardBack}
+              faceStyle={faceStyle}
+              onSetFaceStyle={setFaceStyle}
               room={room}
               onLeaveRoom={forget}
               onLogout={onLogout}
@@ -89,6 +93,7 @@ export default function App() {
               animation={animation}
               fourColor={fourColor}
               cardBack={cardBack}
+              faceStyle={faceStyle}
               onOpenSettings={() => setSettingsOpen(true)}
               onLeaveRoom={leaveToLobby}
             />

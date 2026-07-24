@@ -67,6 +67,7 @@ export function RoomCanvas(props: EngineProps) {
   useEngineEffect(e, (en) => en.setBottomInset(props.bottomInset), [props.bottomInset]);
   useEngineEffect(e, (en) => en.setFourColor(props.fourColor), [props.fourColor]);
   useEngineEffect(e, (en) => en.setCardBack(props.cardBack), [props.cardBack]);
+  useEngineEffect(e, (en) => en.setFaceStyle(props.faceStyle), [props.faceStyle]);
   useEngineEffect(e, (en) => en.setCardFacing(props.facing), [props.facing]);
   // Право раздавать и быть источником правды для колоды — одно и то же условие.
   useEngineEffect(e, (en) => en.setAuthoritative(props.canDeal), [props.canDeal]);

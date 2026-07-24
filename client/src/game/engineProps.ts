@@ -2,6 +2,7 @@ import type { RoomEngine } from "./RoomEngine";
 import type { AnimationSettings } from "./anim/animationSettings";
 import { resolveProfile } from "./anim/animationSettings";
 import type { CardBackId } from "./cardBack";
+import type { FaceStyle } from "./engine/cardTextures";
 import type { DeckFxIncoming, DeckFxMessage } from "./deckFxClient";
 import type { SeatView } from "./seats";
 import type { BoardPile } from "./engine/types";
@@ -31,6 +32,7 @@ export interface EngineState {
   selfIsDealer: boolean;
   fourColor: boolean;
   cardBack: CardBackId;
+  faceStyle: FaceStyle;
   facing: Record<string, boolean>;
   animation: AnimationSettings;
 }
@@ -97,6 +99,7 @@ export function applyAllToEngine(engine: RoomEngine, p: EngineProps): void {
   engine.setAnimationProfile(resolveProfile(p.animation));
   engine.setFourColor(p.fourColor);
   engine.setCardBack(p.cardBack);
+  engine.setFaceStyle(p.faceStyle);
   engine.setFreeMode(p.freeMode);
   engine.setBoardFan(p.boardFan);
   engine.setCanDeal(p.canDeal);

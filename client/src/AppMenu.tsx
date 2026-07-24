@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { Account } from "./account";
-import { CARD_BACKS, type CardBackId } from "./game/cardBack";
+import { CARD_BACKS, cardBackSkin, type CardBackId } from "./game/cardBack";
+import type { FaceStyle } from "./game/engine/cardTextures";
 import {
   ANIMATION_SPEEDS,
   type AnimationLevel,
@@ -16,12 +17,13 @@ const LEVEL_OPTIONS: { value: AnimationLevel; label: string }[] = [
   { value: "moderate", label: "Умеренная" },
 ];
 
-type MenuView = "main" | "profile" | "graphics";
+type MenuView = "main" | "profile" | "graphics" | "backs";
 
 const VIEW_TITLES: Record<MenuView, string> = {
   main: "♣ Меню ♦",
   profile: "👤 Профиль",
   graphics: "🎨 Графика",
+  backs: "🂠 Рубашка",
 };
 
 export function AppMenu({
@@ -36,6 +38,8 @@ export function AppMenu({
   onSetFourColor,
   cardBack,
   onSetCardBack,
+  faceStyle,
+  onSetFaceStyle,
   room,
   onLeaveRoom,
   onLogout,
@@ -55,6 +59,8 @@ export function AppMenu({
   onSetFourColor: (v: boolean) => void;
   cardBack: CardBackId;
   onSetCardBack: (id: CardBackId) => void;
+  faceStyle: FaceStyle;
+  onSetFaceStyle: (v: FaceStyle) => void;
   room: Room | null;
   onLeaveRoom: () => void;
   onLogout: () => void;
@@ -145,7 +151,11 @@ export function AppMenu({
           <div className="pixel-panel" onClick={(e) => e.stopPropagation()}>
             <div className="pixel-panel-header">
               {view !== "main" ? (
-                <button className="pixel-icon-btn" aria-label="Назад" onClick={() => setView("main")}>
+                <button
+                  className="pixel-icon-btn"
+                  aria-label="Назад"
+                  onClick={() => setView(view === "backs" ? "graphics" : "main")}
+                >
                   ←
                 </button>
               ) : (
@@ -160,6 +170,7 @@ export function AppMenu({
             {view === "main" && renderMain()}
             {view === "profile" && renderProfile()}
             {view === "graphics" && renderGraphics()}
+            {view === "backs" && renderBacks()}
           </div>
         </div>
       )}
@@ -251,19 +262,30 @@ export function AppMenu({
           </>
         )}
 
-        <label className="pixel-label">Рубашка</label>
+        <label className="pixel-label">Вид карт</label>
         <div className="seg-row">
-          {CARD_BACKS.map((skin) => (
-            <button
-              key={skin.id}
-              className={`seg-btn back-opt${cardBack === skin.id ? " seg-btn-active" : ""}`}
-              onClick={() => onSetCardBack(skin.id)}
-            >
-              <span className={`back-swatch back-swatch-${skin.id}`} aria-hidden />
-              {skin.label}
-            </button>
-          ))}
+          <button
+            className={`seg-btn${faceStyle === "symbol" ? " seg-btn-active" : ""}`}
+            onClick={() => onSetFaceStyle("symbol")}
+          >
+            Крупно
+          </button>
+          <button
+            className={`seg-btn${faceStyle === "pips" ? " seg-btn-active" : ""}`}
+            onClick={() => onSetFaceStyle("pips")}
+          >
+            По номиналу
+          </button>
         </div>
+
+        {/* Рубашка вынесена в отдельное подменю с гридом — скинов стало много. */}
+        <button className="menu-toggle-row menu-row-nav" onClick={() => setView("backs")}>
+          <span>🂠 Рубашка</span>
+          <span className="menu-row-value">
+            <span className={`back-swatch back-swatch-sm back-swatch-${cardBack}`} aria-hidden />
+            {cardBackSkin(cardBack).label} ›
+          </span>
+        </button>
 
         <button
           className="menu-toggle-row"
@@ -276,6 +298,28 @@ export function AppMenu({
           {fourColor ? "🎨 Четырёхцветная колода: вкл" : "🎨 Четырёхцветная колода: выкл"}
         </button>
       </>
+    );
+  }
+
+  // Выбор скина рубашки: грид превью. Клик сразу применяет и возвращает в «Графику» —
+  // рубашку меняют разово, а не листают весь список каждый раз.
+  function renderBacks() {
+    return (
+      <div className="back-grid">
+        {CARD_BACKS.map((skin) => (
+          <button
+            key={skin.id}
+            className={`back-opt${cardBack === skin.id ? " back-opt-active" : ""}`}
+            onClick={() => {
+              onSetCardBack(skin.id);
+              setView("graphics");
+            }}
+          >
+            <span className={`back-swatch back-swatch-${skin.id}`} aria-hidden />
+            {skin.label}
+          </button>
+        ))}
+      </div>
     );
   }
 

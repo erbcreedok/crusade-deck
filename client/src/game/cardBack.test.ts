@@ -5,15 +5,25 @@ const W = 160;
 const H = 228;
 
 describe("CARD_BACKS", () => {
-  it("пока два скина, id уникальны и у каждого есть подпись", () => {
-    expect(CARD_BACKS.length).toBe(2);
-    expect(new Set(CARD_BACKS.map((s) => s.id)).size).toBe(2);
+  it("восемь скинов, id уникальны и у каждого есть подпись", () => {
+    expect(CARD_BACKS.length).toBe(8);
+    expect(new Set(CARD_BACKS.map((s) => s.id)).size).toBe(8);
     for (const s of CARD_BACKS) expect(s.label.length).toBeGreaterThan(0);
+  });
+
+  it("узор точек/решётки несёт минимум два оттенка чернил", () => {
+    for (const s of CARD_BACKS) {
+      if (s.pattern === "dots" || s.pattern === "lattice") {
+        expect(s.ink.length).toBeGreaterThanOrEqual(2);
+      }
+    }
   });
 
   it("isCardBackId отсеивает мусор из localStorage", () => {
     expect(isCardBackId("ruby")).toBe(true);
     expect(isCardBackId("mosaic")).toBe(true);
+    expect(isCardBackId("emerald")).toBe(true);
+    expect(isCardBackId("bubble")).toBe(true);
     expect(isCardBackId("нет такого")).toBe(false);
     expect(isCardBackId(null)).toBe(false);
   });

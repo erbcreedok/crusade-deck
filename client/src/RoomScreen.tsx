@@ -4,6 +4,7 @@ import { ProposalBanner } from "./ProposalBanner";
 import { ActionBar, type MenuItem } from "./ActionBar";
 import { RoomCanvas } from "./game/RoomCanvas";
 import type { CardBackId } from "./game/cardBack";
+import type { FaceStyle } from "./game/engine/cardTextures";
 import { tableSummary, type SeatView } from "./game/seats";
 import { EMPTY_SELECTION, selectOnly, clearSelection, type Selection } from "./game/selection";
 import { barActionsFor, type BarActionId } from "./game/barActions";
@@ -32,6 +33,7 @@ export function RoomScreen({
   animation,
   fourColor,
   cardBack,
+  faceStyle,
   onOpenSettings,
   onLeaveRoom,
 }: {
@@ -39,6 +41,7 @@ export function RoomScreen({
   animation: AnimationSettings;
   fourColor: boolean;
   cardBack: CardBackId;
+  faceStyle: FaceStyle;
   onOpenSettings: () => void;
   onLeaveRoom: () => void;
 }) {
@@ -415,6 +418,7 @@ export function RoomScreen({
         selfIsDealer={amIDealer}
         fourColor={fourColor}
         cardBack={cardBack}
+        faceStyle={faceStyle}
         facing={facing}
         onFanChange={onFanChange}
         onDeckFx={onDeckFx}
