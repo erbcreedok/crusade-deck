@@ -3,6 +3,9 @@ import { Room } from "colyseus.js";
 import { Account } from "./account";
 import { CARD_BACKS, cardBackSkin, type CardBackId } from "./game/cardBack";
 import type { FaceStyle } from "./game/engine/cardTextures";
+import { CardBackChip } from "./CardBackTile";
+import { CardBackCanvas } from "./CardBackCanvas";
+import { useCardBackImages } from "./useCardBackImages";
 import {
   ANIMATION_SPEEDS,
   type AnimationLevel,
@@ -85,6 +88,8 @@ export function AppMenu({
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
+  // Печём превью рубашек тем же движком, что и стол, пока меню открыто (единый стиль).
+  const backImages = useCardBackImages(open);
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -282,7 +287,7 @@ export function AppMenu({
         <button className="menu-toggle-row menu-row-nav" onClick={() => setView("backs")}>
           <span>🂠 Рубашка</span>
           <span className="menu-row-value">
-            <span className={`back-swatch back-swatch-sm back-swatch-${cardBack}`} aria-hidden />
+            <CardBackChip id={cardBack} url={backImages[cardBack]} />
             {cardBackSkin(cardBack).label} ›
           </span>
         </button>
@@ -304,22 +309,14 @@ export function AppMenu({
   // Выбор скина рубашки: грид превью. Клик сразу применяет и возвращает в «Графику» —
   // рубашку меняют разово, а не листают весь список каждый раз.
   function renderBacks() {
+    // Живой канвас-грид: карты лежат по клеткам, тянутся с игровой физикой, тап выбирает.
+    // Остаёмся в подменю — так видно, какая рубашка встала (выбранная слегка приподнята).
     return (
-      <div className="back-grid">
-        {CARD_BACKS.map((skin) => (
-          <button
-            key={skin.id}
-            className={`back-opt${cardBack === skin.id ? " back-opt-active" : ""}`}
-            onClick={() => {
-              onSetCardBack(skin.id);
-              setView("graphics");
-            }}
-          >
-            <span className={`back-swatch back-swatch-${skin.id}`} aria-hidden />
-            {skin.label}
-          </button>
-        ))}
-      </div>
+      <CardBackCanvas
+        ids={CARD_BACKS.map((s) => s.id)}
+        selected={cardBack}
+        onSelect={onSetCardBack}
+      />
     );
   }
 

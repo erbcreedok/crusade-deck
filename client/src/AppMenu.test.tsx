@@ -90,21 +90,16 @@ describe("AppMenu overlay", () => {
     expect(onSetFaceStyle).toHaveBeenCalledWith("pips");
   });
 
-  it("рубашка — отдельное подменю с гридом, выбор применяется и возвращает наверх", () => {
-    const onSetCardBack = vi.fn();
-    const { container } = renderMenu({ cardBack: "ruby", onSetCardBack });
+  it("рубашка — отдельное подменю с живым канвасом выбора", () => {
+    const { container } = renderMenu({ cardBack: "ruby" });
     open(container);
     fireEvent.click(byText(container, "Графика"));
     fireEvent.click(byText(container, "Рубашка")); // строка → подменю рубашки
 
-    expect(container.querySelector(".back-grid")).toBeTruthy();
-    expect(byText(container, "Рубин").className).toContain("back-opt-active");
-    expect(byText(container, "Мозаика").className).not.toContain("back-opt-active");
-
-    fireEvent.click(byText(container, "Мозаика"));
-    expect(onSetCardBack).toHaveBeenCalledWith("mosaic");
-    // Клик по скину возвращает в «Графику».
-    expect(container.querySelector(".pixel-title")?.textContent).toContain("Графика");
+    // Грид рубашек — живой Pixi-канвас (выбор идёт тапом по карте, не по DOM-кнопке),
+    // поэтому в DOM проверяем хост канваса и заголовок подменю.
+    expect(container.querySelector(".back-canvas")).toBeTruthy();
+    expect(container.querySelector(".pixel-title")?.textContent).toContain("Рубашка");
   });
 
   it("из подраздела можно вернуться в главное меню", () => {

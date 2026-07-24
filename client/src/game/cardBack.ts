@@ -12,6 +12,11 @@ export type CardBackId =
   | "sunburst"
   | "bubble";
 
+// Кайма по краю рубашки. По умолчанию — белая («как у настоящих карт»); это ЖЕЛАЕМЫЙ
+// стиль, а не правило: скин может выставить "none" и рисоваться без белой рамки (узор до
+// края в цветной обводке). Дефолт даёт опущенное поле, чтобы не помечать каждый скин.
+export type CardBackEdge = "white" | "none";
+
 export interface CardBackSkin {
   id: CardBackId;
   label: string;
@@ -20,6 +25,7 @@ export interface CardBackSkin {
   border: number; // рамка по краю
   inner: number; // внутренняя рамка/обводка фигур
   ink: number[]; // палитра узора (мозаика — по числу оттенков; точки/решётка — два)
+  edge?: CardBackEdge; // кайма по краю; по умолчанию "white"
 }
 
 export const CARD_BACKS: CardBackSkin[] = [

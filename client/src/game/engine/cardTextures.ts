@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor } from "../card";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
-import { CARD_EDGE, COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
+import { COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
 
 // Вид лица числовых карт (меню → Графика):
 //  - "symbol": один крупный значок масти по центру (как было);
@@ -12,21 +12,27 @@ export type FaceStyle = "symbol" | "pips";
 
 // Фабрики текстур карт: лицо, рубашка, тень. Каждая рисует во временный Graphics/Container
 // и один раз запекается в текстуру — дальше это просто спрайты, рисовать заново незачем.
+// (Серый «бумажный» торец у самой карты убран; толщину стопки колоды/мест по-прежнему
+// рисует движок отдельно, см. CARD_EDGE в RoomEngine/seatPaint.)
+
+/** Мягкий бежевый цвет края карты — лёгкая «тень» толщины (и на лице, и на рубашке). */
+const CARD_SHADE = 0xd8c8a0;
 
 /**
- * «Бумажная» кромка карты: низ — серый, бока — темнее серым. В стопке карты сдвинуты
- * вниз-влево, поэтому видно именно нижний и левый срезы соседней карты — они и создают
- * ощущение толщины бумаги при свете сверху справа.
+ * Слабый бежевый край ЛЕВОЙ и НИЖНЕЙ стороны карты — как лёгкая тень: свет падает сверху
+ * справа, значит собственная толщина карты притеняет её снизу-слева. Одна «L» с
+ * закруглённым нижним-левым углом, полупрозрачная — чтобы читалась как тень, а не рамка.
  */
-export function drawCardEdges(g: Graphics): void {
-  const e = CARD_EDGE;
+function drawCardShade(g: Graphics): void {
   const r = 16;
-  // бока (весь контур) — тёмно-серый
-  g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, r).stroke({ width: e.width, color: e.side });
-  // низ — светлее: прямая по нижнему срезу, между скруглениями углов
-  g.moveTo(2 + r, TEX_H - 2 - e.width / 2)
-    .lineTo(TEX_W - 2 - r, TEX_H - 2 - e.width / 2)
-    .stroke({ width: e.width, color: e.bottom });
+  const w = 3;
+  const x = 2 + w / 2;
+  const yb = TEX_H - 2 - w / 2;
+  g.moveTo(x, 2 + r)
+    .lineTo(x, TEX_H - 2 - r)
+    .arcTo(x, yb, 2 + r, yb, r - w / 2)
+    .lineTo(TEX_W - 2 - r, yb)
+    .stroke({ width: w, color: CARD_SHADE, alpha: 0.55 });
 }
 
 /**
@@ -45,16 +51,25 @@ export function makeCardFaceTexture(
 
   const bg = new Graphics();
   bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
-  drawCardEdges(bg);
   root.addChild(bg);
 
-  const cornerStyle = { fontFamily: PIXEL_FONT, fontSize: 40, fill: color, align: "center" as const, lineHeight: 34 };
-  const tl = new Text({ text: `${rank}\n${suit}`, style: cornerStyle });
-  tl.anchor.set(0.5);
+  // Угол: ранг крупно, масть под ним заметно мельче — иначе угловая масть читается как ещё
+  // один пипс. Два отдельных текста, а не один `ранг\nмасть`, ради разного кегля.
+  const makeCorner = (): Container => {
+    const c = new Container();
+    const r = new Text({ text: rank, style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: color } });
+    r.anchor.set(0.5);
+    r.position.set(0, -12);
+    const s = new Text({ text: suit, style: { fontFamily: PIXEL_FONT, fontSize: 26, fill: color } });
+    s.anchor.set(0.5);
+    s.position.set(0, 15);
+    c.addChild(r, s);
+    return c;
+  };
+  const tl = makeCorner();
   tl.position.set(28, 42);
   root.addChild(tl);
-  const br = new Text({ text: `${rank}\n${suit}`, style: cornerStyle });
-  br.anchor.set(0.5);
+  const br = makeCorner();
   br.position.set(TEX_W - 28, TEX_H - 42);
   br.rotation = Math.PI;
   root.addChild(br);
@@ -81,6 +96,10 @@ export function makeCardFaceTexture(
     root.addChild(center);
   }
 
+  const shade = new Graphics();
+  drawCardShade(shade);
+  root.addChild(shade);
+
   const tex = app.renderer.generateTexture({ target: root, resolution: 2 });
   root.destroy({ children: true });
   return tex;
@@ -90,9 +109,7 @@ export function makeCardFaceTexture(
 export function makeCardBackTexture(app: Application, backId: CardBackId): Texture {
   const skin = cardBackSkin(backId);
   const g = new Graphics();
-  g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16)
-    .fill({ color: skin.bg })
-    .stroke({ width: 5, color: skin.border });
+  g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: skin.bg });
 
   if (skin.pattern === "lattice") {
     // «Квадраторомб»: шахматка из ромбов и квадратов, как на классической рубашке.
@@ -120,8 +137,24 @@ export function makeCardBackTexture(app: Application, backId: CardBackId): Textu
     }
   }
 
-  g.roundRect(16, 16, TEX_W - 32, TEX_H - 32, 10).stroke({ width: 3, color: skin.inner });
-  drawCardEdges(g);
+  if (skin.edge === "none") {
+    // Скин без белой каймы: узор до края в цветной обводке (как рамка на прочих картах).
+    g.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).stroke({ width: 5, color: skin.border });
+  } else {
+    // Белая кайма по краю (дефолт): толстая обводка у самого края рисуется ПОВЕРХ узора —
+    // чем бы ни была залита рубашка, её края всегда белые («как у настоящих карт»).
+    const BORDER = 12;
+    g.roundRect(2 + BORDER / 2, 2 + BORDER / 2, TEX_W - 4 - BORDER, TEX_H - 4 - BORDER, 13).stroke({
+      width: BORDER,
+      color: 0xffffff,
+    });
+    // Тонкая цветная рамка на стыке белой каймы и узора — очерчивает поле рубашки.
+    g.roundRect(2 + BORDER, 2 + BORDER, TEX_W - 4 - 2 * BORDER, TEX_H - 4 - 2 * BORDER, 9).stroke({
+      width: 2,
+      color: skin.border,
+    });
+  }
+  drawCardShade(g); // тот же бежевый край слева-снизу, что и на лице — единая толщина
   const tex = app.renderer.generateTexture({ target: g, resolution: 2 });
   g.destroy();
   return tex;

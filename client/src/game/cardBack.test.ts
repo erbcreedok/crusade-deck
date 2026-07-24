@@ -19,6 +19,12 @@ describe("CARD_BACKS", () => {
     }
   });
 
+  it("белая кайма — дефолт: текущие скины её не отключают", () => {
+    // edge опционально: опущено → "white". Скин может выставить "none" (рубашка без каймы),
+    // но пока таких нет — все восемь идут с белым краем по умолчанию.
+    for (const s of CARD_BACKS) expect(s.edge ?? "white").toBe("white");
+  });
+
   it("isCardBackId отсеивает мусор из localStorage", () => {
     expect(isCardBackId("ruby")).toBe(true);
     expect(isCardBackId("mosaic")).toBe(true);

@@ -143,6 +143,12 @@ export function pixiFake(): PixiFake {
     lineTo(): this {
       return this.chain();
     }
+    arcTo(): this {
+      return this.chain();
+    }
+    arc(): this {
+      return this.chain();
+    }
     fill(): this {
       return this.chain();
     }
