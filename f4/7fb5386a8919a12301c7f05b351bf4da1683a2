@@ -1,0 +1,21 @@
+client/src/App.tsx
+  s_6b17180413249b::t_d30addd1ff6924 113-116
+client/src/InstallPrompt.tsx
+  s_6b17180413249b::t_8c6ad113357a3c 81-82,99-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f47fb5386a8919a12301c7f05b351bf4da1683a2",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
