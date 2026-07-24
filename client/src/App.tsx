@@ -25,6 +25,8 @@ export default function App() {
   const { room, targetCode, onJoined, leaveToLobby, forget } = useRoomConnection(user?.uid, account?.name);
   // Меню настроек живёт здесь: в комнате его открывает нижний веер, в лобби — своя ☰.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Модалка «добавить на экран» — открывается кнопкой (экран входа / меню), не сама.
+  const [installOpen, setInstallOpen] = useState(false);
 
   // Логаут закрывает и комнату: сначала выходим из неё (сокет, активная комната, адрес),
   // потом забываем аккаунт — App показывает экран входа с текущим юзером в быстром доступе.
@@ -54,6 +56,7 @@ export default function App() {
           onRestore={restoreAccount}
           recentAccounts={recentAccounts}
           onForgetRecent={forgetAccount}
+          onOpenInstall={() => setInstallOpen(true)}
         />
       ) : (
         <>
@@ -77,6 +80,7 @@ export default function App() {
               room={room}
               onLeaveRoom={forget}
               onLogout={onLogout}
+              onOpenInstall={() => setInstallOpen(true)}
             />
           )}
           {room ? (
@@ -110,10 +114,9 @@ export default function App() {
           )}
         </>
       )}
-      {/* Подсказка «добавить на домашний экран» — на экране входа И в лобби (не в комнате):
-          новый юзер видит её сразу, ещё до создания профиля. Самоскрывается, если уже
-          standalone или закрыта. Особенно про браузер Telegram (сворачивает жестами). */}
-      {!loading && !room && <InstallPrompt />}
+      {/* Модалка «добавить на экран» — управляется кнопками (экран входа / меню). Сама не
+          всплывает: закрыл — открыл снова. */}
+      <InstallPrompt open={installOpen} onClose={() => setInstallOpen(false)} />
     </MotionConfig>
   );
 }

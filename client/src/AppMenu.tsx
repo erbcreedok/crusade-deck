@@ -39,6 +39,7 @@ export function AppMenu({
   room,
   onLeaveRoom,
   onLogout,
+  onOpenInstall,
   open: controlledOpen,
   onOpenChange,
   showFab = true,
@@ -57,6 +58,7 @@ export function AppMenu({
   room: Room | null;
   onLeaveRoom: () => void;
   onLogout: () => void;
+  onOpenInstall: () => void;
   // Управление снаружи: в комнате меню открывает нижний веер, и своя кнопка ☰ не нужна.
   // Без этих пропсов компонент работает как раньше — сам с собой (лобби).
   open?: boolean;
@@ -175,6 +177,17 @@ export function AppMenu({
             это «перенести эту игру», в лобби — просто «ссылка для входа»; действие одно. */}
         <button className="menu-toggle-row" onClick={copyTransferLink}>
           {linkCopied ? "✓ Ссылка в буфере" : room ? "🔗 Перенести эту игру" : "🔗 Ссылка для входа"}
+        </button>
+
+        {/* Под ссылкой входа — «добавить на экран»: открывает модалку с инструкцией под платформу. */}
+        <button
+          className="menu-toggle-row"
+          onClick={() => {
+            close();
+            onOpenInstall();
+          }}
+        >
+          📲 Добавить на экран
         </button>
 
         <button className="menu-toggle-row" onClick={() => setView("graphics")}>

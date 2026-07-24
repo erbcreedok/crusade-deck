@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RecentAccount } from "./recentAccounts";
+import { formatVersion } from "./version";
 
 // Вход без пароля: либо новый профиль одной кнопкой, либо восстановление по короткому
 // коду (см. account.ts). Экран показывается, пока у игрока нет аккаунта. Недавние аккаунты
@@ -10,11 +11,13 @@ export function AuthScreen({
   onRestore,
   recentAccounts = [],
   onForgetRecent,
+  onOpenInstall,
 }: {
   onCreate: () => Promise<unknown>;
   onRestore: (code: string) => Promise<unknown>;
   recentAccounts?: RecentAccount[];
   onForgetRecent?: (id: string) => void;
+  onOpenInstall?: () => void;
 }) {
   const [restoreCode, setRestoreCode] = useState("");
   const [showRestore, setShowRestore] = useState(false);
@@ -93,7 +96,21 @@ export function AuthScreen({
         )}
 
         {error && <p className="pixel-error">{error}</p>}
+
+        {/* Всегда доступно на входе: как добавить игру на домашний экран (обход сворачивания
+            во встроенных браузерах). Модалку открывает App. */}
+        {onOpenInstall && (
+          <>
+            <hr className="pixel-divider" />
+            <button className="pixel-btn pixel-btn-secondary pixel-btn-full" onClick={onOpenInstall}>
+              📲 Добавить на экран
+            </button>
+          </>
+        )}
       </div>
+
+      {/* Версия в углу экрана — как в лобби: по скриншоту видно, что за сборка на проде. */}
+      <p className="pixel-version pixel-version-corner">{formatVersion()}</p>
     </div>
   );
 }
