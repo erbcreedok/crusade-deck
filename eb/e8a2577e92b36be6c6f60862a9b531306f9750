@@ -1,0 +1,26 @@
+client/src/pwaInstall.ts
+  s_6b17180413249b::t_338e19899743db 56-71
+client/src/pwaInstall.test.ts
+  s_6b17180413249b::t_9c3c0f6317d3a8 2
+  s_6b17180413249b::t_53892c5f505a41 39-61
+client/src/InstallPrompt.tsx
+  s_6b17180413249b::t_d098f2c161325e 2-34,36-38
+  s_6b17180413249b::t_4d4ca97883173e 35
+  s_6b17180413249b::t_22be5f9a6d5a04 131-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ebe8a2577e92b36be6c6f60862a9b531306f9750",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
