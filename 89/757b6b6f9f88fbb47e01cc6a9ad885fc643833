@@ -1,0 +1,65 @@
+client/src/CardBackCanvas.tsx
+  s_89d5ad20619017::t_f9e48c2b2e3e28 1-38
+client/src/AppMenu.test.tsx
+  s_89d5ad20619017::t_4f6890bcd8aee0 93-94,99-102
+client/src/game/cardBackBaker.ts
+  s_89d5ad20619017::t_94c1760954530c 1-50
+client/src/game/cardBack.test.ts
+  s_89d5ad20619017::t_70e505bd22cb56 22-27
+client/src/test/pixiFake.ts
+  s_89d5ad20619017::t_b7d8d61afe063a 146-151
+client/src/CardBackTile.tsx
+  s_89d5ad20619017::t_fa0675600e1ab8 3-4,6-9
+  s_89d5ad20619017::t_31c8aa3cf0c5fd 1-2,5,10-11
+client/src/game/engine/cardTextures.ts
+  s_89d5ad20619017::t_1f7edd224b504e 56-69,72
+  s_89d5ad20619017::t_30911a5ac72915 23-24,28-34
+  s_89d5ad20619017::t_99c2b7c7cd161d 18-19,22,26,35
+  s_89d5ad20619017::t_e203c4d0d29fe7 100
+  s_89d5ad20619017::t_d7e0e814e87fb4 140-156
+  s_89d5ad20619017::t_4c8453fd96e5fe 99,101-102
+  s_89d5ad20619017::t_d7fdcbe3f4cec4 157
+  s_89d5ad20619017::t_56cb1f60f49d6a 112
+  s_89d5ad20619017::t_6e9eb459d0391a 5,15-16
+  s_89d5ad20619017::t_ea4c320b8f51f8 17
+client/src/game/pipLayout.ts
+  s_89d5ad20619017::t_293c9720236860 31-34,44-47
+  s_89d5ad20619017::t_44814c251e8c06 12-14,16
+client/src/AppMenu.tsx
+  s_89d5ad20619017::t_8bd582ce1b8161 6-7
+  s_89d5ad20619017::t_2fe6bd770ba0ba 8
+  s_89d5ad20619017::t_76e51c0b31b137 91-92
+  s_89d5ad20619017::t_31c31d6a412822 290
+  s_89d5ad20619017::t_c91de90b786d18 312-313,315-319
+client/src/theme.css
+  s_89d5ad20619017::t_0253ca592bce06 781-785,788,793
+  s_89d5ad20619017::t_1fc5c127b97801 789-790,794-795,798,813,816-817,820-821
+client/src/useCardBackImages.ts
+  s_89d5ad20619017::t_40ffa43135c101 1-26
+client/src/game/cardBack.ts
+  s_89d5ad20619017::t_0d161a37fe8509 15-19,28
+client/src/game/cardBackPicker.ts
+  s_89d5ad20619017::t_21c6cc172ef317 2-19,21,25-40,42-95,97-98,100,110-234,246-254,256-257
+  s_89d5ad20619017::t_64219c06c10dfc 41
+  s_89d5ad20619017::t_2525de0e5fec60 96,99,101-109
+  s_89d5ad20619017::t_8c43a129adfe4c 255
+  s_89d5ad20619017::t_124a79db778c24 1
+  s_89d5ad20619017::t_560c6fa5d42e9c 235-245
+  s_89d5ad20619017::t_ecfac8d9d51935 20,22-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "89757b6b6f9f88fbb47e01cc6a9ad885fc643833",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
