@@ -1,45 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { detectInstallMode, iosBrowser, isIos, isStandalone, isTelegram, type InstallMode } from "./pwaInstall";
 
-// Инструкция «добавить на экран» под КОНКРЕТНЫЙ браузер iOS. Safari — «···» → «На экран
-// Домой» (в новом Safari «Поделиться» спрятан под «···»). Chrome/Edge — своё меню. Firefox
-// как приложение не умеет — зовём в Safari. Непонятный вебвью (Telegram и пр.) — общий совет.
-function iosHint(): { title: string; text: string } {
-  switch (iosBrowser()) {
-    case "safari":
-      return {
-        title: "Добавить на экран 📲",
-        text: "Нажми «···» внизу справа, затем «На экран „Домой“» (в старом Safari — сразу «Поделиться» ⬆️ → «На экран „Домой“»).",
-      };
-    case "chrome":
-      return {
-        title: "Добавить на экран 📲",
-        text: "В Chrome нажми «···» внизу справа (или «Поделиться»), затем «На экран „Домой“».",
-      };
-    case "edge":
-      return { title: "Добавить на экран 📲", text: "В Edge нажми «···» внизу, затем «На экран „Домой“»." };
-    case "opera":
-    case "yandex":
-      return {
-        title: "Добавить на экран 📲",
-        text: "Открой меню браузера («···»/«≡») и выбери «На экран „Домой“». Надёжнее — сделать это в Safari.",
-      };
-    case "firefox":
-      return {
-        title: "Открой в Safari 📲",
-        text: "Firefox на iPhone не добавляет игру как приложение — открой эту страницу в Safari и там «Поделиться» → «На экран „Домой“».",
-      };
-    default:
-      return {
-        title: "Открой в браузере 📲",
-        text: "Ты во встроенном браузере (он сворачивается). Открой страницу в Safari или Chrome и добавь на домашний экран.",
-      };
-  }
-}
-
 // Подсказка «добавить на домашний экран», по платформе (см. pwaInstall.ts). Показывается вне
 // комнаты, один раз: закрыли — запомнили в localStorage и больше не пристаём. Главная цель —
-// увести из браузера Telegram, который сворачивается жестом «тянуть вниз».
+// увести из браузера, который сворачивается жестом «тянуть вниз» (браузер Telegram и пр.).
+//
+// iOS: прямой установки/вызова «На экран „Домой“» из кода нет (ограничение Apple). Максимум —
+// в Safari/Chrome самим открыть системную шторку «Поделиться» (navigator.share), а «На экран
+// „Домой“» юзер выберет в ней сам. В прочих браузерах и встроенных вебвью уводим в Safari.
 
 const DISMISS_KEY = "crusade-deck:install-dismissed";
 
@@ -63,22 +31,6 @@ export function InstallPrompt() {
   // Пересчитываем при монтировании: standalone/платформа не меняются в рамках сессии.
   const [standalone] = useState(() => isStandalone());
 
-  useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault(); // не даём браузеру показать свою мини-плашку — покажем свою кнопку
-      setDeferred(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    // Установилась — прячемся навсегда.
-    const onInstalled = () => dismiss();
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const dismiss = useCallback(() => {
     setDismissed(true);
     try {
@@ -87,6 +39,20 @@ export function InstallPrompt() {
       // приватный режим — просто не запомнится, не критично
     }
   }, []);
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault(); // не даём браузеру показать свою мини-плашку — покажем свою кнопку
+      setDeferred(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    const onInstalled = () => dismiss(); // установилась — прячемся навсегда
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, [dismiss]);
 
   const mode: InstallMode = detectInstallMode({
     standalone,
@@ -104,6 +70,57 @@ export function InstallPrompt() {
     setDeferred(null);
     dismiss();
   };
+
+  // Ссылка ВСЕГДА на чистый main — не на комнату и не на юзера: домашняя иконка ведёт на вход.
+  const shareToHome = async () => {
+    try {
+      await navigator.share({ url: `${window.location.origin}/` });
+    } catch {
+      // юзер отменил или шторка недоступна — молча
+    }
+  };
+
+  function renderIos() {
+    const browser = iosBrowser();
+    const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+    // Safari/Chrome: сами открываем «Поделиться», юзер выбирает «На экран „Домой“».
+    if ((browser === "safari" || browser === "chrome") && canShare) {
+      return (
+        <>
+          <p className="install-title">Добавить на экран 📲</p>
+          <button className="pixel-btn pixel-btn-full" onClick={shareToHome}>
+            👇 Нажми сюда
+          </button>
+          <p className="install-text">…и выбери в меню «На экран „Домой“».</p>
+        </>
+      );
+    }
+    // Тот же Safari/Chrome, но без navigator.share (старый iOS) — ручная инструкция.
+    if (browser === "safari" || browser === "chrome") {
+      return (
+        <>
+          <p className="install-title">Добавить на экран 📲</p>
+          <p className="install-text">
+            {browser === "chrome"
+              ? "Нажми «Поделиться» ⬆️ вверху у адреса, затем «На экран „Домой“»."
+              : "Нажми «···» внизу справа (или «Поделиться» ⬆️), затем «На экран „Домой“»."}
+          </p>
+        </>
+      );
+    }
+    // Остальные браузеры и встроенные вебвью — приоритет: увести в Safari (кнопка есть почти
+    // везде — вверху или в «···»/«≡»).
+    return (
+      <>
+        <p className="install-title">Открой в Safari 📲</p>
+        <p className="install-text">
+          Нажми «Safari» / «Открыть в Safari» в этом браузере (обычно вверху или в «···»). В Safari —
+          «Поделиться» ⬆️ → «На экран „Домой“».
+        </p>
+      </>
+    );
+  }
 
   return (
     <div className="install-prompt">
@@ -128,16 +145,7 @@ export function InstallPrompt() {
           </button>
         </>
       )}
-      {mode === "ios" &&
-        (() => {
-          const hint = iosHint();
-          return (
-            <>
-              <p className="install-title">{hint.title}</p>
-              <p className="install-text">{hint.text}</p>
-            </>
-          );
-        })()}
+      {mode === "ios" && renderIos()}
     </div>
   );
 }
