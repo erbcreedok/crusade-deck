@@ -1,0 +1,453 @@
+client2/.dockerignore
+  s_89d5ad20619017::t_8742dcf39b75de 1-3
+client2/.env.local
+  s_89d5ad20619017::t_13eba3a497e8a2 1-4
+client2/Dockerfile
+  s_89d5ad20619017::t_dd1f8467e3a5a0 1-31
+client2/fly.toml
+  s_89d5ad20619017::t_0f52681a992c7c 1-27
+client2/index.html
+  s_89d5ad20619017::t_25856407236817 1-29
+client2/nginx.conf
+  s_89d5ad20619017::t_a63c44ee9d3012 1-12
+client2/package-lock.json
+  s_89d5ad20619017::t_d17cd8400dd1f8 1-5382
+client2/package.json
+  s_89d5ad20619017::t_961f21fb02e846 1-33
+client2/public/bg-clubs-slate.svg
+  s_89d5ad20619017::t_e5fd52b5256e47 1-43
+client2/public/bg-clubs.svg
+  s_89d5ad20619017::t_f0cef62d0ba6fb 1-43
+client2/public/bg-diamonds.svg
+  s_89d5ad20619017::t_3aaafdd37f8d2e 1-138
+client2/public/favicon.svg
+  s_89d5ad20619017::t_366e25be748cf4 1-13
+client2/public/manifest.webmanifest
+  s_89d5ad20619017::t_9ac7b348787cd6 1-16
+client2/src/ActionBar.test.tsx
+  s_89d5ad20619017::t_8b95cc10ad3ccd 1-107
+client2/src/ActionBar.tsx
+  s_89d5ad20619017::t_9e75a392800ec9 1-132
+client2/src/App.tsx
+  s_89d5ad20619017::t_0d3745309b10ea 1-127
+client2/src/AppMenu.test.tsx
+  s_89d5ad20619017::t_450ccc174c489b 1-135
+client2/src/AppMenu.tsx
+  s_89d5ad20619017::t_09533ebd497fa5 1-359
+client2/src/AuthScreen.test.tsx
+  s_89d5ad20619017::t_1ba28130148cb5 1-59
+client2/src/AuthScreen.tsx
+  s_89d5ad20619017::t_f0b0cae9a71888 1-116
+client2/src/CardBackCanvas.tsx
+  s_89d5ad20619017::t_5f8cffb2f74a4e 1-38
+client2/src/CardBackTile.tsx
+  s_89d5ad20619017::t_c6dde32e77c86c 1-11
+client2/src/InstallPrompt.tsx
+  s_89d5ad20619017::t_60c1b257a3f161 1-114
+client2/src/Lobby.test.tsx
+  s_89d5ad20619017::t_b1e357d79eacb7 1-99
+client2/src/Lobby.tsx
+  s_89d5ad20619017::t_6d478cc6c9e1f8 1-203
+client2/src/PixelBackground.test.tsx
+  s_89d5ad20619017::t_2d1d44689f368c 1-27
+client2/src/PixelBackground.tsx
+  s_89d5ad20619017::t_ebf482934bb69b 1-28
+client2/src/ProposalBanner.tsx
+  s_89d5ad20619017::t_3a436cdb9d3a8c 1-68
+client2/src/RoomScreen.tsx
+  s_89d5ad20619017::t_c4be4be3c96c7d 1-470
+client2/src/account.test.ts
+  s_89d5ad20619017::t_7548dd28b6efca 1-101
+client2/src/account.ts
+  s_89d5ad20619017::t_8b043771c0a772 1-148
+client2/src/colyseus.test.ts
+  s_89d5ad20619017::t_64d4c6e43c14bf 1-20
+client2/src/colyseus.ts
+  s_89d5ad20619017::t_687892f128357f 1-68
+client2/src/firebase.ts
+  s_89d5ad20619017::t_bf7e401b9ea8c2 1-17
+client2/src/game/CardBody.test.ts
+  s_89d5ad20619017::t_41bb0c795d5769 1-80
+client2/src/game/CardBody.ts
+  s_89d5ad20619017::t_d6efda771e4e4a 1-86
+client2/src/game/RoomCanvas.tsx
+  s_89d5ad20619017::t_1158b53858271c 1-125
+client2/src/game/RoomEngine.test.ts
+  s_89d5ad20619017::t_a8298588580122 1-1993
+client2/src/game/RoomEngine.ts
+  s_89d5ad20619017::t_666f7951b7d7e7 1-4909
+client2/src/game/anim/animationSettings.test.ts
+  s_89d5ad20619017::t_7734e34f00f396 1-59
+client2/src/game/anim/animationSettings.ts
+  s_89d5ad20619017::t_a870c6044905c9 1-63
+client2/src/game/anim/config.ts
+  s_89d5ad20619017::t_87a09a731a57ba 1-244
+client2/src/game/anim/easing.test.ts
+  s_89d5ad20619017::t_b5314a107cd578 1-22
+client2/src/game/anim/easing.ts
+  s_89d5ad20619017::t_0324cb6ed015a3 1-6
+client2/src/game/barActions.test.ts
+  s_89d5ad20619017::t_4a131936b7c4d5 1-67
+client2/src/game/barActions.ts
+  s_89d5ad20619017::t_c36f7ec90eec28 1-77
+client2/src/game/card.test.ts
+  s_89d5ad20619017::t_30a389aeb92a82 1-38
+client2/src/game/card.ts
+  s_89d5ad20619017::t_e427d92f87cf34 1-36
+client2/src/game/cardBack.test.ts
+  s_89d5ad20619017::t_7809c3bc585277 1-88
+client2/src/game/cardBack.ts
+  s_89d5ad20619017::t_18dbc0e1a0981d 1-171
+client2/src/game/cardBackBaker.ts
+  s_89d5ad20619017::t_141535f688754f 1-50
+client2/src/game/cardBackPicker.ts
+  s_89d5ad20619017::t_26cb19abecaae4 1-257
+client2/src/game/cardFlight.test.ts
+  s_89d5ad20619017::t_b3e9081b35c68a 1-32
+client2/src/game/cardFlight.ts
+  s_89d5ad20619017::t_56c7762891568f 1-48
+client2/src/game/choreo/shuffle.test.ts
+  s_89d5ad20619017::t_4a674cc4cbef79 1-150
+client2/src/game/choreo/shuffle.ts
+  s_89d5ad20619017::t_499e25598476f5 1-161
+client2/src/game/choreo/spin.test.ts
+  s_89d5ad20619017::t_3814896c6c9078 1-61
+client2/src/game/choreo/spin.ts
+  s_89d5ad20619017::t_463b4b0ea35d43 1-75
+client2/src/game/choreo/types.ts
+  s_89d5ad20619017::t_42daaa4b862e2a 1-11
+client2/src/game/collapseButton.test.ts
+  s_89d5ad20619017::t_7d08c69832378f 1-68
+client2/src/game/collapseButton.ts
+  s_89d5ad20619017::t_dccd52dc6747f3 1-64
+client2/src/game/collapseReveal.test.ts
+  s_89d5ad20619017::t_115d3eb71bfcda 1-22
+client2/src/game/collapseReveal.ts
+  s_89d5ad20619017::t_b550b1f827b806 1-16
+client2/src/game/dealReadyTint.test.ts
+  s_89d5ad20619017::t_775566c54a2394 1-36
+client2/src/game/dealReadyTint.ts
+  s_89d5ad20619017::t_29046ef96daea6 1-29
+client2/src/game/dealing.test.ts
+  s_89d5ad20619017::t_1255eed5fc99ff 1-40
+client2/src/game/dealing.ts
+  s_89d5ad20619017::t_752f13094281f1 1-37
+client2/src/game/deckFan.test.ts
+  s_89d5ad20619017::t_3d895bb16baac1 1-30
+client2/src/game/deckFan.ts
+  s_89d5ad20619017::t_959ff7ba74ea68 1-29
+client2/src/game/deckFxClient.test.ts
+  s_89d5ad20619017::t_b9643426969a66 1-38
+client2/src/game/deckFxClient.ts
+  s_89d5ad20619017::t_025b3c0eb45efe 1-35
+client2/src/game/deckOrder.test.ts
+  s_89d5ad20619017::t_1354caaf75ba10 1-117
+client2/src/game/deckOrder.ts
+  s_89d5ad20619017::t_bfbe41cf8f8ad1 1-58
+client2/src/game/deckStack.test.ts
+  s_89d5ad20619017::t_1d6279ab46be39 1-144
+client2/src/game/deckStack.ts
+  s_89d5ad20619017::t_9ce490c28eb528 1-66
+client2/src/game/dedupeDeckOrder.test.ts
+  s_89d5ad20619017::t_ee6590307711be 1-17
+client2/src/game/dedupeDeckOrder.ts
+  s_89d5ad20619017::t_60c817374fe5fd 1-13
+client2/src/game/discardHeap.test.ts
+  s_89d5ad20619017::t_e02cdce64afd56 1-62
+client2/src/game/discardHeap.ts
+  s_89d5ad20619017::t_0d46c67ffb2c10 1-73
+client2/src/game/dragMode.test.ts
+  s_89d5ad20619017::t_4b715dc46fa4ef 1-45
+client2/src/game/dragMode.ts
+  s_89d5ad20619017::t_94e4c4943f887f 1-36
+client2/src/game/dropZoneActivity.test.ts
+  s_89d5ad20619017::t_98a9e8a76d1da1 1-55
+client2/src/game/dropZoneActivity.ts
+  s_89d5ad20619017::t_37992876b5e72c 1-52
+client2/src/game/dropZones.test.ts
+  s_89d5ad20619017::t_b4809dd6412c6d 1-115
+client2/src/game/dropZones.ts
+  s_89d5ad20619017::t_259c9861e6895b 1-84
+client2/src/game/engine/CardPile.test.ts
+  s_89d5ad20619017::t_80bd8812f3129d 1-165
+client2/src/game/engine/CardPile.ts
+  s_89d5ad20619017::t_e34eedb582dfba 1-124
+client2/src/game/engine/boardPile.test.ts
+  s_89d5ad20619017::t_ae7041a080dc20 1-26
+client2/src/game/engine/boardPile.ts
+  s_89d5ad20619017::t_c538d1dc78481c 1-26
+client2/src/game/engine/cardTextures.ts
+  s_89d5ad20619017::t_6717afedfe5801 1-177
+client2/src/game/engine/clearPlayButton.test.ts
+  s_89d5ad20619017::t_4d134b70ab62ba 1-36
+client2/src/game/engine/clearPlayButton.ts
+  s_89d5ad20619017::t_4d5a4f911b073a 1-45
+client2/src/game/engine/collapseArrow.test.ts
+  s_89d5ad20619017::t_fbb9fe3f602f3b 1-43
+client2/src/game/engine/collapseArrow.ts
+  s_89d5ad20619017::t_a3ef455816a27c 1-73
+client2/src/game/engine/constants.ts
+  s_89d5ad20619017::t_cbdc74b1f0239c 1-146
+client2/src/game/engine/faceTextureCache.test.ts
+  s_89d5ad20619017::t_8e7e013f63ac3a 1-111
+client2/src/game/engine/faceTextureCache.ts
+  s_89d5ad20619017::t_acad26ed1d1a17 1-98
+client2/src/game/engine/fanGeometry.test.ts
+  s_89d5ad20619017::t_4ce37f3143a7da 1-69
+client2/src/game/engine/fanGeometry.ts
+  s_89d5ad20619017::t_db4c79ebfa3aaa 1-60
+client2/src/game/engine/gestureIntent.test.ts
+  s_89d5ad20619017::t_3c3429684d4ae4 1-135
+client2/src/game/engine/gestureIntent.ts
+  s_89d5ad20619017::t_402b1a37de9d73 1-103
+client2/src/game/engine/idleGate.test.ts
+  s_89d5ad20619017::t_533ed306054e27 1-62
+client2/src/game/engine/idleGate.ts
+  s_89d5ad20619017::t_ce0d3e9aac1635 1-68
+client2/src/game/engine/moveAnchor.test.ts
+  s_89d5ad20619017::t_03dffd45ba407d 1-41
+client2/src/game/engine/moveAnchor.ts
+  s_89d5ad20619017::t_cfbe8639d45c4f 1-35
+client2/src/game/engine/scramble.test.ts
+  s_89d5ad20619017::t_97d0a9a5f40af0 1-33
+client2/src/game/engine/scramble.ts
+  s_89d5ad20619017::t_9d04f66e998ffa 1-26
+client2/src/game/engine/seatChrome.test.ts
+  s_89d5ad20619017::t_652e3467498692 1-46
+client2/src/game/engine/seatChrome.ts
+  s_89d5ad20619017::t_e38017c17d026d 1-68
+client2/src/game/engine/seatPaint.ts
+  s_89d5ad20619017::t_3c3682d98a574c 1-245
+client2/src/game/engine/shadowPass.test.ts
+  s_89d5ad20619017::t_334e17c6d46ab3 1-95
+client2/src/game/engine/shadowPass.ts
+  s_89d5ad20619017::t_ec5864d8046aab 1-105
+client2/src/game/engine/shout.test.ts
+  s_89d5ad20619017::t_b59fe503a1537f 1-107
+client2/src/game/engine/shout.ts
+  s_89d5ad20619017::t_f41c79887f211d 1-94
+client2/src/game/engine/shufflePose.test.ts
+  s_89d5ad20619017::t_01f7e3104be9a2 1-67
+client2/src/game/engine/shufflePose.ts
+  s_89d5ad20619017::t_e988c7dcd0160b 1-47
+client2/src/game/engine/types.ts
+  s_89d5ad20619017::t_7426d9285925b1 1-47
+client2/src/game/engine/zoneChrome.test.ts
+  s_89d5ad20619017::t_044d031707323c 1-133
+client2/src/game/engine/zoneChrome.ts
+  s_89d5ad20619017::t_a421977d32a4fd 1-174
+client2/src/game/engine/zonePaint.ts
+  s_89d5ad20619017::t_1b8bf0473f651d 1-150
+client2/src/game/engineProps.ts
+  s_89d5ad20619017::t_979c81974edcfe 1-133
+client2/src/game/fan.test.ts
+  s_89d5ad20619017::t_a4a07341244329 1-418
+client2/src/game/fan.ts
+  s_89d5ad20619017::t_ca245625accc0d 1-255
+client2/src/game/flip.test.ts
+  s_89d5ad20619017::t_48ec76747a2d32 1-117
+client2/src/game/flip.ts
+  s_89d5ad20619017::t_abee55dd29f66e 1-78
+client2/src/game/forbidDeckOpen.test.ts
+  s_89d5ad20619017::t_465decbb8104b8 1-17
+client2/src/game/forbidDeckOpen.ts
+  s_89d5ad20619017::t_080ecaeee24b06 1-7
+client2/src/game/handRow.test.ts
+  s_89d5ad20619017::t_c4ff0c9ad93562 1-56
+client2/src/game/handRow.ts
+  s_89d5ad20619017::t_bd93983bfa504b 1-32
+client2/src/game/handView.test.ts
+  s_89d5ad20619017::t_356995b4686879 1-52
+client2/src/game/handView.ts
+  s_89d5ad20619017::t_007299ad8ddfad 1-37
+client2/src/game/layout.test.ts
+  s_89d5ad20619017::t_86457174058de7 1-354
+client2/src/game/layout.ts
+  s_89d5ad20619017::t_47eb5944646e88 1-278
+client2/src/game/mathUtil.test.ts
+  s_89d5ad20619017::t_2b14826c42e01b 1-44
+client2/src/game/mathUtil.ts
+  s_89d5ad20619017::t_824afe4263bb86 1-29
+client2/src/game/physics/spring.test.ts
+  s_89d5ad20619017::t_44777cd28964ca 1-59
+client2/src/game/physics/spring.ts
+  s_89d5ad20619017::t_30f8e689460355 1-38
+client2/src/game/pipLayout.test.ts
+  s_89d5ad20619017::t_b7d44aa90193ed 1-49
+client2/src/game/pipLayout.ts
+  s_89d5ad20619017::t_730702bd420969 1-48
+client2/src/game/playFlat.test.ts
+  s_89d5ad20619017::t_feae8536e80ab7 1-34
+client2/src/game/playFlat.ts
+  s_89d5ad20619017::t_48d2709ec67091 1-34
+client2/src/game/playGrid.test.ts
+  s_89d5ad20619017::t_9014b0a4055a3e 1-104
+client2/src/game/playGrid.ts
+  s_89d5ad20619017::t_11489c568968fb 1-148
+client2/src/game/playHover.test.ts
+  s_89d5ad20619017::t_22738629df68df 1-58
+client2/src/game/playHover.ts
+  s_89d5ad20619017::t_c7064b7f836c8c 1-57
+client2/src/game/playStack.test.ts
+  s_89d5ad20619017::t_18014cf524335e 1-84
+client2/src/game/playStack.ts
+  s_89d5ad20619017::t_bf6d5f9947c60d 1-66
+client2/src/game/rejections.test.ts
+  s_89d5ad20619017::t_ef1c6f976000ce 1-26
+client2/src/game/rejections.ts
+  s_89d5ad20619017::t_d65f9e51ebeba3 1-21
+client2/src/game/seatHand.test.ts
+  s_89d5ad20619017::t_7895b9b580bfeb 1-65
+client2/src/game/seatHand.ts
+  s_89d5ad20619017::t_1f22a97d11246d 1-135
+client2/src/game/seatLayout.test.ts
+  s_89d5ad20619017::t_b3ef78e4b184ed 1-242
+client2/src/game/seatLayout.ts
+  s_89d5ad20619017::t_15404d07c49730 1-159
+client2/src/game/seatOrder.test.ts
+  s_89d5ad20619017::t_c6ddbdc8da34e3 1-21
+client2/src/game/seatOrder.ts
+  s_89d5ad20619017::t_2838beaa945cbd 1-23
+client2/src/game/seats.test.ts
+  s_89d5ad20619017::t_721e173e1fb7ec 1-77
+client2/src/game/seats.ts
+  s_89d5ad20619017::t_e12bcd34832339 1-59
+client2/src/game/selection.test.ts
+  s_89d5ad20619017::t_8b612b5b88d93f 1-98
+client2/src/game/selection.ts
+  s_89d5ad20619017::t_d0c13333f8116f 1-50
+client2/src/game/shuffleFlight.test.ts
+  s_89d5ad20619017::t_c9f0a8176276ab 1-71
+client2/src/game/shuffleFlight.ts
+  s_89d5ad20619017::t_57b8254d1b278a 1-49
+client2/src/game/shuffleSession.test.ts
+  s_89d5ad20619017::t_144d4823973f59 1-77
+client2/src/game/shuffleSession.ts
+  s_89d5ad20619017::t_12a74c38307982 1-76
+client2/src/game/sortHand.test.ts
+  s_89d5ad20619017::t_09bf98656645ef 1-32
+client2/src/game/sortHand.ts
+  s_89d5ad20619017::t_31bc616629a518 1-45
+client2/src/game/swipeShuffle.test.ts
+  s_89d5ad20619017::t_80dd1e19325ea3 1-144
+client2/src/game/swipeShuffle.ts
+  s_89d5ad20619017::t_e33dadfcab80f3 1-86
+client2/src/game/taunt.test.ts
+  s_89d5ad20619017::t_940d90cca819dd 1-93
+client2/src/game/taunt.ts
+  s_89d5ad20619017::t_0aa101b91d65e3 1-106
+client2/src/game/topCard.test.ts
+  s_89d5ad20619017::t_8dd6cafd17e519 1-31
+client2/src/game/topCard.ts
+  s_89d5ad20619017::t_fd44a2caea1689 1-14
+client2/src/game/touch.test.ts
+  s_89d5ad20619017::t_00dc91b3f4fdea 1-36
+client2/src/game/touch.ts
+  s_89d5ad20619017::t_0b077dcca3d5b8 1-19
+client2/src/game/useEngineEffect.ts
+  s_89d5ad20619017::t_4d677c1ec4f57f 1-24
+client2/src/game/voteWeight.test.ts
+  s_89d5ad20619017::t_3fc5b0763bdd1d 1-49
+client2/src/game/voteWeight.ts
+  s_89d5ad20619017::t_94bf8be4e00f28 1-39
+client2/src/game/zoneLabels.test.ts
+  s_89d5ad20619017::t_d8168809ba5cef 1-56
+client2/src/game/zoneLabels.ts
+  s_89d5ad20619017::t_3e4d48fb3becd3 1-56
+client2/src/main.tsx
+  s_89d5ad20619017::t_0ef807ff02b4fe 1-16
+client2/src/pwaInstall.test.ts
+  s_89d5ad20619017::t_6167ab6fddfd55 1-61
+client2/src/pwaInstall.ts
+  s_89d5ad20619017::t_f3c9682f0aa6e1 1-76
+client2/src/recentAccounts.test.ts
+  s_89d5ad20619017::t_60c56d9a1c7403 1-35
+client2/src/recentAccounts.ts
+  s_89d5ad20619017::t_f17720e102281c 1-42
+client2/src/retryJoin.test.ts
+  s_89d5ad20619017::t_eae6bbef381c1a 1-68
+client2/src/retryJoin.ts
+  s_89d5ad20619017::t_bb14ec00a9922d 1-56
+client2/src/room/readState.test.ts
+  s_89d5ad20619017::t_7855e7f56eff38 1-104
+client2/src/room/readState.ts
+  s_89d5ad20619017::t_98b61cdd98dfa2 1-124
+client2/src/room/roomMenu.test.ts
+  s_89d5ad20619017::t_4419df0cff04eb 1-64
+client2/src/room/roomMenu.ts
+  s_89d5ad20619017::t_ad7d74397a2358 1-71
+client2/src/room/useAutoDeal.ts
+  s_89d5ad20619017::t_c88e8f64a2528e 1-97
+client2/src/room/useInsets.ts
+  s_89d5ad20619017::t_b569a39520b71b 1-46
+client2/src/room/useRoomSignals.ts
+  s_89d5ad20619017::t_ee2a2f0fb9949d 1-135
+client2/src/room/useRoomState.ts
+  s_89d5ad20619017::t_d7672c5ddf7b53 1-130
+client2/src/roomRoute.test.ts
+  s_89d5ad20619017::t_e35fa2872162b5 1-37
+client2/src/roomRoute.ts
+  s_89d5ad20619017::t_131cbc4702a68e 1-37
+client2/src/sessionEntry.test.ts
+  s_89d5ad20619017::t_aba195e6df54d8 1-57
+client2/src/sessionEntry.ts
+  s_89d5ad20619017::t_f3d55e0b412242 1-95
+client2/src/test/pixiFake.ts
+  s_89d5ad20619017::t_e396eca5fd9d8e 1-272
+client2/src/test/setup.ts
+  s_89d5ad20619017::t_d1dd3139f12485 1
+client2/src/theme.css
+  s_89d5ad20619017::t_5bdc7456e73e08 1-1036
+client2/src/themeColor.test.ts
+  s_89d5ad20619017::t_d1c415f75f45e5 1-34
+client2/src/themeColor.ts
+  s_89d5ad20619017::t_11df91230a2682 1-19
+client2/src/useAnimationSettings.test.ts
+  s_89d5ad20619017::t_f16d850b24811f 1-81
+client2/src/useAnimationSettings.ts
+  s_89d5ad20619017::t_df9b861bf15e0d 1-52
+client2/src/useAuth.ts
+  s_89d5ad20619017::t_67f21333bca0c8 1-93
+client2/src/useCardBack.test.ts
+  s_89d5ad20619017::t_9a2635cde4ab0d 1-31
+client2/src/useCardBack.ts
+  s_89d5ad20619017::t_b8f0c8d9cbfd69 1-17
+client2/src/useCardBackImages.ts
+  s_89d5ad20619017::t_ed8879b57e0902 1-26
+client2/src/useFaceStyle.ts
+  s_89d5ad20619017::t_0c3ad9bab1d0c8 1-22
+client2/src/useFourColor.test.ts
+  s_89d5ad20619017::t_faa41312a38a0d 1-27
+client2/src/useFourColor.ts
+  s_89d5ad20619017::t_9d34bea133f317 1-15
+client2/src/useRoomConnection.ts
+  s_89d5ad20619017::t_ebe563e36f2798 1-128
+client2/src/version.test.ts
+  s_89d5ad20619017::t_02abbdd49acf36 1-58
+client2/src/version.ts
+  s_89d5ad20619017::t_425904021da5cf 1-66
+client2/src/vite-env.d.ts
+  s_89d5ad20619017::t_d5686bd5bf6bfa 1
+client2/tsconfig.json
+  s_89d5ad20619017::t_73f1abd157ff83 1-14
+client2/vite.config.ts
+  s_89d5ad20619017::t_a90c8a85ba4d8f 1-35
+client2/vitest.config.ts
+  s_89d5ad20619017::t_26f1545b4ed493 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7b746a69a6082b16f56d95f1886c664870d06bd3",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
