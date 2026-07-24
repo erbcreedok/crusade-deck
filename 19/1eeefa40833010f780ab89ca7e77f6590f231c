@@ -1,0 +1,71 @@
+client/src/game/pipLayout.test.ts
+  s_89d5ad20619017::t_9d75dc73b8f6dc 38-44,46
+  s_89d5ad20619017::t_c2b77e13b7ce3c 1-37,45,47-49
+client/src/RoomScreen.tsx
+  s_89d5ad20619017::t_14823d065943cd 421
+  s_89d5ad20619017::t_bb5b2bf893ebe9 7
+  s_89d5ad20619017::t_b168526ab3fb24 36,44
+client/src/game/cardBack.test.ts
+  s_89d5ad20619017::t_ff8f6cbc897ee5 8-10,14-21,25-26
+client/src/game/RoomCanvas.tsx
+  s_89d5ad20619017::t_095034a78e8021 70
+client/src/theme.css
+  s_89d5ad20619017::t_c08fa3acd2b053 781-789,795-822,832-837,846-861,870-902
+  s_89d5ad20619017::t_336d61f02090dc 903
+client/src/AppMenu.tsx
+  s_89d5ad20619017::t_7972da1b3a09c4 4-5
+  s_89d5ad20619017::t_cbeb8b43edc0bd 173
+  s_89d5ad20619017::t_5f27afba20ebb9 41-42
+  s_89d5ad20619017::t_1e46bb41dd6186 154-158
+  s_89d5ad20619017::t_02c16dc437d9f9 62-63
+  s_89d5ad20619017::t_929004c5b54481 20,26
+  s_89d5ad20619017::t_d1f4454af43d34 265,267-278,281-289,304-322
+  s_89d5ad20619017::t_80bde6afbcfb97 323-325
+client/src/AppMenu.test.tsx
+  s_89d5ad20619017::t_e5d23d2b204fb7 76-78,82-93,98,100-102,106-107
+  s_89d5ad20619017::t_4106862e4ef11e 26-27
+client/src/game/pipLayout.ts
+  s_89d5ad20619017::t_8e65296d4ed125 1-40
+client/src/game/engineProps.ts
+  s_89d5ad20619017::t_4bcb552d4cc8dc 5
+  s_89d5ad20619017::t_9ce5f6e8b040fc 35
+  s_89d5ad20619017::t_afb618de1491fd 102
+client/src/game/engine/cardTextures.ts
+  s_89d5ad20619017::t_c13803a7dd4309 36-41,62-82
+  s_89d5ad20619017::t_181fd84c985fc9 4,7-11
+  s_89d5ad20619017::t_99666f7dd96538 108-115
+  s_89d5ad20619017::t_9ab89f334b1681 12
+client/src/game/engine/faceTextureCache.ts
+  s_89d5ad20619017::t_80d6f2395ba09a 18-20,23,34,46-51,54-55,58-59,62,72,74,80
+client/src/useFaceStyle.ts
+  s_89d5ad20619017::t_a31c02e597ac66 1-22
+client/src/App.tsx
+  s_89d5ad20619017::t_2e295ec5e25200 96
+  s_89d5ad20619017::t_42e4abf45737b2 82-83
+  s_89d5ad20619017::t_80d44a96d307cc 26
+  s_89d5ad20619017::t_96a291a9c0e300 13
+client/src/game/RoomEngine.ts
+  s_89d5ad20619017::t_9767f1c9ff8036 1755-1763
+  s_89d5ad20619017::t_dd45083b311451 271
+  s_89d5ad20619017::t_3fcace2a99e11a 143
+  s_89d5ad20619017::t_bc13ba4e8a4ad1 188
+  s_89d5ad20619017::t_8ef4ab8a45d69d 4315,4321
+client/src/game/cardBack.ts
+  s_89d5ad20619017::t_f96864717ab9f7 5-13,18,22,28,35-52,62-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "191eeefa40833010f780ab89ca7e77f6590f231c",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
