@@ -1,0 +1,81 @@
+client/src/recentAccounts.ts
+  s_6b17180413249b::t_290c1296e61a57 1-42
+client/src/sessionEntry.ts
+  s_6b17180413249b::t_06ab58254d83c7 1-95
+client/index.html
+  s_6b17180413249b::t_a689aa38ad4285 16-17
+client/src/AuthScreen.tsx
+  s_6b17180413249b::t_7fe54c45008962 2,5-6,11-12,16-17
+  s_6b17180413249b::t_6671bff2ca096c 38-60
+client/src/AppMenu.test.tsx
+  s_6b17180413249b::t_a29c8903527f8a 28
+client/src/account.ts
+  s_6b17180413249b::t_a55f49c570e912 35
+  s_6b17180413249b::t_7e91f07d7b3e3d 125-127,133,135,137-147
+  s_6b17180413249b::t_08327da776d110 3
+  s_6b17180413249b::t_59895191c40d2f 1-2,11
+  s_6b17180413249b::t_ea8e7816929ecb 73-83
+  s_6b17180413249b::t_fd49d537bc14aa 128-132,134,136
+  s_6b17180413249b::t_64552b64e5e79b 29-34
+client/src/theme.css
+  s_6b17180413249b::t_ba05df8910d0c0 989-1000
+  s_6b17180413249b::t_ffc4ccdedfe4b8 943-988
+client/src/main.tsx
+  s_6b17180413249b::t_be1697d7131051 4,7-10
+  s_6b17180413249b::t_6589a0c73afe59 11
+client/src/Lobby.tsx
+  s_6b17180413249b::t_332bbd98b26320 157-159,167-171
+  s_6b17180413249b::t_beff12528f7ac0 20,26-27,31
+client/src/InstallPrompt.tsx
+  s_6b17180413249b::t_eab1bb1c4fe8d3 1-106
+client/src/sessionEntry.test.ts
+  s_6b17180413249b::t_be53c468cd178e 1-57
+client/src/useAuth.ts
+  s_6b17180413249b::t_860a52ef715dfc 25-26
+  s_6b17180413249b::t_bdeba6829b0cbb 53-55
+  s_6b17180413249b::t_ce83f39598d985 82-84
+client/src/useRoomConnection.ts
+  s_6b17180413249b::t_36621b30c5d6b7 12
+  s_6b17180413249b::t_38bd3884e9c9d7 31-37
+client/src/AppMenu.tsx
+  s_6b17180413249b::t_782cdd17adb045 295-301
+  s_6b17180413249b::t_b6f72fb2a6c1eb 107-119
+  s_6b17180413249b::t_8228299b8c76aa 59
+  s_6b17180413249b::t_ba9dd339100d00 126-130
+  s_6b17180413249b::t_85bce6cfc86414 41
+  s_6b17180413249b::t_145063efcc34b9 174-179
+  s_6b17180413249b::t_0570463ecf4073 78
+  s_6b17180413249b::t_52773c65197cc8 12
+client/src/pwaInstall.test.ts
+  s_6b17180413249b::t_23c3d52a5314a1 1-38
+client/public/manifest.webmanifest
+  s_6b17180413249b::t_985b82d2985fff 1-16
+client/src/pwaInstall.ts
+  s_6b17180413249b::t_0b8e36ca49fea5 58-59
+  s_6b17180413249b::t_1ac105eafa28db 1-57,60
+client/src/App.tsx
+  s_6b17180413249b::t_d915ee48609bda 52-57
+  s_6b17180413249b::t_cd53b57b435f7e 29-35
+  s_6b17180413249b::t_02bd4db59f2f50 14-15
+  s_6b17180413249b::t_2f11ffb590488b 79
+  s_6b17180413249b::t_e316ea138f6237 20-21
+  s_6b17180413249b::t_075cfb870d8101 108,111-113
+client/src/recentAccounts.test.ts
+  s_6b17180413249b::t_d503f8c84132ca 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "dad22d2a85039202f7a94d89229694d3aac99462",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
