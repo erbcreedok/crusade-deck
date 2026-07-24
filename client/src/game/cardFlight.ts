@@ -32,7 +32,9 @@ export function cardFlightPose(t: number, from: FlightPoint, to: FlightPoint, li
     x: lerp(from.x, to.x, u),
     y: lerp(from.y, to.y, u) - arc,
     rot: lerp(from.rot ?? 0, to.rot ?? 0, u),
-    alpha: 1 - u * 0.15,
+    // Призрак непрозрачный: карта — плотный предмет, а не полтень. Раньше 1−u·0.15 давало
+    // «блёклую» карту в полёте, из-за чего перелёт читался как спецэффект, а не как карта.
+    alpha: 1,
   };
 }
 

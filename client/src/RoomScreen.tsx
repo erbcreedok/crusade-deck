@@ -75,6 +75,10 @@ export function RoomScreen({
   const [myBoardFan, setMyBoardFan] = useState<BoardPile | null>(null);
   const [shuffleSignal, setShuffleSignal] = useState(0);
   const [autoDealing, setAutoDealing] = useState(false);
+  // Полный ремоунт канваса: сменой key React рушит старый движок (destroy) и поднимает
+  // свежий, который заливает текущее состояние. Лечит редкие залипания движка/дропзон
+  // без перезагрузки страницы (в PWA её и нет).
+  const [canvasKey, setCanvasKey] = useState(0);
   // Выделение элементов стола. Тап выделяет, тап мимо — снимает; правила (что с чем
   // складывается и что чем сбрасывается) живут в selection.ts.
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
@@ -398,7 +402,18 @@ export function RoomScreen({
         />
       )}
 
+      {/* Неприметная кнопка «пересобрать стол» — всегда в углу поверх канваса. */}
+      <button
+        className="canvas-reload"
+        onClick={() => setCanvasKey((k) => k + 1)}
+        aria-label="Пересобрать стол"
+        title="Пересобрать стол"
+      >
+        ⟳
+      </button>
+
       <RoomCanvas
+        key={canvasKey}
         deck={deck}
         hand={myHand}
         discard={discard}

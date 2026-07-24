@@ -407,6 +407,31 @@ textarea {
   z-index: 0;
 }
 
+/* Кнопка полного ремоунта канваса: неприметная, в нижнем левом углу, всегда доступна.
+   z-index выше панели действий (8), чтобы оставаться кликабельной поверх неё. */
+.canvas-reload {
+  position: absolute;
+  z-index: 9;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: max(8px, env(safe-area-inset-left));
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-family: "VT323", monospace;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--ink-dim);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.canvas-reload:active {
+  opacity: 0.85;
+}
+
 .room-canvas > canvas {
   display: block;
   width: 100%;

@@ -399,6 +399,9 @@ export class RoomEngine {
     dur: number;
     lift: number;
     toSelf: boolean;
+    faceUp: boolean; // КОНЕЧНАЯ сторона: лицом ли карта ложится
+    startFace: boolean; // НАЧАЛЬНАЯ сторона полёта (сторона источника)
+    flip: boolean; // startFace ≠ faceUp → призрак переворачивается в полёте (в любую сторону)
     /** Чужое место: +1 «ещё на месте» (сбор), −1 «ещё не прилетела» (раздача). */
     seatBiasId: string | null;
     seatBias: number;
@@ -1121,7 +1124,11 @@ export class RoomEngine {
       // «ломалось» в зависимости от того, какой путь тронул карты последним.
       c.sprite.zIndex = Z.handCards + i;
       c.sprite.texture = this.faceTexture(c.card); // свою руку владелец видит всегда
-      c.sprite.visible = true;
+      // Карта, за которой сейчас летит призрак, остаётся спрятанной до его приземления —
+      // иначе на экране разом настоящая карта в слоте И призрак в полёте (см. revealFlownCard).
+      const flying = this.flightCards.has(c.card);
+      c.sprite.visible = !flying;
+      c.sprite.alpha = flying ? 0 : 1;
     });
     this.syncHandCounter();
     this.syncCollapseButton();
@@ -1140,7 +1147,7 @@ export class RoomEngine {
     this.discardPile.reconcile(order);
     this.discardCards.forEach((c, i) => {
       c.body.snapTo(this.discardRestTarget(i));
-      c.sprite.alpha = 1;
+      c.sprite.alpha = this.flightCards.has(c.card) ? 0 : 1; // ждёт призрака, если он ещё летит
     });
     this.syncDiscardVisibility(); // она же расставит стороны: в покое горка лежит рубашкой
     this.syncDiscardCounter();
@@ -1170,9 +1177,12 @@ export class RoomEngine {
     }
     this.playPile.reconcile(flat.order);
     this.playCards.forEach((c, i) => {
-      c.body.snapTo(this.playRestTarget(i));
+      // setTarget, не snapTo: при реордере/удалении кучки карты ПЕРЕЕЗЖАЮТ по сетке пружиной,
+      // а не телепортируются. Новые карты reconcile уже поставил на место (snapTo при
+      // создании), так что для них это движения не даёт.
+      c.body.setTarget(this.playRestTarget(i));
       c.sprite.texture = this.faceTexture(c.card); // выложенную карту видят все
-      c.sprite.alpha = 1;
+      c.sprite.alpha = this.flightCards.has(c.card) ? 0 : 1; // ждёт призрака, если он ещё летит
     });
     this.syncPlayVisibility();
     this.drawZones();
@@ -2230,9 +2240,9 @@ export class RoomEngine {
     for (const m of moves) {
       if (this.flightCards.has(m.card)) continue;
       const from = this.cardMoveAnchor(m.from);
-      const to = this.cardMoveAnchor(m.to);
       const toSelf = m.to === this.selfId;
       const faceUp = toSelf || this.seatShowsFaces(m.to);
+      const to = toSelf ? this.predictHandSlot() : this.cardMoveAnchor(m.to);
       // Смещение счётчика — только у настоящего МЕСТА соседа (схема уже +1, но призрак ещё
       // летит). Для сброса/зоны/колоды места нет — bias там ни к чему.
       const seatBiasId = !toSelf && this.seatBoxes.some((b) => b.id === m.to) ? m.to : null;
@@ -2245,6 +2255,7 @@ export class RoomEngine {
         toSelf,
         seatBiasId,
         seatBias: seatBiasId ? -1 : 0,
+        fromFaceUp: m.from !== "deck", // закрытая колода раскрывается зрителю в полёте
       });
       delay += anim.cardMove.stagger * 0.5;
     }
@@ -2264,7 +2275,7 @@ export class RoomEngine {
    */
   flyCardOff(card: string, from: FlightPoint, toId: string): void {
     if (this.destroyed) return;
-    this.playDealFlight(card, from, toId);
+    this.playDealFlight(card, from, toId, true); // источник — колода, карта закрыта → перевернётся
     this.setDeck(withoutCard(this.deckCards, card));
   }
 
@@ -2273,14 +2284,17 @@ export class RoomEngine {
    * руку сразу — по той же причине, что и у колоды (см. flyCardOff): пока она числится в
    * стопке, веер руки продолжает держать под неё место.
    */
-  flyHandCardOff(card: string, from: FlightPoint, to: { cx: number; cy: number } | null): void {
+  flyHandCardOff(card: string, from: FlightPoint, to: { cx: number; cy: number } | null, landFaceUp = true): void {
     if (this.destroyed) return;
     if (to) {
       this.enqueueCardFlight({
         card,
         from,
         to: { x: to.cx, y: to.cy, rot: 0 },
-        faceUp: true, // сыгранную карту видно всем
+        // Карта из руки лицом; куда ложится — решает бокс: зона лицом вверх, сброс/колода
+        // рубашкой. Разная конечная сторона → призрак переворачивается лицо→рубашка в полёте.
+        faceUp: landFaceUp,
+        fromFaceUp: true,
         delay: 0,
         toSelf: false,
         seatBiasId: null,
@@ -2313,10 +2327,11 @@ export class RoomEngine {
   }
 
   /** Старт полёта с текущей позы (дроп раздачи с пальца). */
-  playDealFlight(card: string, from: FlightPoint, toId: string): void {
-    const to = this.cardMoveAnchor(toId);
+  playDealFlight(card: string, from: FlightPoint, toId: string, fromFaceDown = false): void {
     const toSelf = toId === this.selfId;
     const faceUp = toSelf || this.seatShowsFaces(toId);
+    // Летим в РЕАЛЬНЫЙ слот руки (а не в центр), если карта идёт ко мне; иначе — якорь бокса.
+    const to = toSelf ? this.predictHandSlot() : this.cardMoveAnchor(toId);
     // Схема вот-вот +1; держим стопку на месте, пока летит призрак (эхо card_moved скипнет).
     const seatBiasId = !toSelf && toId !== "deck" ? toId : null;
     this.enqueueCardFlight({
@@ -2328,6 +2343,7 @@ export class RoomEngine {
       toSelf,
       seatBiasId,
       seatBias: seatBiasId ? -1 : 0,
+      fromFaceUp: !fromFaceDown, // закрытый источник (колода) → переворот в полёте
     });
   }
 
@@ -2360,11 +2376,16 @@ export class RoomEngine {
     toSelf: boolean;
     seatBiasId: string | null;
     seatBias: number;
+    fromFaceUp?: boolean; // сторона ИСТОЧНИКА; по умолчанию = faceUp (без переворота)
   }): void {
     if (!this.cardLayer || !this.backTex) return;
     if (this.flightCards.has(opts.card)) return;
     this.flightCards.add(opts.card);
-    const tex = opts.faceUp && opts.card && !opts.card.startsWith("collect:")
+    // Призрак СТАРТУЕТ стороной источника и, если она отличается от конечной, переворачивается
+    // в полёте В НУЖНУЮ сторону (рубашка→лицо при раздаче, лицо→рубашка при сбросе).
+    const startFace = opts.fromFaceUp ?? opts.faceUp;
+    const flip = startFace !== opts.faceUp;
+    const tex = startFace && opts.card && !opts.card.startsWith("collect:")
       ? this.faceTexFor(opts.card)
       : this.backTex;
     const sprite = new Sprite(tex);
@@ -2396,6 +2417,9 @@ export class RoomEngine {
       dur: anim.cardMove.dur / Math.max(0.5, this.profile.speed),
       lift: this.layout.cardH * anim.cardMove.lift,
       toSelf: opts.toSelf,
+      faceUp: opts.faceUp,
+      startFace,
+      flip,
       seatBiasId: opts.seatBiasId,
       seatBias: opts.seatBias,
     });
@@ -2427,13 +2451,9 @@ export class RoomEngine {
       if (p >= 1) {
         f.sprite.destroy();
         this.flightCards.delete(f.card);
-        if (f.toSelf) {
-          const hv = this.hand.find((c) => c.card === f.card);
-          if (hv) {
-            hv.sprite.visible = true;
-            hv.sprite.alpha = 1;
-          }
-        }
+        // Призрак сел — показываем НАСТОЯЩУЮ карту там, где она осела (рука/зона/сброс).
+        // Последовательность: пока летел призрак, карта была спрятана (см. setHand и др.).
+        this.revealFlownCard(f.card);
         if (f.seatBiasId && f.seatBias !== 0) {
           this.addSeatFlightBias(f.seatBiasId, -f.seatBias);
           landedSeat = true;
@@ -2445,10 +2465,38 @@ export class RoomEngine {
       f.sprite.y = pose.y;
       f.sprite.rotation = pose.rot;
       f.sprite.alpha = pose.alpha;
+      // Переворот в полёте: половина оборота, ширина схлопывается на ребре (spinScale),
+      // а на переходе через ребро призрак меняет рубашку на лицо (или наоборот).
+      if (f.flip) {
+        const angle = spinAngle(easeOutQuad(clamp01(p)), 1);
+        f.sprite.scale.set(this.baseScale * spinScale(angle), this.baseScale);
+        // До ребра — сторона источника, после — конечная.
+        const wantFace = spinShowsOther(angle) ? f.faceUp : f.startFace;
+        const tex = wantFace && !f.card.startsWith("collect:") ? this.faceTexFor(f.card) : this.backTex!;
+        if (f.sprite.texture !== tex) f.sprite.texture = tex;
+      }
       live.push(f);
     }
     this.cardFlights = live;
     if (landedSeat) this.drawSeats();
+  }
+
+  /** Показать настоящую карту, за которую летел призрак, где бы она ни осела. */
+  private revealFlownCard(card: string): void {
+    const v =
+      this.hand.find((c) => c.card === card) ??
+      this.playCards.find((c) => c.card === card) ??
+      this.discardCards.find((c) => c.card === card);
+    if (v) {
+      v.sprite.visible = true;
+      v.sprite.alpha = 1;
+    }
+  }
+
+  /** Где встанет карта, доложенная в руку: слот индекса handCount в шеренге из handCount+1. */
+  private predictHandSlot(): FlightPoint {
+    const t = this.rowTarget(this.handCount, this.handCount + 1);
+    return { x: t.x ?? this.layout.handAnchor.x, y: t.y ?? this.layout.handAnchor.y, rot: 0 };
   }
 
   // Выровнять карты: у стопки уходит случайный разброс углов, у любой карты — накопленная
@@ -2830,7 +2878,7 @@ export class RoomEngine {
       // Сброс принимает карту всегда — и собранный, и раскрытый веером: слот на месте
       // в обоих случаях. Зона есть только в игре (см. layout.discardSlot).
       if (zone === "discard" || (this.boardFan === "discard" && this.inDeckFanArea(x, y))) {
-        this.flyHandCardOff(card, from, this.layout.discardSlot);
+        this.flyHandCardOff(card, from, this.layout.discardSlot, false); // сброс лежит рубашкой
         this.onDiscardCard?.(card);
         finish();
         return;
@@ -2854,7 +2902,7 @@ export class RoomEngine {
       }
       // В РАЗДАЧЕ центр стола — место колоды: брошенная туда карта возвращается в неё.
       if (!this.freeMode && zone === "center") {
-        this.flyHandCardOff(card, from, { cx: this.layout.deckAnchor.x, cy: this.layout.deckAnchor.y });
+        this.flyHandCardOff(card, from, { cx: this.layout.deckAnchor.x, cy: this.layout.deckAnchor.y }, false); // в колоду рубашкой
         this.onPutToDeck?.(card);
         finish();
         return;
@@ -4179,7 +4227,9 @@ export class RoomEngine {
    * отбрасывает тень «вглубь стола» просто за то, что она мелкая.
    */
   private pushPileShadow(out: ShadowCaster[], cards: CardVisual[], z: number, restScale?: number): void {
-    const base = cards[0];
+    // Карту, за которой ещё летит призрак, ПРОПУСКАЕМ: её тело уже в целевой клетке, но
+    // самой карты там нет (летит), и тень легла бы раньше карты — рассинхрон при дропе.
+    const base = cards.find((c) => !this.flightCards.has(c.card) && c.sprite.alpha > 0.01);
     if (!base || this.shuffleAnim || this.scrambleAnim) return; // разлетелись — общей тени нет
     // Именно спрайт: он уже включает и тряску отбоя, и idle-«дыхалку».
     out.push({
