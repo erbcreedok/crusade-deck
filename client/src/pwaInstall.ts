@@ -53,6 +53,22 @@ export function isIos(ua: string = navigator.userAgent): boolean {
   return /iphone|ipad|ipod/i.test(ua);
 }
 
+// Конкретный браузер на iOS: все они на WebKit, но UA разный. "unknown" — встроенный вебвью
+// (Telegram и пр.), где браузер не распознан: тогда инструкцию даём общую, про iOS.
+export type IosBrowser = "safari" | "chrome" | "firefox" | "edge" | "opera" | "yandex" | "unknown";
+
+export function iosBrowser(ua: string = navigator.userAgent): IosBrowser {
+  if (/CriOS/i.test(ua)) return "chrome";
+  if (/FxiOS/i.test(ua)) return "firefox";
+  if (/EdgiOS/i.test(ua)) return "edge";
+  if (/OPiOS|OPT\//i.test(ua)) return "opera";
+  if (/YaBrowser|YaApp/i.test(ua)) return "yandex";
+  // Настоящий Safari: есть и "Safari", и "Version/", и это не один из перечисленных выше.
+  // Встроенные вебвью (Telegram) обычно без "Version/" — попадают в unknown.
+  if (/Safari/i.test(ua) && /Version\//i.test(ua)) return "safari";
+  return "unknown";
+}
+
 export function isTelegram(ua: string = navigator.userAgent): boolean {
   // Вебвью Telegram выставляет мост в window; на части платформ его видно и в userAgent.
   const hasBridge = typeof window !== "undefined" && (window as unknown as { TelegramWebviewProxy?: unknown }).TelegramWebviewProxy !== undefined;

@@ -1,5 +1,41 @@
 import { useCallback, useEffect, useState } from "react";
-import { detectInstallMode, isIos, isStandalone, isTelegram, type InstallMode } from "./pwaInstall";
+import { detectInstallMode, iosBrowser, isIos, isStandalone, isTelegram, type InstallMode } from "./pwaInstall";
+
+// Инструкция «добавить на экран» под КОНКРЕТНЫЙ браузер iOS. Safari — «···» → «На экран
+// Домой» (в новом Safari «Поделиться» спрятан под «···»). Chrome/Edge — своё меню. Firefox
+// как приложение не умеет — зовём в Safari. Непонятный вебвью (Telegram и пр.) — общий совет.
+function iosHint(): { title: string; text: string } {
+  switch (iosBrowser()) {
+    case "safari":
+      return {
+        title: "Добавить на экран 📲",
+        text: "Нажми «···» внизу справа, затем «На экран „Домой“» (в старом Safari — сразу «Поделиться» ⬆️ → «На экран „Домой“»).",
+      };
+    case "chrome":
+      return {
+        title: "Добавить на экран 📲",
+        text: "В Chrome нажми «···» внизу справа (или «Поделиться»), затем «На экран „Домой“».",
+      };
+    case "edge":
+      return { title: "Добавить на экран 📲", text: "В Edge нажми «···» внизу, затем «На экран „Домой“»." };
+    case "opera":
+    case "yandex":
+      return {
+        title: "Добавить на экран 📲",
+        text: "Открой меню браузера («···»/«≡») и выбери «На экран „Домой“». Надёжнее — сделать это в Safari.",
+      };
+    case "firefox":
+      return {
+        title: "Открой в Safari 📲",
+        text: "Firefox на iPhone не добавляет игру как приложение — открой эту страницу в Safari и там «Поделиться» → «На экран „Домой“».",
+      };
+    default:
+      return {
+        title: "Открой в браузере 📲",
+        text: "Ты во встроенном браузере (он сворачивается). Открой страницу в Safari или Chrome и добавь на домашний экран.",
+      };
+  }
+}
 
 // Подсказка «добавить на домашний экран», по платформе (см. pwaInstall.ts). Показывается вне
 // комнаты, один раз: закрыли — запомнили в localStorage и больше не пристаём. Главная цель —
@@ -92,15 +128,16 @@ export function InstallPrompt() {
           </button>
         </>
       )}
-      {mode === "ios" && (
-        <>
-          <p className="install-title">Добавить на экран 📲</p>
-          <p className="install-text">
-            В Safari нажми «Поделиться» ⬆️ внизу, затем «На экран „Домой“». Если ты в Telegram —
-            сперва 🧭 «Открыть в Safari» (на iPhone своей кнопки для этого, увы, нет).
-          </p>
-        </>
-      )}
+      {mode === "ios" &&
+        (() => {
+          const hint = iosHint();
+          return (
+            <>
+              <p className="install-title">{hint.title}</p>
+              <p className="install-text">{hint.text}</p>
+            </>
+          );
+        })()}
     </div>
   );
 }
