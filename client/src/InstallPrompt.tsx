@@ -46,15 +46,6 @@ export function InstallPrompt({ open, onClose }: { open: boolean; onClose: () =>
     onClose();
   };
 
-  // Ссылка ВСЕГДА на чистый main — не на комнату и не на юзера.
-  const shareToHome = async () => {
-    try {
-      await navigator.share({ url: `${window.location.origin}/` });
-    } catch {
-      // отменил или недоступно — молча
-    }
-  };
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="pixel-panel" onClick={(e) => e.stopPropagation()}>
@@ -100,22 +91,16 @@ export function InstallPrompt({ open, onClose }: { open: boolean; onClose: () =>
   function renderIos() {
     const browser = iosBrowser();
 
-    // Safari/Chrome: встроенная кнопка «Поделиться» (navigator.share) — сами открываем шторку,
-    // юзер выбирает «На экран „Домой“». Кнопку показываем ВСЕГДА; ниже ручной фолбэк на случай,
-    // если API недоступен (старый iOS или локалка по HTTP — navigator.share есть только на HTTPS).
+    // Safari/Chrome: только ручная инструкция. Кнопку navigator.share убрали — в её шторке нет
+    // пункта «На экран „Домой“» (это действие живёт лишь в родной шторке браузера, из кода не
+    // вызывается — ограничение Apple).
     if (browser === "safari" || browser === "chrome") {
       return (
-        <>
-          <p className="install-text">Открой «Поделиться» и выбери в меню «На экран „Домой“».</p>
-          <button className="pixel-btn pixel-btn-full" onClick={shareToHome}>
-            📤 Поделиться
-          </button>
-          <p className="pixel-hint">
-            {browser === "chrome"
-              ? "Не сработало? «Поделиться» ⬆️ вверху у адреса → «На экран „Домой“»."
-              : "Не сработало? «···» внизу справа → «На экран „Домой“»."}
-          </p>
-        </>
+        <p className="install-text">
+          {browser === "chrome"
+            ? "Нажми «Поделиться» ⬆️ вверху у адреса, затем «На экран „Домой“»."
+            : "Нажми «···» внизу справа (или «Поделиться» ⬆️), затем «На экран „Домой“»."}
+        </p>
       );
     }
     // Прочие браузеры и встроенные вебвью — приоритет: увести в Safari.
