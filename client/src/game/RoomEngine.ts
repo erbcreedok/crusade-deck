@@ -1191,6 +1191,18 @@ export class RoomEngine {
     this.setPlayHover(zone === "center" ? pickPlayCell(this.playGridNow(), x, y) : null);
   }
 
+  /**
+   * Ховер над столом делится между БОКСОМ игровой зоны и КОНКРЕТНЫМ стеком. Над стеком
+   * (playHover !== null) подсвечиваем сам стек — он приподнимается и толкает соседей, — а
+   * бокс гасим до состояния «доступна, но не под картой»: иначе светились бы оба разом.
+   * Над игровой зоной вне стеков — наоборот, зовёт бокс.
+   */
+  private aimZoneAndStacks(x: number, y: number): void {
+    this.aimPlayHover(x, y); // ставит this.playHover: индекс стека или null
+    const target = pickDropTarget(x, y, this.layout);
+    this.hoverZone = target?.zone === "center" && this.playHover !== null ? null : target;
+  }
+
   /** Сетка зоны на текущую раскладку. Дёшево и без состояния — считается по месту. */
   private playGridNow(): PlayGrid {
     return playGrid(
@@ -1824,14 +1836,12 @@ export class RoomEngine {
     // раздвигать, а перестановка в сложенной руке лишена смысла.
     if (d.loose) {
       d.v.body.setTarget({ x, y, rot: 0, scale: DRAG_SCALE });
-      this.hoverZone = pickDropTarget(x, y, this.layout);
-      this.aimPlayHover(x, y);
+      this.aimZoneAndStacks(x, y);
       this.drawZones();
       return;
     }
     d.insertAt = d.fromHand ? this.insertHandIndexAt(x) : this.insertDeckIndexAt(x);
-    this.hoverZone = pickDropTarget(x, y, this.layout);
-    this.aimPlayHover(x, y);
+    this.aimZoneAndStacks(x, y);
     this.applyCardDragTargets();
     this.drawZones();
   }
@@ -2456,13 +2466,11 @@ export class RoomEngine {
       // Свёрнутая рука: тянем ВЕРХНЮЮ карту, остальные лежат как лежали — веер НЕ
       // раскрывается. Ровно как снятие верхней с колоды или кучки зоны: общая механика,
       // раскрытие — это отдельный жест (тап), а не побочный эффект драга.
-      this.hoverZone = pickDropTarget(p.x, p.y, this.layout);
-      this.aimPlayHover(p.x, p.y);
+      this.aimZoneAndStacks(p.x, p.y);
       v.body.setTarget({ x: p.x, y: p.y, rot: 0, scale: DRAG_SCALE });
       this.drawZones();
     } else {
-      this.hoverZone = pickDropTarget(p.x, p.y, this.layout);
-      this.aimPlayHover(p.x, p.y);
+      this.aimZoneAndStacks(p.x, p.y);
       this.applyCardDragTargets();
       this.drawZones();
     }

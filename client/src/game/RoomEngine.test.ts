@@ -885,6 +885,37 @@ describe("RoomEngine: игральная зона", () => {
     return r;
   }
 
+  // Наведение карты на КОНКРЕТНЫЙ стек поднимает его, а бокс зоны в это время НЕ светится
+  // (иначе горели бы оба). Вне стеков — наоборот, светится бокс.
+  it("над стеком бокс зоны гаснет (поднимается стек), вне стеков — светится бокс", async () => {
+    const { engine, app } = await inGame();
+    engine.setPlay([["2♣"], ["3♣"], ["4♣"]]);
+    engine.setHand(["9♦", "10♦"]);
+    engine.setSelectedDecks(["hand"]);
+    for (let i = 0; i < 80 && app.ticker.started; i++) app.ticker.__advance(16);
+
+    const { playGrid } = await import("./playGrid");
+    const g = playGrid((engine as any).layout.centerZone, (engine as any).layout.cardW, (engine as any).layout.cardH, 3);
+    const hit = findByZ(app.stage, 10_100);
+    hit.__emit("pointerdown", { pointerId: 5, global: { x: 195, y: 700 }, pointerType: "touch" });
+    app.stage.__emit("pointermove", { pointerId: 5, global: { x: 215, y: 680 } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+
+    // Над средним стеком: стек выбран, бокс погашен.
+    app.stage.__emit("pointermove", { pointerId: 5, global: { x: g.cells[1]!.cx, y: g.cells[1]!.cy } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    expect((engine as any).playHover).toBe(1);
+    expect((engine as any).hoverZone).toBeNull(); // бокс не светится
+
+    // Вне стеков (ячейка «сюда новую»): бокс зовёт к себе, стек не выбран.
+    app.stage.__emit("pointermove", { pointerId: 5, global: { x: g.addCell.cx, y: g.addCell.cy } });
+    for (let i = 0; i < 6; i++) app.ticker.__advance(16);
+    expect((engine as any).playHover).toBeNull();
+    expect((engine as any).hoverZone).toEqual({ zone: "center" });
+
+    app.stage.__emit("pointerup", { pointerId: 5, global: { x: g.addCell.cx, y: g.addCell.cy } });
+  });
+
   it("на каждую карту зоны ровно один спрайт, дубликатов нет", async () => {
     const { engine, app } = await inGame();
     const cardCount = () => pixi.__liveSprites().filter((sp: any) => sp.label !== "shadow").length;
