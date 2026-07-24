@@ -1,0 +1,37 @@
+client/src/AppMenu.test.tsx
+  s_6b17180413249b::t_b0c74e0ac3747d 29
+client/src/InstallPrompt.tsx
+  s_6b17180413249b::t_5ba278254da700 103-105,109-113,115-116
+  s_6b17180413249b::t_dfb8745c67d158 2
+  s_6b17180413249b::t_f6b93a53374da8 1,4-7,14,17,20,23,30-32,34-35,46,49,54,58-71,73-82,85-87,91-98,121,123-126
+  s_6b17180413249b::t_5226ad6540b399 99-102
+client/src/AuthScreen.tsx
+  s_6b17180413249b::t_5f21a55910216b 14,20
+  s_6b17180413249b::t_010904ab8c63c1 3
+  s_6b17180413249b::t_c95e12e95aea8b 99-109,111-113
+client/src/App.tsx
+  s_6b17180413249b::t_e745bad0621240 83
+  s_6b17180413249b::t_a302a01124c36c 59
+  s_6b17180413249b::t_a708e784206b50 28-29
+  s_6b17180413249b::t_0cc3cb5e0395ec 117-119
+client/src/AppMenu.tsx
+  s_6b17180413249b::t_b17041c3d60473 42
+  s_6b17180413249b::t_c0acad93c15d01 182-192
+  s_6b17180413249b::t_7f3bae2daff598 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "d87b61f79d8bfc3731720c9af9690f0ae9fe5590",
+  "prompts": {},
+  "sessions": {
+    "s_6b17180413249b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a265b69d-d570-4375-962e-540e04bea0f3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
